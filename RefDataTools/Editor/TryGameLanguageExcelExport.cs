@@ -18,6 +18,9 @@ namespace TryGame.RefDataTools.Editor
     {
         private const string LanguageSheetName = "Language";
 
+        /// <summary>
+        /// 批量导出语言表文件。
+        /// </summary>
         public static bool Export(IReadOnlyList<string> excelFullPaths, string outputAssetPath)
         {
             if (excelFullPaths == null || excelFullPaths.Count == 0)
@@ -37,6 +40,9 @@ namespace TryGame.RefDataTools.Editor
             return success;
         }
 
+        /// <summary>
+        /// 导出单个语言表到 txt_data/Language.bytes。
+        /// </summary>
         private static bool ExportSingle(string excelFullPath, string outputAssetPath)
         {
             if (!File.Exists(excelFullPath))
@@ -77,6 +83,9 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
 
+        /// <summary>
+        /// 根据字段名行筛选需要导出的列，空列后面的内容不再导出。
+        /// </summary>
         private static List<int> BuildExportColumns(List<string> headerRow)
         {
             List<int> result = new List<int>();
@@ -99,6 +108,9 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
 
+        /// <summary>
+        /// 按原项目格式生成 tab 分隔文本。
+        /// </summary>
         private static string BuildTabText(List<List<string>> rows, List<int> exportColumns)
         {
             StringBuilder sb = new StringBuilder();
@@ -117,6 +129,9 @@ namespace TryGame.RefDataTools.Editor
             return sb.ToString();
         }
 
+        /// <summary>
+        /// 写入一行 tab 分隔文本。
+        /// </summary>
         private static void AppendRow(StringBuilder sb, List<string> row, List<int> exportColumns)
         {
             for (int i = 0; i < exportColumns.Count; i++)
@@ -133,6 +148,9 @@ namespace TryGame.RefDataTools.Editor
             sb.Append("\r\n");
         }
 
+        /// <summary>
+        /// 判断一行在导出列范围内是否有有效内容。
+        /// </summary>
         private static bool HasAnyValue(List<string> row, List<int> exportColumns)
         {
             for (int i = 0; i < exportColumns.Count; i++)
@@ -146,11 +164,17 @@ namespace TryGame.RefDataTools.Editor
             return false;
         }
 
+        /// <summary>
+        /// 安全读取行里的单元格文本。
+        /// </summary>
         private static string GetCell(List<string> row, int index)
         {
             return index >= 0 && index < row.Count ? row[index] ?? string.Empty : string.Empty;
         }
 
+        /// <summary>
+        /// 从 xlsx 文件中读取指定 sheet 的所有行。
+        /// </summary>
         private static bool TryReadSheet(string excelFullPath, string sheetName, out List<List<string>> rows)
         {
             rows = new List<List<string>>();
@@ -193,6 +217,9 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
+        /// <summary>
+        /// 读取 xlsx 的共享字符串表。
+        /// </summary>
         private static List<string> ReadSharedStrings(ZipArchive archive)
         {
             List<string> result = new List<string>();
@@ -220,6 +247,9 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
 
+        /// <summary>
+        /// 读取 workbook 到具体 sheet 文件的关系映射。
+        /// </summary>
         private static Dictionary<string, string> ReadWorkbookRelationships(ZipArchive archive)
         {
             Dictionary<string, string> result = new Dictionary<string, string>();
@@ -247,6 +277,9 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
 
+        /// <summary>
+        /// 读取 sheetData 中的所有行数据。
+        /// </summary>
         private static List<List<string>> ReadRows(ZipArchiveEntry sheetEntry, List<string> sharedStrings)
         {
             List<List<string>> rows = new List<List<string>>();
@@ -277,6 +310,9 @@ namespace TryGame.RefDataTools.Editor
             return rows;
         }
 
+        /// <summary>
+        /// 读取单个 xlsx 单元格的文本值。
+        /// </summary>
         private static string ReadCellValue(XmlNode cellNode, List<string> sharedStrings, XmlNamespaceManager ns)
         {
             string cellType = cellNode.Attributes["t"] == null ? string.Empty : cellNode.Attributes["t"].Value;
@@ -308,6 +344,9 @@ namespace TryGame.RefDataTools.Editor
             return valueNode.InnerText;
         }
 
+        /// <summary>
+        /// 把 Excel 单元格引用中的列名转成零基列索引。
+        /// </summary>
         private static int ParseColumnIndex(string cellReference)
         {
             int result = 0;
@@ -325,6 +364,9 @@ namespace TryGame.RefDataTools.Editor
             return Mathf.Max(0, result - 1);
         }
 
+        /// <summary>
+        /// 从 xlsx 压缩包条目中加载 XML 文档。
+        /// </summary>
         private static XmlDocument LoadXml(ZipArchiveEntry entry)
         {
             XmlDocument doc = new XmlDocument();
@@ -336,6 +378,9 @@ namespace TryGame.RefDataTools.Editor
             return doc;
         }
 
+        /// <summary>
+        /// 创建 xlsx XML 默认命名空间管理器。
+        /// </summary>
         private static XmlNamespaceManager CreateNamespaceManager(XmlDocument doc)
         {
             XmlNamespaceManager ns = new XmlNamespaceManager(doc.NameTable);

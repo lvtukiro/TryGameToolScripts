@@ -19,6 +19,9 @@ namespace TryGame.RefDataTools.Editor
         private string excelRootAssetPath;
         private bool generateConfigAfterExport;
 
+        /// <summary>
+        /// 打开 TryGame 配表导出窗口。
+        /// </summary>
         [MenuItem("TryGame/RefData/打开导表窗口")]
         public static void Open()
         {
@@ -27,6 +30,9 @@ namespace TryGame.RefDataTools.Editor
             window.Show();
         }
 
+        /// <summary>
+        /// 从菜单直接导出默认目录下的全部配表。
+        /// </summary>
         [MenuItem("TryGame/RefData/导出全部配表并生成入口")]
         public static void ExportAllByMenu()
         {
@@ -35,6 +41,9 @@ namespace TryGame.RefDataTools.Editor
             ExportFiles(excelPaths, true);
         }
 
+        /// <summary>
+        /// 初始化窗口配置并刷新配表列表。
+        /// </summary>
         private void OnEnable()
         {
             excelRootAssetPath = EditorPrefs.GetString(ExcelRootPrefsKey, TryGameRefDataPaths.DefaultExcelRootAssetPath);
@@ -42,6 +51,9 @@ namespace TryGame.RefDataTools.Editor
             RefreshExcelList();
         }
 
+        /// <summary>
+        /// 绘制配表导出窗口。
+        /// </summary>
         private void OnGUI()
         {
             DrawPathBar();
@@ -49,6 +61,9 @@ namespace TryGame.RefDataTools.Editor
             DrawExcelList();
         }
 
+        /// <summary>
+        /// 绘制配表根目录选择栏。
+        /// </summary>
         private void DrawPathBar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
@@ -80,6 +95,9 @@ namespace TryGame.RefDataTools.Editor
             EditorGUILayout.EndHorizontal();
         }
 
+        /// <summary>
+        /// 绘制导出、刷新和生成入口按钮。
+        /// </summary>
         private void DrawToolbar()
         {
             EditorGUILayout.BeginHorizontal();
@@ -117,6 +135,9 @@ namespace TryGame.RefDataTools.Editor
             EditorGUILayout.Space(4f);
         }
 
+        /// <summary>
+        /// 绘制当前目录下的 Excel 配表列表。
+        /// </summary>
         private void DrawExcelList()
         {
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
@@ -150,6 +171,9 @@ namespace TryGame.RefDataTools.Editor
             EditorGUILayout.EndScrollView();
         }
 
+        /// <summary>
+        /// 重新扫描当前目录下的 Excel 配表。
+        /// </summary>
         private void RefreshExcelList()
         {
             excelItems.Clear();
@@ -164,6 +188,9 @@ namespace TryGame.RefDataTools.Editor
             Repaint();
         }
 
+        /// <summary>
+        /// 收集窗口中勾选的配表并执行导出。
+        /// </summary>
         private void ExportSelected()
         {
             List<string> selected = new List<string>();
@@ -178,6 +205,9 @@ namespace TryGame.RefDataTools.Editor
             ExportFiles(selected, generateConfigAfterExport);
         }
 
+        /// <summary>
+        /// 导出指定 Excel 列表，并在成功后按需生成 Config 入口。
+        /// </summary>
         private static void ExportFiles(List<string> excelFullPaths, bool generateConfig)
         {
             bool autoRefresh = EditorPrefs.GetBool("kAutoRefresh");
@@ -240,6 +270,9 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
+        /// <summary>
+        /// 判断当前 Excel 是否是语言表。
+        /// </summary>
         private static bool IsLanguageTable(string excelFullPath)
         {
             string name = Path.GetFileNameWithoutExtension(excelFullPath);
@@ -247,6 +280,9 @@ namespace TryGame.RefDataTools.Editor
                 name.IndexOf("语言表", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        /// <summary>
+        /// 设置列表中所有配表的选中状态。
+        /// </summary>
         private void SetAllSelected(bool selected)
         {
             for (int i = 0; i < excelItems.Count; i++)
@@ -255,6 +291,9 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
+        /// <summary>
+        /// 查找指定目录下可导出的 Excel 文件。
+        /// </summary>
         private static List<string> FindExcelFiles(string root)
         {
             List<string> result = new List<string>();
@@ -287,6 +326,9 @@ namespace TryGame.RefDataTools.Editor
             public readonly string Name;
             public bool Selected = true;
 
+            /// <summary>
+            /// 创建一个导出窗口里的 Excel 列表项。
+            /// </summary>
             public ExcelItem(string fullPath)
             {
                 FullPath = fullPath;
