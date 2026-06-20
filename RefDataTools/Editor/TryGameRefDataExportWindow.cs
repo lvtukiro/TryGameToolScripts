@@ -184,12 +184,27 @@ namespace TryGame.RefDataTools.Editor
             try
             {
                 EditorPrefs.SetBool("kAutoRefresh", false);
-                TryGameCLTabtoyProcess process = new TryGameCLTabtoyProcess(
-                    TryGameRefDataPaths.DefaultOutputAssetPath,
-                    TryGameRefDataPaths.DefaultGeneratedTableAssetPath,
-                    TryGameRefDataPaths.DefaultLuaOutputAssetPath);
 
-                if (process.Export(excelFullPaths) && generateConfig)
+                List<string> cltabtoyFiles = new List<string>();
+                List<string> languageFiles = new List<string>();
+                SplitExportFiles(excelFullPaths, cltabtoyFiles, languageFiles);
+
+                bool success = true;
+                if (cltabtoyFiles.Count > 0)
+                {
+                    TryGameCLTabtoyProcess process = new TryGameCLTabtoyProcess(
+                        TryGameRefDataPaths.DefaultOutputAssetPath,
+                        TryGameRefDataPaths.DefaultGeneratedTableAssetPath,
+                        TryGameRefDataPaths.DefaultLuaOutputAssetPath);
+                    success = process.Export(cltabtoyFiles);
+                }
+
+                if (success && languageFiles.Count > 0)
+                {
+                    success = TryGameLanguageExcelExport.Export(languageFiles, TryGameRefDataPaths.DefaultOutputAssetPath);
+                }
+
+                if (success && generateConfig)
                 {
                     TryGameConfigGenerator.GenerateDefault();
                 }
@@ -199,6 +214,37 @@ namespace TryGame.RefDataTools.Editor
                 EditorPrefs.SetBool("kAutoRefresh", autoRefresh);
                 AssetDatabase.Refresh();
             }
+        }
+
+        /// <summary>
+        /// 语言表沿用原项目流程，不参与 cltabtoy 普通表导出。
+        /// </summary>
+        private static void SplitExportFiles(List<string> excelFullPaths, List<string> cltabtoyFiles, List<string> languageFiles)
+        {
+            if (excelFullPaths == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < excelFullPaths.Count; i++)
+            {
+                string path = excelFullPaths[i];
+                if (IsLanguageTable(path))
+                {
+                    languageFiles.Add(path);
+                }
+                else
+                {
+                    cltabtoyFiles.Add(path);
+                }
+            }
+        }
+
+        private static bool IsLanguageTable(string excelFullPath)
+        {
+            string name = Path.GetFileNameWithoutExtension(excelFullPath);
+            return name.IndexOf("Language", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("语言表", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private void SetAllSelected(bool selected)

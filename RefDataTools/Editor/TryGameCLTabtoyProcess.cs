@@ -69,7 +69,8 @@ namespace TryGame.RefDataTools.Editor
         }
 
         /// <summary>
-        /// 执行外部进程并把输出写回 Unity Console。
+        /// 执行外部进程。
+        /// cltabtoy 启动时会读取 Console buffer，重定向输出会导致句柄无效。
         /// </summary>
         private bool RunProcess(string arguments)
         {
@@ -81,28 +82,12 @@ namespace TryGame.RefDataTools.Editor
                 process.StartInfo.Arguments = arguments;
                 process.StartInfo.WorkingDirectory = Path.GetDirectoryName(exePath);
                 process.StartInfo.CreateNoWindow = true;
-                process.StartInfo.UseShellExecute = false;
-                process.StartInfo.RedirectStandardOutput = true;
-                process.StartInfo.RedirectStandardError = true;
-                process.StartInfo.StandardOutputEncoding = Encoding.UTF8;
-                process.StartInfo.StandardErrorEncoding = Encoding.UTF8;
+                process.StartInfo.UseShellExecute = true;
 
                 try
                 {
                     process.Start();
-                    string output = process.StandardOutput.ReadToEnd();
-                    string error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
-
-                    if (!string.IsNullOrEmpty(output))
-                    {
-                        UnityEngine.Debug.Log(output);
-                    }
-
-                    if (!string.IsNullOrEmpty(error))
-                    {
-                        UnityEngine.Debug.LogError(error);
-                    }
 
                     if (process.ExitCode != 0)
                     {
