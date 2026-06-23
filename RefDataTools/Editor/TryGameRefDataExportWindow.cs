@@ -11,6 +11,7 @@ namespace TryGame.RefDataTools.Editor
     /// </summary>
     public sealed class TryGameRefDataExportWindow : EditorWindow
     {
+        private const string CommonDefineExcelName = "共用枚举结构体.xlsx";
         private const string ExcelRootPrefsKey = "TryGame.RefData.ExcelRoot";
         private const string ExportAfterGeneratePrefsKey = "TryGame.RefData.ExportAfterGenerate";
 
@@ -310,7 +311,8 @@ namespace TryGame.RefDataTools.Editor
                 string name = Path.GetFileName(file);
                 if ((extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ||
                     extension.Equals(".xlsm", StringComparison.OrdinalIgnoreCase)) &&
-                    !name.StartsWith("~$", StringComparison.OrdinalIgnoreCase))
+                    !name.StartsWith("~$", StringComparison.OrdinalIgnoreCase) &&
+                    !name.Equals(CommonDefineExcelName, StringComparison.OrdinalIgnoreCase))
                 {
                     result.Add(file.Replace("\\", "/"));
                 }

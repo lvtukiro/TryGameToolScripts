@@ -4,13 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using UnityEditor;
-using UnityEngine;
 
 namespace TryGame.RefDataTools.Editor
 {
-    /// <summary>
-    /// cltabtoy 导出进程封装。
-    /// </summary>
     internal sealed class TryGameCLTabtoyProcess
     {
         private readonly string exePath;
@@ -26,9 +22,6 @@ namespace TryGame.RefDataTools.Editor
             luaOutputPath = TryGameRefDataPaths.ToFullPath(luaOutputAssetPath);
         }
 
-        /// <summary>
-        /// 批量导出选中的 Excel 文件。
-        /// </summary>
         public bool Export(IReadOnlyList<string> excelFullPaths)
         {
             if (!File.Exists(exePath))
@@ -68,10 +61,6 @@ namespace TryGame.RefDataTools.Editor
             return RunProcess(args.ToString());
         }
 
-        /// <summary>
-        /// 执行外部进程。
-        /// cltabtoy 启动时会读取 Console buffer，重定向输出会导致句柄无效。
-        /// </summary>
         private bool RunProcess(string arguments)
         {
             UnityEngine.Debug.Log("开始导出配表：" + arguments);
@@ -81,7 +70,7 @@ namespace TryGame.RefDataTools.Editor
                 process.StartInfo.FileName = exePath;
                 process.StartInfo.Arguments = arguments;
                 process.StartInfo.WorkingDirectory = Path.GetDirectoryName(exePath);
-                process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.CreateNoWindow = false;
                 process.StartInfo.UseShellExecute = true;
 
                 try
@@ -91,6 +80,12 @@ namespace TryGame.RefDataTools.Editor
 
                     if (process.ExitCode != 0)
                     {
+                        if (process.ExitCode == -1073741510)
+                        {
+                            UnityEngine.Debug.LogError("cltabtoy 导出进程被中断。通常是导出结束后直接关闭了控制台窗口，请在控制台里按任意键退出。");
+                            return false;
+                        }
+
                         UnityEngine.Debug.LogError("cltabtoy 导出失败，ExitCode = " + process.ExitCode);
                         return false;
                     }

@@ -25,6 +25,7 @@ namespace TryGame.PlaceholderTools.Editor
         private const string FurnitureSheetName = "HomeFurniture";
         private const string FurnitureResourceSheetName = "FurnitureResource";
         private const string ResourceRuleSheetName = "ResourceRule";
+        private const string CommonSpriteAssetPathFormat = "Assets/TryGameBuildRes/gui/sprite/spt_{0}/spt_{0}_{1}.png";
         private static readonly Regex ResourceJsonRegex = new Regex(
             @"""MainId""\s*:\s*(?<main>\d+)\s*,\s*""SubId""\s*:\s*(?<sub>\d+)",
             RegexOptions.Compiled);
@@ -63,10 +64,13 @@ namespace TryGame.PlaceholderTools.Editor
                 }
 
                 string iconAssetPath = string.Empty;
-                if (TryGetResource(resourceRows, furniture.iconResourceId, out FurnitureResourceRow iconResource) &&
-                    TryGetResource(ruleRows, iconResource.ruleId, out ResourceRuleRow iconRule))
+                if (!furniture.icon.IsEmpty())
                 {
-                    iconAssetPath = ResolveSpriteAssetPath(iconRule, iconResource.resource);
+                    iconAssetPath = string.Format(
+                        CultureInfo.InvariantCulture,
+                        CommonSpriteAssetPathFormat,
+                        furniture.icon.mainId,
+                        furniture.icon.subId);
                 }
 
                 string imageAssetPath = FindImageAssetPath(furniture, imageByName, iconAssetPath);
@@ -129,7 +133,7 @@ namespace TryGame.PlaceholderTools.Editor
                     nameKey = GetValue(row, "nameKey"),
                     displayName = GetValue(row, "#家具名称"),
                     resourceId = ParseInt(GetValue(row, "resourceId")),
-                    iconResourceId = ParseInt(GetValue(row, "iconResourceId")),
+                    icon = ReadIconResource(row),
                     shapeRows = SplitShapeRows(GetValue(row, "shapeRows")),
                 });
             }
@@ -477,6 +481,14 @@ namespace TryGame.PlaceholderTools.Editor
         }
 
         /// <summary>
+        /// 读取图标 ID。新表字段是 iconId；旧表字段 iconResourceId 暂时兼容。
+        /// </summary>
+        private static CommonResource ReadIconResource(Dictionary<string, string> row)
+        {
+            return ParseResource(GetValue(row, "icon"));
+        }
+
+        /// <summary>
         /// 读取字典里的字段值。
         /// </summary>
         private static string GetValue(Dictionary<string, string> row, string key)
@@ -548,7 +560,7 @@ namespace TryGame.PlaceholderTools.Editor
             public string nameKey;
             public string displayName;
             public int resourceId;
-            public int iconResourceId;
+            public CommonResource icon;
             public string[] shapeRows;
         }
 
