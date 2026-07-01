@@ -6,55 +6,54 @@ using UnityEngine;
 namespace TryGame.HomeDebugTools.Editor
 {
     /// <summary>
-    /// 1.0C 运行时家区域解锁工具。只修改当前运行存档，不做进游戏自动解锁。
+    /// Home 运行时作弊工具。
+    /// 只在 Play Mode 中修改当前运行存档，用于测试区域解锁、物品数量和商店刷新。
     /// </summary>
     public sealed class TryGameHomeAreaDebugUnlockWindow : EditorWindow
     {
         private string areaIdsText = HomeAreaDebugUnlocks.DefaultAreaIdsText;
+        private string itemIdText = HomeAreaDebugUnlocks.DefaultItemIdText;
+        private string addItemCountText = HomeAreaDebugUnlocks.DefaultItemCountText;
+        private string removeItemCountText = HomeAreaDebugUnlocks.DefaultItemCountText;
         private Vector2 scrollPosition;
 
-        [MenuItem("TryGame/Home/运行时家区域解锁工具")]
+        [MenuItem("TryGame/Home/运行时 Home 作弊工具")]
         public static void Open()
         {
-            TryGameHomeAreaDebugUnlockWindow window = GetWindow<TryGameHomeAreaDebugUnlockWindow>("运行时家区域工具");
-            window.minSize = new Vector2(440f, 260f);
+            TryGameHomeAreaDebugUnlockWindow window = GetWindow<TryGameHomeAreaDebugUnlockWindow>("Home 作弊工具");
+            window.minSize = new Vector2(460f, 420f);
             window.Show();
         }
 
         private void OnGUI()
         {
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
-            EditorGUILayout.LabelField("运行时修改当前存档的 HomeArea 解锁状态", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("运行时修改当前存档", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "只在 Play Mode 下生效。填入 HomeAreaId 后点击按钮，直接修改当前运行存档的 unlockedHomeAreaIds 并标记 Dirty。",
+                "只在 Play Mode 下生效。工具会直接修改 SaveRuntime.Current，并标记 Dirty；玩家正常存档时会一起写盘。",
                 MessageType.Info);
 
             if (!EditorApplication.isPlaying)
             {
-                EditorGUILayout.HelpBox("请先进入 Play Mode，再点击解锁或锁定。", MessageType.Warning);
+                EditorGUILayout.HelpBox("请先进入 Play Mode，再使用作弊命令。", MessageType.Warning);
             }
 
+            DrawAreaSection();
+            DrawItemSection();
+            DrawShopSection();
+            EditorGUILayout.EndScrollView();
+        }
+
+        private void DrawAreaSection()
+        {
+            EditorGUILayout.Space(8f);
+            EditorGUILayout.LabelField("HomeArea 解锁", EditorStyles.boldLabel);
             EditorGUILayout.LabelField("HomeAreaId 列表");
             areaIdsText = EditorGUILayout.TextArea(areaIdsText, GUILayout.MinHeight(72f));
             EditorGUILayout.HelpBox("支持逗号、空格、分号或换行分隔，例如：10002, 10003", MessageType.None);
 
-            DrawPreview();
-            DrawButtons();
-            EditorGUILayout.EndScrollView();
-        }
+            DrawAreaPreview();
 
-        private void DrawPreview()
-        {
-            List<int> areaIds = new List<int>();
-            HomeAreaDebugUnlocks.ParseAreaIds(areaIdsText, areaIds, false);
-            string preview = areaIds.Count > 0 ? string.Join(", ", areaIds) : "无";
-            EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("输入区域", preview);
-        }
-
-        private void DrawButtons()
-        {
-            EditorGUILayout.Space(8f);
             using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
             {
                 EditorGUILayout.BeginHorizontal();
@@ -70,10 +69,64 @@ namespace TryGame.HomeDebugTools.Editor
                 EditorGUILayout.EndHorizontal();
             }
 
-            if (GUILayout.Button("清空输入"))
+            if (GUILayout.Button("清空区域输入"))
             {
                 areaIdsText = string.Empty;
             }
+        }
+
+        private void DrawItemSection()
+        {
+            EditorGUILayout.Space(12f);
+            EditorGUILayout.LabelField("物品数量作弊", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "当前支持金币 Item 和家具 Item。金币会修改 economy.gold；家具会修改当前档家具背包数量，不会处理已经摆放在场景里的实例。",
+                MessageType.None);
+
+            itemIdText = EditorGUILayout.TextField("物品 id", itemIdText);
+            addItemCountText = EditorGUILayout.TextField("物品添加数量", addItemCountText);
+            removeItemCountText = EditorGUILayout.TextField("物品减少数量", removeItemCountText);
+
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            {
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("添加物品数量"))
+                {
+                    ApplyItemCountChange(true);
+                }
+
+                if (GUILayout.Button("减少物品数量"))
+                {
+                    ApplyItemCountChange(false);
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+        }
+
+        private void DrawShopSection()
+        {
+            EditorGUILayout.Space(12f);
+            EditorGUILayout.LabelField("商店测试", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "随机刷新会按 HomeShopGoods 表权重抽取商品，并发送 RefreshShop 消息让已打开的商店界面立即刷新。",
+                MessageType.None);
+
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            {
+                if (GUILayout.Button("商人随机刷新商品"))
+                {
+                    HomeAreaDebugUnlocks.RandomRefreshHomeShop();
+                }
+            }
+        }
+
+        private void DrawAreaPreview()
+        {
+            List<int> areaIds = new List<int>();
+            HomeAreaDebugUnlocks.ParseAreaIds(areaIdsText, areaIds, false);
+            string preview = areaIds.Count > 0 ? string.Join(", ", areaIds) : "无";
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("输入区域", preview);
         }
 
         private void ApplyUnlock(bool unlock)
@@ -113,6 +166,30 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log($"[TryGameHomeAreaDebugUnlockWindow] 已{action}当前档 HomeArea：{string.Join(", ", areaIds)}");
         }
 
+        private void ApplyItemCountChange(bool add)
+        {
+            if (!HomeAreaDebugUnlocks.TryParsePositiveInt(itemIdText, "物品 id", out int itemId))
+            {
+                return;
+            }
+
+            string countText = add ? addItemCountText : removeItemCountText;
+            string fieldName = add ? "物品添加数量" : "物品减少数量";
+            if (!HomeAreaDebugUnlocks.TryParsePositiveInt(countText, fieldName, out int count))
+            {
+                return;
+            }
+
+            if (add)
+            {
+                HomeAreaDebugUnlocks.TryAddItem(itemId, count);
+            }
+            else
+            {
+                HomeAreaDebugUnlocks.TryRemoveItem(itemId, count);
+            }
+        }
+
         private static bool UnlockArea(SaveData save, int homeAreaId)
         {
             if (!TryGameConfigProvider.GetHomeArea(homeAreaId).HasValue)
@@ -135,7 +212,7 @@ namespace TryGame.HomeDebugTools.Editor
             bool removed = save.world.unlockedHomeAreaIds.Remove(homeAreaId);
             if (removed && save.world.currentHomeAreaId == homeAreaId)
             {
-                Debug.LogError($"[TryGameHomeAreaDebugUnlockWindow] 已锁定当前所在 HomeArea：{homeAreaId}。当前场景不会自动切区，下次进档会由 WorldRuntime 报错并回默认区域。");
+                Debug.LogError($"[TryGameHomeAreaDebugUnlockWindow] 已锁定当前所在 HomeArea：{homeAreaId}。当前场景不会自动切区，下次进档会由 WorldRuntime 校验并回默认区域。");
             }
 
             return removed;
