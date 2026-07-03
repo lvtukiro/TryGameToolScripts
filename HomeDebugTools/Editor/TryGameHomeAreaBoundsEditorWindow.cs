@@ -171,6 +171,11 @@ namespace TryGame.HomeDebugTools.Editor
                 ApplySelectionBounds(selected);
             }
 
+            if (GUILayout.Button("用配表值填入上方字段"))
+            {
+                ResetCurrentFieldsFromTable(selected);
+            }
+
             if (GUILayout.Button("镜头定位到范围"))
             {
                 FrameSelectedArea(selected);
@@ -375,6 +380,37 @@ namespace TryGame.HomeDebugTools.Editor
             row.GridWidth = Mathf.Max(1, Mathf.CeilToInt(bounds.size.x / row.CellSize));
             row.GridHeight = Mathf.Max(2, Mathf.CeilToInt(bounds.size.y / row.CellSize));
             MarkDirty();
+            SceneView.RepaintAll();
+        }
+
+        private void ResetCurrentFieldsFromTable(HomeAreaRow row)
+        {
+            if (row == null)
+            {
+                return;
+            }
+
+            int gridWidth;
+            int gridHeight;
+            float cellSize;
+            float originX;
+            float originY;
+            if (!TryParseInt(row.Columns, gridWidthColumn, out gridWidth)
+                || !TryParseInt(row.Columns, gridHeightColumn, out gridHeight)
+                || !TryParseFloat(row.Columns, cellSizeColumn, out cellSize)
+                || !TryParseFloat(row.Columns, originXColumn, out originX)
+                || !TryParseFloat(row.Columns, originYColumn, out originY))
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 当前 HomeArea 的配表数值解析失败，无法覆盖当前编辑值。");
+                return;
+            }
+
+            row.GridWidth = Mathf.Max(1, gridWidth);
+            row.GridHeight = Mathf.Max(2, gridHeight);
+            row.CellSize = Mathf.Max(0.01f, cellSize);
+            row.OriginX = originX;
+            row.OriginY = originY;
+            RefreshDirtyState();
             SceneView.RepaintAll();
         }
 
@@ -695,6 +731,49 @@ namespace TryGame.HomeDebugTools.Editor
         {
             dirty = true;
             Repaint();
+        }
+
+        private void RefreshDirtyState()
+        {
+            dirty = false;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (!IsSameAsTableValues(rows[i]))
+                {
+                    dirty = true;
+                    break;
+                }
+            }
+
+            Repaint();
+        }
+
+        private bool IsSameAsTableValues(HomeAreaRow row)
+        {
+            if (row == null)
+            {
+                return true;
+            }
+
+            int gridWidth;
+            int gridHeight;
+            float cellSize;
+            float originX;
+            float originY;
+            if (!TryParseInt(row.Columns, gridWidthColumn, out gridWidth)
+                || !TryParseInt(row.Columns, gridHeightColumn, out gridHeight)
+                || !TryParseFloat(row.Columns, cellSizeColumn, out cellSize)
+                || !TryParseFloat(row.Columns, originXColumn, out originX)
+                || !TryParseFloat(row.Columns, originYColumn, out originY))
+            {
+                return true;
+            }
+
+            return row.GridWidth == Mathf.Max(1, gridWidth)
+                && row.GridHeight == Mathf.Max(2, gridHeight)
+                && Mathf.Approximately(row.CellSize, Mathf.Max(0.01f, cellSize))
+                && Mathf.Approximately(row.OriginX, originX)
+                && Mathf.Approximately(row.OriginY, originY);
         }
 
         private static string[] SplitLine(string line)
