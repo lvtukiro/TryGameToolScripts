@@ -14,14 +14,14 @@ namespace TryGame.HomeDebugTools.Editor
 {
     /// <summary>
     /// SceneView HomeArea 覆盖范围编辑工具。
-    /// 用于在场景 / prefab 视图里对照配表范围调整场景资源，并把 HomeArea 中心和尺寸写回导出配置。
+    /// 用于在场景或 prefab 视图里对照配表范围调整场景资源，并把 HomeArea 中心和尺寸写回导出配置。
     /// </summary>
     public sealed class TryGameHomeAreaBoundsEditorWindow : EditorWindow
     {
-        private const string HomeAreaTxtAssetPath = "Assets/TryGameRefdataRes/v2/Output/txt_data/HomeArea.txt";
-        private const string HomeAreaClientJsonAssetPath = "Assets/TryGameRefdataRes/v2/Output/Json/client/HomeArea.json";
-        private const string HomeAreaServerJsonAssetPath = "Assets/TryGameRefdataRes/v2/Output/Json/server/HomeAreaRef.json";
-        private const string HomeAreaBytesAssetPath = "Assets/TryGameRefdataRes/v2/Output/fb_data/HomeArea.bytes";
+        private const string HomeAreaTxtAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/txt_data/HomeArea.txt";
+        private const string HomeAreaClientJsonAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/Json/client/HomeArea.json";
+        private const string HomeAreaServerJsonAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/Json/server/HomeAreaRef.json";
+        private const string HomeAreaBytesAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/fb_data/HomeArea.bytes";
 
         private static readonly CultureInfo InvariantCulture = CultureInfo.InvariantCulture;
         private static readonly Regex DataLineRegex = new Regex(@"^\s*\d+\s*\t", RegexOptions.Compiled);
@@ -259,8 +259,8 @@ namespace TryGame.HomeDebugTools.Editor
 
         private void DrawGridLines(HomeAreaRow row, Rect rect)
         {
-            int maxLines = 120;
-            if (row.GridWidth + row.GridHeight > maxLines)
+            const int MaxLines = 120;
+            if (row.GridWidth + row.GridHeight > MaxLines)
             {
                 return;
             }
@@ -718,7 +718,7 @@ namespace TryGame.HomeDebugTools.Editor
         {
             EditorSceneManager.SaveOpenScenes();
             AssetDatabase.SaveAssets();
-            Debug.Log("[TryGameHomeAreaBoundsEditorWindow] 已保存当前打开的场景/Prefab 和资源。");
+            Debug.Log("[TryGameHomeAreaBoundsEditorWindow] 已保存当前打开的场景、Prefab 和资源。");
         }
 
         private HomeAreaRow GetSelectedRow()

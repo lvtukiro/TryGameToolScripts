@@ -3,15 +3,15 @@
 ## 导表入口
 
 Unity 菜单：
-
 - `TryGame/RefData/打开导表窗口`
 - `TryGame/RefData/导出全部配表并生成入口`
 - `TryGame/RefData/生成 Config 读取入口`
 
 ## 默认目录
 
-- Excel 配表：`Assets/TryGameRefdataRes/v2`
-- bytes 输出：`Assets/TryGameRefdataRes/v2/Output/fb_data`
+- Excel 配表：`Assets/Resources/TryGameRefdataRes/v2`
+- 导表输出：`Assets/Resources/TryGameRefdataRes/v2/Output`
+- bytes 输出：`Assets/Resources/TryGameRefdataRes/v2/Output/fb_data`
 - cltabtoy 生成表代码：`Assets/TryGameRefdataScripts/GeneratedTables`
 - 自动生成 Config：`Assets/TryGameRefdataScripts/GeneratedConfig`
 - 工具二进制：`Assets/TryGameToolScripts/RefDataTools/Bin`
@@ -36,8 +36,8 @@ BattleSkill  -> BattleConfig.GetSkill(id)
 
 ## 单人开发推荐工作流
 
-1. 在 `Assets/TryGameRefdataRes/v2` 新增或修改 Excel。
+1. 在 `Assets/Resources/TryGameRefdataRes/v2` 新增或修改 Excel。
 2. 表名按 `PetBase`、`CommonAudio` 这类规则命名。
 3. 打开导表窗口，导出选中表。
-4. 工具自动刷新 bytes、生成表代码、生成 `XxxConfig` 入口。
+4. 工具自动刷新 Resources 下的 bytes、生成表代码、生成 `XxxConfig` 入口。
 5. 业务代码只读 `PetConfig.GetBase(id)` / `GeneralConfig.Data.xxx` / `Lang.Get(key)`。

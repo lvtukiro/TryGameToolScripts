@@ -8,8 +8,8 @@ namespace TryGame.RefDataTools.Editor
     /// </summary>
     internal static class TryGameRefDataPaths
     {
-        public const string DefaultExcelRootAssetPath = "Assets/TryGameRefdataRes/v2";
-        public const string DefaultOutputAssetPath = "Assets/TryGameRefdataRes/v2/Output";
+        public const string DefaultExcelRootAssetPath = "Assets/Resources/TryGameRefdataRes/v2";
+        public const string DefaultOutputAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output";
         public const string DefaultGeneratedTableAssetPath = "Assets/TryGameRefdataScripts/GeneratedTables";
         public const string DefaultGeneratedConfigAssetPath = "Assets/TryGameRefdataScripts/GeneratedConfig";
         public const string DefaultLuaOutputAssetPath = "Assets/TryGameToolScripts/RefDataTools/LuaOutput";

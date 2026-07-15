@@ -16,16 +16,16 @@ namespace TryGame.PlaceholderTools.Editor
     /// </summary>
     public static class TryGameFurniturePlaceholderPrefabGenerator
     {
-        private const string ExcelRoot = "Assets/TryGameRefdataRes/v2";
+        private const string ExcelRoot = "Assets/Resources/TryGameRefdataRes/v2";
         private const string FurnitureExcelName = "h.家园1_0A.xlsx";
         private const string ResourceExcelName = "z.资源相关表.xlsx";
-        private const string SourceImageRoot = "Assets/TryGameBuildRes";
-        private const string GeneratedFurnitureRoot = "Assets/TryGameBuildRes/home/furniture";
-        private const string GeneratedSpriteRoot = "Assets/TryGameBuildRes/gui/sprite";
+        private const string SourceImageRoot = "Assets/Resources/TryGameBuildRes";
+        private const string GeneratedFurnitureRoot = "Assets/Resources/TryGameBuildRes/home/furniture";
+        private const string GeneratedSpriteRoot = "Assets/Resources/TryGameBuildRes/gui/sprite";
         private const string FurnitureSheetName = "HomeFurniture";
         private const string FurnitureResourceSheetName = "FurnitureResource";
         private const string ResourceRuleSheetName = "ResourceRule";
-        private const string CommonSpriteAssetPathFormat = "Assets/TryGameBuildRes/gui/sprite/spt_{0}/spt_{0}_{1}.png";
+        private const string CommonSpriteAssetPathFormat = "Assets/Resources/TryGameBuildRes/gui/sprite/spt_{0}/spt_{0}_{1}.png";
         private static readonly Regex ResourceJsonRegex = new Regex(
             @"""MainId""\s*:\s*(?<main>\d+)\s*,\s*""SubId""\s*:\s*(?<sub>\d+)",
             RegexOptions.Compiled);
@@ -438,7 +438,7 @@ namespace TryGame.PlaceholderTools.Editor
 
             string assetPath = localPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
                 ? localPath
-                : "Assets/TryGameBuildRes/" + localPath.TrimStart('/');
+                : "Assets/Resources/TryGameBuildRes/" + localPath.TrimStart('/');
             return assetPath.EndsWith(extension, StringComparison.OrdinalIgnoreCase) ? assetPath : assetPath + extension;
         }
 
