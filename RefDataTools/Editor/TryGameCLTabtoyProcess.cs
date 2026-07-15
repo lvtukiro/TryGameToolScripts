@@ -9,6 +9,7 @@ namespace TryGame.RefDataTools.Editor
 {
     internal sealed class TryGameCLTabtoyProcess
     {
+        private const int ExportTimeoutMilliseconds = 300000;
         private readonly string exePath;
         private readonly string outputPath;
         private readonly string csharpOutputPath;
@@ -76,7 +77,20 @@ namespace TryGame.RefDataTools.Editor
                 try
                 {
                     process.Start();
-                    process.WaitForExit();
+                    if (!process.WaitForExit(ExportTimeoutMilliseconds))
+                    {
+                        UnityEngine.Debug.LogError($"cltabtoy 导出超时，已终止进程：timeoutMs={ExportTimeoutMilliseconds}, arguments={arguments}");
+                        try
+                        {
+                            process.Kill();
+                        }
+                        catch (Exception killException)
+                        {
+                            UnityEngine.Debug.LogError("cltabtoy 超时后终止进程也失败：" + killException);
+                        }
+
+                        return false;
+                    }
 
                     if (process.ExitCode != 0)
                     {

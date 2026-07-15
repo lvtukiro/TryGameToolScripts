@@ -28,11 +28,25 @@ namespace TryGame.RefDataTools.Editor
                 return true;
             }
 
+            if (excelFullPaths.Count > 1)
+            {
+                Debug.LogError($"语言表导出失败：当前只允许一个 Language 源表，避免多个文件互相覆盖。count={excelFullPaths.Count}");
+                return false;
+            }
+
             bool success = true;
             for (int i = 0; i < excelFullPaths.Count; i++)
             {
-                if (!ExportSingle(excelFullPaths[i], outputAssetPath))
+                try
                 {
+                    if (!ExportSingle(excelFullPaths[i], outputAssetPath))
+                    {
+                        success = false;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError($"语言表导出发生异常：{excelFullPaths[i]}\n{exception}");
                     success = false;
                 }
             }
@@ -64,6 +78,11 @@ namespace TryGame.RefDataTools.Editor
                 return false;
             }
 
+            if (!ValidateRequiredColumns(rows[1], excelFullPath) || !ValidateLanguageRows(rows, excelFullPath))
+            {
+                return false;
+            }
+
             List<int> exportColumns = BuildExportColumns(rows[1]);
             if (exportColumns.Count == 0)
             {
@@ -76,11 +95,107 @@ namespace TryGame.RefDataTools.Editor
             Directory.CreateDirectory(outputDir);
 
             string outputPath = Path.Combine(outputDir, LanguageSheetName + ".bytes");
-            File.WriteAllText(outputPath, output, new UTF8Encoding(false));
+            WriteAllTextAtomic(outputPath, output);
             AssetDatabase.Refresh();
 
             Debug.Log("语言表导出完成：" + TryGameRefDataPaths.ToAssetPath(outputPath));
             return true;
+        }
+
+        private static bool ValidateRequiredColumns(List<string> headerRow, string excelFullPath)
+        {
+            string[] requiredColumns = { "id", "zh_cn", "en_US" };
+            for (int i = 0; i < requiredColumns.Length; i++)
+            {
+                if (FindColumn(headerRow, requiredColumns[i]) < 0)
+                {
+                    Debug.LogError($"语言表导出失败，缺少必要列：column={requiredColumns[i]}, file={excelFullPath}");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool ValidateLanguageRows(List<List<string>> rows, string excelFullPath)
+        {
+            int keyColumn = FindColumn(rows[1], "id");
+            HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
+            bool valid = true;
+            for (int i = 2; i < rows.Count; i++)
+            {
+                string key = GetCell(rows[i], keyColumn).Trim();
+                if (string.IsNullOrEmpty(key))
+                {
+                    if (HasAnyValue(rows[i], BuildExportColumns(rows[1])))
+                    {
+                        Debug.LogError($"语言表存在内容但 key 为空：file={excelFullPath}, row={i + 1}");
+                        valid = false;
+                    }
+
+                    continue;
+                }
+
+                if (!keys.Add(key))
+                {
+                    Debug.LogError($"语言表 key 重复：file={excelFullPath}, row={i + 1}, key={key}");
+                    valid = false;
+                }
+            }
+
+            return valid;
+        }
+
+        private static int FindColumn(List<string> headerRow, string columnName)
+        {
+            for (int i = 0; i < headerRow.Count; i++)
+            {
+                if (string.Equals(headerRow[i]?.Trim(), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static void WriteAllTextAtomic(string outputPath, string content)
+        {
+            string tempPath = outputPath + ".tmp";
+            try
+            {
+                File.WriteAllText(tempPath, content, new UTF8Encoding(false));
+                if (File.Exists(outputPath))
+                {
+                    try
+                    {
+                        File.Replace(tempPath, outputPath, null, true);
+                    }
+                    catch (PlatformNotSupportedException)
+                    {
+                        File.Copy(tempPath, outputPath, true);
+                        File.Delete(tempPath);
+                    }
+                    catch (NotSupportedException)
+                    {
+                        File.Copy(tempPath, outputPath, true);
+                        File.Delete(tempPath);
+                    }
+                }
+                else
+                {
+                    File.Move(tempPath, outputPath);
+                }
+            }
+            catch
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+
+                throw;
+            }
         }
 
         /// <summary>
@@ -141,7 +256,12 @@ namespace TryGame.RefDataTools.Editor
                     sb.Append('\t');
                 }
 
-                string value = GetCell(row, exportColumns[i]).Trim().Replace("||", " ");
+                string value = GetCell(row, exportColumns[i])
+                    .Trim()
+                    .Replace("||", " ")
+                    .Replace('\t', ' ')
+                    .Replace('\r', ' ')
+                    .Replace('\n', ' ');
                 sb.Append(value);
             }
 
