@@ -29,6 +29,7 @@ namespace TryGame.PlaceholderTools.Editor
         private static readonly Regex ResourceJsonRegex = new Regex(
             @"""MainId""\s*:\s*(?<main>\d+)\s*,\s*""SubId""\s*:\s*(?<sub>\d+)",
             RegexOptions.Compiled);
+        private static Dictionary<string, TextureImporterSnapshot> activeImporterSnapshots;
 
         /// <summary>
         /// 从配表读取家具列表，为还没有 prefab 的家具生成资源。
@@ -36,78 +37,151 @@ namespace TryGame.PlaceholderTools.Editor
         [MenuItem("TryGame/Placeholder/按配表生成缺失家具 Prefab")]
         public static void GenerateMissingFromConfig()
         {
-            List<HomeFurnitureRow> furnitureRows = LoadFurnitureRows();
-            Dictionary<int, FurnitureResourceRow> resourceRows = LoadFurnitureResources();
-            Dictionary<int, ResourceRuleRow> ruleRows = LoadResourceRules();
-            Dictionary<string, string> imageByName = FindSourceImages();
+            try
+            {
+                List<HomeFurnitureRow> furnitureRows = LoadFurnitureRows();
+                Dictionary<int, FurnitureResourceRow> resourceRows = LoadFurnitureResources();
+                Dictionary<int, ResourceRuleRow> ruleRows = LoadResourceRules();
+                Dictionary<string, List<string>> imagesByName = FindSourceImages();
+                if (!TryBuildGenerationPlan(furnitureRows, resourceRows, ruleRows, imagesByName, out List<GenerationPlanItem> plan))
+                {
+                    Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] 生成计划存在错误，未修改任何资产。请修复此前日志后重试。");
+                    return;
+                }
 
-            int generatedPrefabCount = 0;
-            int generatedIconCount = 0;
-            int skippedCount = 0;
+                if (plan.Count == 0)
+                {
+                    Debug.Log("[TryGameFurniturePlaceholderPrefabGenerator] 没有缺失的家具图标或 Prefab，无需生成。");
+                    return;
+                }
+
+                int iconCount = plan.FindAll(item => item.copyIcon).Count;
+                int prefabCount = plan.FindAll(item => item.generatePrefab).Count;
+                Debug.Log($"[TryGameFurniturePlaceholderPrefabGenerator] 生成计划：items={plan.Count}, copyIcons={iconCount}, prefabs={prefabCount}");
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    GenerationPlanItem item = plan[i];
+                    Debug.Log($"[TryGameFurniturePlaceholderPrefabGenerator] PLAN furnitureId={item.furniture.id}, copyIcon={item.copyIcon}, source={item.sourceImagePath}, icon={item.iconAssetPath}, generatePrefab={item.generatePrefab}, prefab={item.prefabAssetPath}");
+                }
+
+                if (!EditorUtility.DisplayDialog("确认生成家具占位资源", $"计划复制 {iconCount} 张图标、生成 {prefabCount} 个 Prefab。\n\n完整路径已输出到 Console。是否执行？", "执行", "取消"))
+                {
+                    Debug.LogWarning("[TryGameFurniturePlaceholderPrefabGenerator] 用户取消执行，未修改任何资产。");
+                    return;
+                }
+
+                ExecuteGenerationPlan(plan);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] 构建或执行生成计划异常，流程已停止：\n" + exception);
+            }
+        }
+
+        private static bool TryBuildGenerationPlan(List<HomeFurnitureRow> furnitureRows, Dictionary<int, FurnitureResourceRow> resourceRows, Dictionary<int, ResourceRuleRow> ruleRows, Dictionary<string, List<string>> imagesByName, out List<GenerationPlanItem> plan)
+        {
+            plan = new List<GenerationPlanItem>();
+            bool valid = true;
+            Dictionary<string, string> iconSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> prefabPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < furnitureRows.Count; i++)
             {
                 HomeFurnitureRow furniture = furnitureRows[i];
-                if (!TryGetResource(resourceRows, furniture.resourceId, out FurnitureResourceRow prefabResource) ||
-                    !TryGetResource(ruleRows, prefabResource.ruleId, out ResourceRuleRow prefabRule))
+                if (!TryGetResource(resourceRows, furniture.resourceId, out FurnitureResourceRow prefabResource) || !TryGetResource(ruleRows, prefabResource.ruleId, out ResourceRuleRow prefabRule))
                 {
-                    Debug.LogWarning("[TryGame] 家具缺少 prefab 资源配置，已跳过：" + furniture.id);
-                    skippedCount++;
+                    Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 家具缺少 Prefab 资源配置：furnitureId={furniture.id}, resourceId={furniture.resourceId}");
+                    valid = false;
                     continue;
                 }
 
                 string prefabAssetPath = ResolvePrefabAssetPath(prefabRule, prefabResource.resource);
                 if (string.IsNullOrEmpty(prefabAssetPath))
                 {
-                    Debug.LogWarning("[TryGame] prefab 资源路径解析失败，已跳过：" + furniture.displayName);
-                    skippedCount++;
+                    Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] Prefab 资源路径解析失败：furnitureId={furniture.id}, resourceId={furniture.resourceId}");
+                    valid = false;
                     continue;
                 }
 
-                string iconAssetPath = string.Empty;
-                if (!furniture.icon.IsEmpty())
+                bool generatePrefab = !File.Exists(ToFullPath(prefabAssetPath));
+                string iconAssetPath = furniture.icon.IsEmpty() ? string.Empty : string.Format(CultureInfo.InvariantCulture, CommonSpriteAssetPathFormat, furniture.icon.mainId, furniture.icon.subId);
+                bool copyIcon = !string.IsNullOrEmpty(iconAssetPath) && !File.Exists(ToFullPath(iconAssetPath));
+                if (!generatePrefab && !copyIcon) continue;
+                string sourceImagePath = FindImageAssetPath(furniture, imagesByName, iconAssetPath, out string matchError);
+                if (string.IsNullOrEmpty(sourceImagePath))
                 {
-                    iconAssetPath = string.Format(
-                        CultureInfo.InvariantCulture,
-                        CommonSpriteAssetPathFormat,
-                        furniture.icon.mainId,
-                        furniture.icon.subId);
-                }
-
-                string imageAssetPath = FindImageAssetPath(furniture, imageByName, iconAssetPath);
-                if (string.IsNullOrEmpty(imageAssetPath))
-                {
-                    Debug.LogWarning("[TryGame] 找不到家具图片，已跳过：" + furniture.displayName);
-                    skippedCount++;
+                    Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 家具图片匹配失败：furnitureId={furniture.id}, name={furniture.displayName}, reason={matchError}");
+                    valid = false;
                     continue;
                 }
 
-                if (!string.IsNullOrEmpty(iconAssetPath))
+                if (copyIcon && iconSources.TryGetValue(iconAssetPath, out string existingSource))
                 {
-                    string movedImagePath = MoveImageToIconPath(imageAssetPath, iconAssetPath);
-                    if (string.IsNullOrEmpty(movedImagePath))
+                    if (!string.Equals(existingSource, sourceImagePath, StringComparison.OrdinalIgnoreCase))
                     {
-                        skippedCount++;
+                        Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 多个源图计划写入同一图标路径：icon={iconAssetPath}, sourceA={existingSource}, sourceB={sourceImagePath}");
+                        valid = false;
                         continue;
                     }
 
-                    if (!imageAssetPath.Equals(movedImagePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        generatedIconCount++;
-                    }
-
-                    imageAssetPath = movedImagePath;
+                    copyIcon = false;
                 }
 
-                if (!File.Exists(ToFullPath(prefabAssetPath)))
+                if (copyIcon) iconSources.Add(iconAssetPath, sourceImagePath);
+                if (generatePrefab && !prefabPaths.Add(prefabAssetPath))
                 {
-                    GeneratePrefab(furniture, prefabResource, imageAssetPath, prefabAssetPath);
-                    generatedPrefabCount++;
+                    Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 多个家具计划生成同一 Prefab：furnitureId={furniture.id}, prefab={prefabAssetPath}");
+                    valid = false;
+                    continue;
                 }
+
+                plan.Add(new GenerationPlanItem { furniture = furniture, prefabResource = prefabResource, sourceImagePath = sourceImagePath, iconAssetPath = iconAssetPath, prefabAssetPath = prefabAssetPath, copyIcon = copyIcon, generatePrefab = generatePrefab });
             }
 
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Debug.Log($"[TryGame] 家具 prefab 生成完成。prefab:{generatedPrefabCount} icon:{generatedIconCount} skip:{skippedCount}");
+            return valid;
+        }
+
+        private static void ExecuteGenerationPlan(List<GenerationPlanItem> plan)
+        {
+            List<string> createdAssets = new List<string>();
+            int iconCount = 0;
+            int prefabCount = 0;
+            activeImporterSnapshots = new Dictionary<string, TextureImporterSnapshot>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                for (int i = 0; i < plan.Count; i++)
+                {
+                    GenerationPlanItem item = plan[i];
+                    string imagePath = item.sourceImagePath;
+                    if (item.copyIcon)
+                    {
+                        createdAssets.Add(item.iconAssetPath);
+                        if (!TryCopyImageToIconPath(item.sourceImagePath, item.iconAssetPath)) throw new InvalidOperationException($"复制家具图标失败：furnitureId={item.furniture.id}, source={item.sourceImagePath}, target={item.iconAssetPath}");
+                        imagePath = item.iconAssetPath;
+                        iconCount++;
+                    }
+                    else if (!string.IsNullOrEmpty(item.iconAssetPath) && File.Exists(ToFullPath(item.iconAssetPath))) imagePath = item.iconAssetPath;
+
+                    if (item.generatePrefab)
+                    {
+                        createdAssets.Add(item.prefabAssetPath);
+                        if (!GeneratePrefab(item.furniture, item.prefabResource, imagePath, item.prefabAssetPath)) throw new InvalidOperationException($"生成家具 Prefab 失败：furnitureId={item.furniture.id}, prefab={item.prefabAssetPath}");
+                        prefabCount++;
+                    }
+                }
+
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                Debug.Log($"[TryGameFurniturePlaceholderPrefabGenerator] 家具资源生成完成：prefabs={prefabCount}, icons={iconCount}");
+                activeImporterSnapshots = null;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] 执行生成计划失败，开始回滚本轮新建资产：\n" + exception);
+                RollbackCreatedAssets(createdAssets);
+                RestoreImporterSnapshots(activeImporterSnapshots);
+                activeImporterSnapshots = null;
+                throw;
+            }
         }
 
         /// <summary>
@@ -118,6 +192,7 @@ namespace TryGame.PlaceholderTools.Editor
             string path = Path.Combine(ExcelRoot, FurnitureExcelName);
             List<Dictionary<string, string>> rows = XlsxSheetReader.ReadTable(path, FurnitureSheetName, 4);
             List<HomeFurnitureRow> result = new List<HomeFurnitureRow>();
+            HashSet<int> ids = new HashSet<int>();
             for (int i = 0; i < rows.Count; i++)
             {
                 Dictionary<string, string> row = rows[i];
@@ -125,6 +200,11 @@ namespace TryGame.PlaceholderTools.Editor
                 if (id <= 0)
                 {
                     continue;
+                }
+
+                if (!ids.Add(id))
+                {
+                    throw new InvalidDataException($"{FurnitureSheetName} 存在重复 id：{id}");
                 }
 
                 result.Add(new HomeFurnitureRow
@@ -136,6 +216,11 @@ namespace TryGame.PlaceholderTools.Editor
                     icon = ReadIconResource(row),
                     shapeRows = SplitShapeRows(GetValue(row, "shapeRows")),
                 });
+            }
+
+            if (result.Count == 0)
+            {
+                throw new InvalidDataException($"{FurnitureSheetName} 没有读取到任何有效家具行，拒绝按空表生成。");
             }
 
             return result;
@@ -158,12 +243,22 @@ namespace TryGame.PlaceholderTools.Editor
                     continue;
                 }
 
-                result[id] = new FurnitureResourceRow
+                if (result.ContainsKey(id))
+                {
+                    throw new InvalidDataException($"{FurnitureResourceSheetName} 存在重复 id：{id}");
+                }
+
+                result.Add(id, new FurnitureResourceRow
                 {
                     id = id,
                     ruleId = ParseInt(GetValue(row, "ruleId")),
                     resource = ParseResource(GetValue(row, "res")),
-                };
+                });
+            }
+
+            if (result.Count == 0)
+            {
+                throw new InvalidDataException($"{FurnitureResourceSheetName} 没有读取到任何有效资源行，拒绝按空表生成。");
             }
 
             return result;
@@ -186,12 +281,22 @@ namespace TryGame.PlaceholderTools.Editor
                     continue;
                 }
 
-                result[id] = new ResourceRuleRow
+                if (result.ContainsKey(id))
+                {
+                    throw new InvalidDataException($"{ResourceRuleSheetName} 存在重复 id：{id}");
+                }
+
+                result.Add(id, new ResourceRuleRow
                 {
                     id = id,
                     resourceType = GetValue(row, "resourceType"),
                     localPathTemplate = GetValue(row, "localPathTemplate"),
-                };
+                });
+            }
+
+            if (result.Count == 0)
+            {
+                throw new InvalidDataException($"{ResourceRuleSheetName} 没有读取到任何有效规则行，拒绝按空表生成。");
             }
 
             return result;
@@ -200,9 +305,9 @@ namespace TryGame.PlaceholderTools.Editor
         /// <summary>
         /// 查找可用于家具生成的源图片。
         /// </summary>
-        private static Dictionary<string, string> FindSourceImages()
+        private static Dictionary<string, List<string>> FindSourceImages()
         {
-            Dictionary<string, string> result = new Dictionary<string, string>();
+            Dictionary<string, List<string>> result = new Dictionary<string, List<string>>();
             string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { SourceImageRoot });
             for (int i = 0; i < guids.Length; i++)
             {
@@ -213,10 +318,18 @@ namespace TryGame.PlaceholderTools.Editor
                 }
 
                 string key = NormalizeName(Path.GetFileNameWithoutExtension(path));
-                if (!string.IsNullOrEmpty(key) && !result.ContainsKey(key))
+                if (string.IsNullOrEmpty(key))
                 {
-                    result.Add(key, path);
+                    continue;
                 }
+
+                if (!result.TryGetValue(key, out List<string> paths))
+                {
+                    paths = new List<string>();
+                    result.Add(key, paths);
+                }
+
+                paths.Add(path);
             }
 
             return result;
@@ -225,40 +338,50 @@ namespace TryGame.PlaceholderTools.Editor
         /// <summary>
         /// 根据家具名称匹配图片资源。
         /// </summary>
-        private static string FindImageAssetPath(HomeFurnitureRow furniture, Dictionary<string, string> imageByName, string iconAssetPath)
+        private static string FindImageAssetPath(HomeFurnitureRow furniture, Dictionary<string, List<string>> imagesByName, string iconAssetPath, out string error)
         {
             if (!string.IsNullOrEmpty(iconAssetPath) && File.Exists(ToFullPath(iconAssetPath)))
             {
+                error = string.Empty;
                 return iconAssetPath;
             }
 
             string displayName = NormalizeName(furniture.displayName);
-            if (imageByName.TryGetValue(displayName, out string exactPath))
+            if (string.IsNullOrEmpty(displayName))
             {
-                return exactPath;
+                error = "家具显示名为空，无法匹配图片";
+                return string.Empty;
             }
 
-            foreach (KeyValuePair<string, string> pair in imageByName)
+            if (imagesByName.TryGetValue(displayName, out List<string> exactPaths))
             {
-                if (displayName.Contains(pair.Key) || pair.Key.Contains(displayName))
-                {
-                    return pair.Value;
-                }
+                if (exactPaths.Count == 1) { error = string.Empty; return exactPaths[0]; }
+                error = "精确名称匹配到多个图片：" + string.Join(",", exactPaths);
+                return string.Empty;
             }
 
+            List<string> candidates = new List<string>();
+            foreach (KeyValuePair<string, List<string>> pair in imagesByName)
+            {
+                if (!displayName.Contains(pair.Key) && !pair.Key.Contains(displayName)) continue;
+                for (int i = 0; i < pair.Value.Count; i++) if (!candidates.Contains(pair.Value[i])) candidates.Add(pair.Value[i]);
+            }
+
+            if (candidates.Count == 1) { error = string.Empty; return candidates[0]; }
+            error = candidates.Count == 0 ? "没有名称候选" : "模糊名称匹配到多个图片，拒绝猜测：" + string.Join(",", candidates);
             return string.Empty;
         }
 
         /// <summary>
         /// 生成单个家具 prefab。
         /// </summary>
-        private static void GeneratePrefab(HomeFurnitureRow furniture, FurnitureResourceRow resource, string imageAssetPath, string prefabAssetPath)
+        private static bool GeneratePrefab(HomeFurnitureRow furniture, FurnitureResourceRow resource, string imageAssetPath, string prefabAssetPath)
         {
             Sprite sprite = LoadSprite(imageAssetPath);
             if (sprite == null)
             {
-                Debug.LogWarning("[TryGame] 图片不是可用 Sprite，无法生成 prefab：" + imageAssetPath);
-                return;
+                Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] 图片不是可用 Sprite，无法生成 Prefab：" + imageAssetPath);
+                return false;
             }
 
             EnsureAssetFolder(Path.GetDirectoryName(prefabAssetPath));
@@ -272,40 +395,71 @@ namespace TryGame.PlaceholderTools.Editor
             renderer.sprite = sprite;
             renderer.sortingOrder = 0;
 
-            FitSpriteToShape(visual.transform, sprite, furniture.shapeRows);
-            PrefabUtility.SaveAsPrefabAsset(root, prefabAssetPath);
-            UnityEngine.Object.DestroyImmediate(root);
-            Debug.Log("[TryGame] 已生成家具 prefab：" + prefabAssetPath);
+            if (!FitSpriteToShape(visual.transform, sprite, furniture.shapeRows))
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                return false;
+            }
+
+            GameObject savedPrefab = null;
+            try { savedPrefab = PrefabUtility.SaveAsPrefabAsset(root, prefabAssetPath); }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+            if (savedPrefab == null || !File.Exists(ToFullPath(prefabAssetPath)))
+            {
+                Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] Prefab 保存后校验失败：" + prefabAssetPath);
+                return false;
+            }
+
+            Debug.Log("[TryGameFurniturePlaceholderPrefabGenerator] 已生成家具 Prefab：" + prefabAssetPath);
+            return true;
         }
 
         /// <summary>
-        /// 把源图片移动到图标资源路径，避免根目录残留散图。
+        /// 把源图片复制到图标资源路径，保留原始素材不动。
         /// </summary>
-        private static string MoveImageToIconPath(string imageAssetPath, string iconAssetPath)
+        private static bool TryCopyImageToIconPath(string imageAssetPath, string iconAssetPath)
         {
             if (imageAssetPath.Equals(iconAssetPath, StringComparison.OrdinalIgnoreCase))
             {
                 SetupTextureAsSprite(iconAssetPath, 100f);
-                return iconAssetPath;
+                return AssetDatabase.LoadAssetAtPath<Sprite>(iconAssetPath) != null;
             }
 
             if (File.Exists(ToFullPath(iconAssetPath)))
             {
                 SetupTextureAsSprite(iconAssetPath, 100f);
-                return iconAssetPath;
+                return AssetDatabase.LoadAssetAtPath<Sprite>(iconAssetPath) != null;
             }
 
             EnsureAssetFolder(Path.GetDirectoryName(iconAssetPath));
-            string moveError = AssetDatabase.MoveAsset(imageAssetPath, iconAssetPath);
-            if (!string.IsNullOrEmpty(moveError))
+            if (!AssetDatabase.CopyAsset(imageAssetPath, iconAssetPath))
             {
-                Debug.LogError("[TryGame] 移动家具图片失败：" + moveError);
-                return string.Empty;
+                Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 复制家具图片失败：source={imageAssetPath}, target={iconAssetPath}");
+                return false;
             }
 
             SetupTextureAsSprite(iconAssetPath, 100f);
-            Debug.Log("[TryGame] 已移动家具图片到图标路径：" + iconAssetPath);
-            return iconAssetPath;
+            if (!File.Exists(ToFullPath(iconAssetPath)) || AssetDatabase.LoadAssetAtPath<Sprite>(iconAssetPath) == null)
+            {
+                Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 家具图标复制后校验失败：source={imageAssetPath}, target={iconAssetPath}");
+                return false;
+            }
+
+            Debug.Log($"[TryGameFurniturePlaceholderPrefabGenerator] 已复制家具图片到图标路径：source={imageAssetPath}, target={iconAssetPath}");
+            return true;
+        }
+
+        private static void RollbackCreatedAssets(List<string> createdAssets)
+        {
+            for (int i = createdAssets.Count - 1; i >= 0; i--)
+            {
+                string assetPath = createdAssets[i];
+                if (!File.Exists(ToFullPath(assetPath)) && AssetDatabase.LoadMainAssetAtPath(assetPath) == null) continue;
+                if (!AssetDatabase.DeleteAsset(assetPath)) Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] 回滚新建资产失败，请手动删除：" + assetPath);
+                else Debug.LogWarning("[TryGameFurniturePlaceholderPrefabGenerator] 已回滚本轮新建资产：" + assetPath);
+            }
+
+            AssetDatabase.Refresh();
         }
 
         /// <summary>
@@ -361,6 +515,8 @@ namespace TryGame.PlaceholderTools.Editor
                 return;
             }
 
+            CaptureImporterSnapshot(assetPath, importer);
+
             bool dirty = false;
             if (importer.textureType != TextureImporterType.Sprite)
             {
@@ -380,10 +536,54 @@ namespace TryGame.PlaceholderTools.Editor
             }
         }
 
+        private static void CaptureImporterSnapshot(string assetPath, TextureImporter importer)
+        {
+            if (activeImporterSnapshots == null
+                || importer == null
+                || string.IsNullOrEmpty(assetPath)
+                || activeImporterSnapshots.ContainsKey(assetPath))
+            {
+                return;
+            }
+
+            activeImporterSnapshots.Add(
+                assetPath,
+                new TextureImporterSnapshot(importer.textureType, importer.spritePixelsPerUnit));
+        }
+
+        private static void RestoreImporterSnapshots(Dictionary<string, TextureImporterSnapshot> snapshots)
+        {
+            if (snapshots == null || snapshots.Count == 0)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<string, TextureImporterSnapshot> pair in snapshots)
+            {
+                TextureImporter importer = AssetImporter.GetAtPath(pair.Key) as TextureImporter;
+                if (importer == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    importer.textureType = pair.Value.textureType;
+                    importer.spritePixelsPerUnit = pair.Value.spritePixelsPerUnit;
+                    importer.SaveAndReimport();
+                    Debug.LogWarning($"[TryGameFurniturePlaceholderPrefabGenerator] 失败回滚已恢复图片导入设置：asset={pair.Key}, textureType={pair.Value.textureType}, pixelsPerUnit={pair.Value.spritePixelsPerUnit}");
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] 失败回滚恢复图片导入设置失败，请手动检查：asset={pair.Key}\n{exception}");
+                }
+            }
+        }
+
         /// <summary>
         /// 按 shapeRows 占格尺寸缩放并居中图片。
         /// </summary>
-        private static void FitSpriteToShape(Transform visual, Sprite sprite, string[] shapeRows)
+        private static bool FitSpriteToShape(Transform visual, Sprite sprite, string[] shapeRows)
         {
             int width = GetShapeWidth(shapeRows);
             int height = Mathf.Max(1, shapeRows == null ? 1 : shapeRows.Length);
@@ -392,11 +592,13 @@ namespace TryGame.PlaceholderTools.Editor
             Vector2 spriteSize = sprite.bounds.size;
             if (spriteSize.x <= 0f || spriteSize.y <= 0f)
             {
-                return;
+                Debug.LogError($"[TryGameFurniturePlaceholderPrefabGenerator] Sprite 尺寸非法，无法适配家具占格：sprite={sprite.name}, size={spriteSize}");
+                return false;
             }
 
             float scale = Mathf.Min(width / spriteSize.x, height / spriteSize.y);
             visual.localScale = new Vector3(scale, scale, 1f);
+            return true;
         }
 
         /// <summary>
@@ -564,6 +766,29 @@ namespace TryGame.PlaceholderTools.Editor
             public string[] shapeRows;
         }
 
+        private sealed class GenerationPlanItem
+        {
+            public HomeFurnitureRow furniture;
+            public FurnitureResourceRow prefabResource;
+            public string sourceImagePath;
+            public string iconAssetPath;
+            public string prefabAssetPath;
+            public bool copyIcon;
+            public bool generatePrefab;
+        }
+
+        private sealed class TextureImporterSnapshot
+        {
+            public readonly TextureImporterType textureType;
+            public readonly float spritePixelsPerUnit;
+
+            public TextureImporterSnapshot(TextureImporterType textureType, float spritePixelsPerUnit)
+            {
+                this.textureType = textureType;
+                this.spritePixelsPerUnit = spritePixelsPerUnit;
+            }
+        }
+
         private sealed class FurnitureResourceRow
         {
             public int id;
@@ -613,7 +838,7 @@ namespace TryGame.PlaceholderTools.Editor
                 List<Dictionary<string, string>> result = new List<Dictionary<string, string>>();
                 if (rows.Count == 0)
                 {
-                    return result;
+                    throw new InvalidDataException($"Excel sheet 没有可读行：file={assetPath}, sheet={sheetName}");
                 }
 
                 List<string> headers = rows[0];
@@ -642,14 +867,20 @@ namespace TryGame.PlaceholderTools.Editor
             /// </summary>
             private static List<List<string>> ReadRows(string assetPath, string sheetName)
             {
-                using (ZipArchive archive = ZipFile.OpenRead(ToFullPath(assetPath)))
+                string fullPath = ToFullPath(assetPath);
+                if (!File.Exists(fullPath))
+                {
+                    throw new FileNotFoundException("配表 Excel 不存在。", fullPath);
+                }
+
+                using (ZipArchive archive = ZipFile.OpenRead(fullPath))
                 {
                     List<string> sharedStrings = ReadSharedStrings(archive);
                     Dictionary<string, string> workbookRels = ReadWorkbookRelationships(archive);
                     ZipArchiveEntry workbookEntry = archive.GetEntry("xl/workbook.xml");
                     if (workbookEntry == null)
                     {
-                        return new List<List<string>>();
+                        throw new InvalidDataException("Excel 缺少 xl/workbook.xml：" + fullPath);
                     }
 
                     XmlDocument workbook = LoadXml(workbookEntry);
@@ -657,13 +888,13 @@ namespace TryGame.PlaceholderTools.Editor
                     XmlNode sheetNode = workbook.SelectSingleNode("//x:sheet[@name='" + sheetName + "']", ns);
                     if (sheetNode == null)
                     {
-                        return new List<List<string>>();
+                        throw new InvalidDataException($"Excel 缺少目标 sheet：file={fullPath}, sheet={sheetName}");
                     }
 
                     XmlAttribute ridAttr = sheetNode.Attributes["id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships"];
                     if (ridAttr == null || !workbookRels.TryGetValue(ridAttr.Value, out string target))
                     {
-                        return new List<List<string>>();
+                        throw new InvalidDataException($"Excel 无法解析目标 sheet 关系：file={fullPath}, sheet={sheetName}, relationship={ridAttr?.Value ?? "<null>"}");
                     }
 
                     string sheetPath = target.Replace("\\", "/").TrimStart('/');
@@ -673,7 +904,12 @@ namespace TryGame.PlaceholderTools.Editor
                     }
 
                     ZipArchiveEntry sheetEntry = archive.GetEntry(sheetPath);
-                    return sheetEntry == null ? new List<List<string>>() : ReadSheetRows(sheetEntry, sharedStrings);
+                    if (sheetEntry == null)
+                    {
+                        throw new InvalidDataException($"Excel 缺少目标 sheet XML：file={fullPath}, sheet={sheetName}, path={sheetPath}");
+                    }
+
+                    return ReadSheetRows(sheetEntry, sharedStrings);
                 }
             }
 

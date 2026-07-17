@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
-using FlatBuffers;
-using RefData;
+using System.Xml;
+using TryGame.RefDataTools.Editor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -19,16 +20,12 @@ namespace TryGame.HomeDebugTools.Editor
     public sealed class TryGameHomeAreaBoundsEditorWindow : EditorWindow
     {
         private const string HomeAreaTxtAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/txt_data/HomeArea.txt";
-        private const string HomeAreaClientJsonAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/Json/client/HomeArea.json";
-        private const string HomeAreaServerJsonAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/Json/server/HomeAreaRef.json";
-        private const string HomeAreaBytesAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output/fb_data/HomeArea.bytes";
+        private const string HomeAreaExcelAssetPath = "Assets/Resources/TryGameRefdataRes/v2/h.家园1_0A.xlsx";
 
         private static readonly CultureInfo InvariantCulture = CultureInfo.InvariantCulture;
         private static readonly Regex DataLineRegex = new Regex(@"^\s*\d+\s*\t", RegexOptions.Compiled);
-        private static readonly Regex JsonIdRegex = new Regex(@"""id""\s*:\s*(?<id>\d+)", RegexOptions.Compiled);
 
         private readonly List<HomeAreaRow> rows = new List<HomeAreaRow>();
-        private readonly List<string> rawLines = new List<string>();
         private readonly Dictionary<int, HomeAreaRow> rowById = new Dictionary<int, HomeAreaRow>();
 
         private Vector2 scrollPosition;
@@ -36,6 +33,8 @@ namespace TryGame.HomeDebugTools.Editor
         private bool showAllAreas = true;
         private bool showGridLines = true;
         private bool dirty;
+        private bool tableLoadSucceeded;
+        private bool sourceSavedOutputStale;
         private int idColumn = -1;
         private int worldIdColumn = -1;
         private int nameKeyColumn = -1;
@@ -81,7 +80,7 @@ namespace TryGame.HomeDebugTools.Editor
                 SceneView.RepaintAll();
             }
 
-            using (new EditorGUI.DisabledScope(rows.Count == 0 || !dirty))
+            using (new EditorGUI.DisabledScope(rows.Count == 0 || !dirty || !tableLoadSucceeded))
             {
                 if (GUILayout.Button("保存 HomeArea 配置", EditorStyles.toolbarButton, GUILayout.Width(132f)))
                 {
@@ -103,12 +102,17 @@ namespace TryGame.HomeDebugTools.Editor
                 "SceneView 中黄色矩形是当前 HomeArea 覆盖范围。拖中心可移动 originX/originY，拖四边会按 cellSize 更新 gridWidth/gridHeight。场景 prefab 本身仍用 Unity 的 Transform 工具调整。",
                 MessageType.Info);
             EditorGUILayout.HelpBox(
-                "保存 HomeArea 配置会写入 Output 下的 txt / bytes / JSON，游戏读取会生效。后续如果重新从 Excel 导表，仍会以 Excel 为准覆盖这些 Output 文件。",
-                MessageType.None);
+                "保存 HomeArea 配置会先写入源 Excel 的 HomeArea sheet，校验成功后再走正式导表。现有 cltabtoy 会打开控制台，导出完成后需要在控制台按任意键退出。",
+                MessageType.Info);
 
             if (dirty)
             {
-                EditorGUILayout.HelpBox("HomeArea 配置有未保存修改。保存后会同步 txt、bytes、client/server JSON。", MessageType.Warning);
+                EditorGUILayout.HelpBox("HomeArea 配置有未保存修改。保存会更新源 Excel，再由正式导表同步 txt、bytes、JSON 和生成代码。", MessageType.Warning);
+            }
+
+            if (sourceSavedOutputStale)
+            {
+                EditorGUILayout.HelpBox("SourceSavedOutputStale：源 Excel 已写入，但正式 Output 未通过导出或逐 ID 校验。请保留当前值并重新执行保存导表。", MessageType.Error);
             }
         }
 
@@ -465,9 +469,9 @@ namespace TryGame.HomeDebugTools.Editor
         private void LoadTable()
         {
             rows.Clear();
-            rawLines.Clear();
             rowById.Clear();
             dirty = false;
+            tableLoadSucceeded = false;
 
             string path = ToFullPath(HomeAreaTxtAssetPath);
             if (!File.Exists(path))
@@ -477,7 +481,6 @@ namespace TryGame.HomeDebugTools.Editor
             }
 
             string[] lines = File.ReadAllLines(path, Encoding.UTF8);
-            rawLines.AddRange(lines);
             if (lines.Length == 0)
             {
                 Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 为空。");
@@ -498,6 +501,7 @@ namespace TryGame.HomeDebugTools.Editor
                 return;
             }
 
+            bool rowParseFailed = false;
             for (int i = 1; i < lines.Length; i++)
             {
                 if (!DataLineRegex.IsMatch(lines[i]))
@@ -509,14 +513,35 @@ namespace TryGame.HomeDebugTools.Editor
                 HomeAreaRow row;
                 if (!TryParseRow(i, columns, out row))
                 {
+                    rowParseFailed = true;
+                    continue;
+                }
+
+                if (rowById.ContainsKey(row.Id))
+                {
+                    Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 存在重复 id：{row.Id}，已禁止保存。 ");
+                    rowParseFailed = true;
                     continue;
                 }
 
                 rows.Add(row);
-                rowById[row.Id] = row;
+                rowById.Add(row.Id, row);
             }
 
             rows.Sort((a, b) => a.Id.CompareTo(b.Id));
+            if (rows.Count == 0)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 没有读取到任何有效数据行。");
+                return;
+            }
+
+            if (rowParseFailed)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 存在解析失败或重复数据，已禁止写入源 Excel。");
+                return;
+            }
+
+            tableLoadSucceeded = true;
             if (rows.Count > 0 && !rowById.ContainsKey(selectedAreaId))
             {
                 selectedAreaId = rows[0].Id;
@@ -557,16 +582,24 @@ namespace TryGame.HomeDebugTools.Editor
                 return false;
             }
 
+            if (id <= 0 || gridWidth <= 0 || gridHeight <= 1
+                || float.IsNaN(cellSize) || float.IsInfinity(cellSize) || cellSize <= 0f
+                || float.IsNaN(originX) || float.IsInfinity(originX)
+                || float.IsNaN(originY) || float.IsInfinity(originY))
+            {
+                Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 第 {lineIndex + 1} 行数值非法：id={id}, grid=({gridWidth},{gridHeight}), cellSize={cellSize}, origin=({originX},{originY})");
+                return false;
+            }
+
             row = new HomeAreaRow
             {
-                LineIndex = lineIndex,
                 Columns = columns,
                 Id = id,
                 WorldId = worldId,
                 NameKey = GetColumn(columns, nameKeyColumn),
-                GridWidth = Mathf.Max(1, gridWidth),
-                GridHeight = Mathf.Max(2, gridHeight),
-                CellSize = Mathf.Max(0.01f, cellSize),
+                GridWidth = gridWidth,
+                GridHeight = gridHeight,
+                CellSize = cellSize,
                 OriginX = originX,
                 OriginY = originY,
             };
@@ -575,143 +608,465 @@ namespace TryGame.HomeDebugTools.Editor
 
         private void SaveConfig()
         {
-            if (rows.Count == 0)
+            if (!tableLoadSucceeded)
             {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 保存失败，HomeArea.txt 未完整加载。请先修复此前的解析错误并重新读取。");
                 return;
             }
 
-            WriteHomeAreaTxt();
-            WriteHomeAreaBytes();
-            WriteClientJson();
-            WriteServerJson();
+            if (rows.Count == 0)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 保存失败，没有可写入的 HomeArea 行。");
+                return;
+            }
+
+            if (!ValidateRowsForSave())
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 保存失败，待写入的 HomeArea 数值非法。源 Excel 和 Output 均未修改。");
+                return;
+            }
+
+            if (!EditorUtility.DisplayDialog("写入源 Excel 并导表", "将修改 h.家园1_0A.xlsx 的 HomeArea sheet，然后启动正式导表。\n\n现有 cltabtoy 控制台导出完成后需要按任意键退出。是否继续？", "写入并导表", "取消"))
+            {
+                Debug.LogWarning("[TryGameHomeAreaBoundsEditorWindow] 用户取消保存，源 Excel 和 Output 均未修改。");
+                return;
+            }
+
+            List<HomeAreaRow> expectedRows = CloneRows(rows);
+            if (!TryWriteHomeAreaExcel(out string excelFullPath))
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea 源 Excel 写入或写后校验失败，已停止导表。");
+                return;
+            }
+
+            if (!TryGameRefDataExportWindow.ExportFiles(new List<string> { excelFullPath }, true))
+            {
+                sourceSavedOutputStale = true;
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] SourceSavedOutputStale：源 Excel 已保存，但正式导表失败，Output 仍可能是旧数据。请修复此前错误后重新导出：" + excelFullPath);
+                return;
+            }
+
+            LoadTable();
             AssetDatabase.Refresh();
+            if (!tableLoadSucceeded)
+            {
+                sourceSavedOutputStale = true;
+                RestoreRows(expectedRows);
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 正式导表已返回成功，但重新读取 HomeArea.txt 失败。请检查导出结果，当前窗口不会报告同步完成。");
+                return;
+            }
+
+            if (!ValidateExportedRows(expectedRows))
+            {
+                sourceSavedOutputStale = true;
+                RestoreRows(expectedRows);
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] SourceSavedOutputStale：正式导表进程返回成功，但 Output 的五个目标字段未通过逐 ID 对比；窗口已保留待导出的目标值。");
+                return;
+            }
+
             dirty = false;
-            Debug.Log("[TryGameHomeAreaBoundsEditorWindow] HomeArea 配置已保存：txt / bytes / JSON。");
+            sourceSavedOutputStale = false;
+            Debug.Log("[TryGameHomeAreaBoundsEditorWindow] HomeArea 源 Excel 与正式导出结果已同步完成。");
         }
 
-        private void WriteHomeAreaTxt()
+        private bool ValidateExportedRows(List<HomeAreaRow> expectedRows)
         {
+            if (expectedRows == null || expectedRows.Count != rows.Count)
+            {
+                Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] Output HomeArea 行数不一致：expected={expectedRows?.Count ?? 0}, actual={rows.Count}");
+                return false;
+            }
+
+            bool valid = true;
+            for (int i = 0; i < expectedRows.Count; i++)
+            {
+                HomeAreaRow expected = expectedRows[i];
+                if (!rowById.TryGetValue(expected.Id, out HomeAreaRow actual))
+                {
+                    Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] Output HomeArea 缺少预期 ID：id={expected.Id}");
+                    valid = false;
+                    continue;
+                }
+
+                bool rowValid = actual.GridWidth == expected.GridWidth
+                    && actual.GridHeight == expected.GridHeight
+                    && Mathf.Approximately(actual.CellSize, expected.CellSize)
+                    && Mathf.Approximately(actual.OriginX, expected.OriginX)
+                    && Mathf.Approximately(actual.OriginY, expected.OriginY);
+                if (!rowValid)
+                {
+                    Debug.LogError(
+                        $"[TryGameHomeAreaBoundsEditorWindow] Output HomeArea 五字段不一致：id={expected.Id}, " +
+                        $"expected=({expected.GridWidth},{expected.GridHeight},{expected.CellSize},{expected.OriginX},{expected.OriginY}), " +
+                        $"actual=({actual.GridWidth},{actual.GridHeight},{actual.CellSize},{actual.OriginX},{actual.OriginY})");
+                    valid = false;
+                }
+            }
+
+            return valid;
+        }
+
+        private static List<HomeAreaRow> CloneRows(List<HomeAreaRow> source)
+        {
+            List<HomeAreaRow> clones = new List<HomeAreaRow>(source != null ? source.Count : 0);
+            if (source == null)
+            {
+                return clones;
+            }
+
+            for (int i = 0; i < source.Count; i++)
+            {
+                HomeAreaRow row = source[i];
+                if (row != null)
+                {
+                    clones.Add(row.Clone());
+                }
+            }
+
+            return clones;
+        }
+
+        private void RestoreRows(List<HomeAreaRow> expectedRows)
+        {
+            rows.Clear();
+            rowById.Clear();
+            for (int i = 0; i < expectedRows.Count; i++)
+            {
+                HomeAreaRow clone = expectedRows[i].Clone();
+                rows.Add(clone);
+                rowById.Add(clone.Id, clone);
+            }
+
+            tableLoadSucceeded = rows.Count > 0;
+            dirty = true;
+            Repaint();
+            SceneView.RepaintAll();
+        }
+
+        private bool ValidateRowsForSave()
+        {
+            bool valid = true;
             for (int i = 0; i < rows.Count; i++)
             {
                 HomeAreaRow row = rows[i];
-                SetColumn(row.Columns, gridWidthColumn, row.GridWidth.ToString(InvariantCulture));
-                SetColumn(row.Columns, gridHeightColumn, row.GridHeight.ToString(InvariantCulture));
-                SetColumn(row.Columns, cellSizeColumn, FormatFloat(row.CellSize));
-                SetColumn(row.Columns, originXColumn, FormatFloat(row.OriginX));
-                SetColumn(row.Columns, originYColumn, FormatFloat(row.OriginY));
-                rawLines[row.LineIndex] = string.Join("\t", row.Columns);
-            }
-
-            File.WriteAllLines(ToFullPath(HomeAreaTxtAssetPath), rawLines.ToArray(), new UTF8Encoding(false));
-        }
-
-        private void WriteHomeAreaBytes()
-        {
-            List<HomeAreaRow> sortedRows = GetRowsSortedById();
-            FlatBufferBuilder builder = new FlatBufferBuilder(1024);
-            Offset<HomeArea>[] offsets = new Offset<HomeArea>[sortedRows.Count];
-            for (int i = 0; i < sortedRows.Count; i++)
-            {
-                HomeAreaRow row = sortedRows[i];
-                StringOffset nameKeyOffset = builder.CreateString(row.NameKey ?? string.Empty);
-                offsets[i] = HomeArea.CreateHomeArea(
-                    builder,
-                    row.Id,
-                    row.WorldId,
-                    nameKeyOffset,
-                    row.GridWidth,
-                    row.GridHeight,
-                    row.CellSize,
-                    row.OriginX,
-                    row.OriginY);
-            }
-
-            VectorOffset vectorOffset = HomeArea.CreateSortedVectorOfHomeArea(builder, offsets);
-            Offset<HomeAreaRefData> rootOffset = HomeAreaRefData.CreateHomeAreaRefData(builder, vectorOffset);
-            HomeAreaRefData.FinishHomeAreaRefDataBuffer(builder, rootOffset);
-            File.WriteAllBytes(ToFullPath(HomeAreaBytesAssetPath), builder.SizedByteArray());
-        }
-
-        private void WriteClientJson()
-        {
-            List<HomeAreaRow> sortedRows = GetRowsSortedById();
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("{");
-            sb.AppendLine("  \"HomeAreas\": [");
-            AppendJsonRows(sb, sortedRows, 4);
-            sb.AppendLine("  ]");
-            sb.AppendLine("}");
-            File.WriteAllText(ToFullPath(HomeAreaClientJsonAssetPath), sb.ToString(), new UTF8Encoding(false));
-        }
-
-        private void WriteServerJson()
-        {
-            HashSet<int> serverIds = ReadServerJsonIds();
-            List<HomeAreaRow> sortedRows = new List<HomeAreaRow>();
-            for (int i = 0; i < rows.Count; i++)
-            {
-                if (serverIds.Count == 0 || serverIds.Contains(rows[i].Id))
+                bool rowValid = row != null
+                    && row.Id > 0
+                    && row.GridWidth > 0
+                    && row.GridHeight > 1
+                    && !float.IsNaN(row.CellSize) && !float.IsInfinity(row.CellSize) && row.CellSize > 0f
+                    && !float.IsNaN(row.OriginX) && !float.IsInfinity(row.OriginX)
+                    && !float.IsNaN(row.OriginY) && !float.IsInfinity(row.OriginY);
+                if (rowValid)
                 {
-                    sortedRows.Add(rows[i]);
+                    continue;
+                }
+
+                valid = false;
+                Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] HomeArea 待保存数值非法：id={row?.Id ?? 0}, grid=({row?.GridWidth ?? 0},{row?.GridHeight ?? 0}), cellSize={row?.CellSize ?? 0f}, origin=({row?.OriginX ?? 0f},{row?.OriginY ?? 0f})");
+            }
+
+            return valid;
+        }
+
+        private bool TryWriteHomeAreaExcel(out string excelFullPath)
+        {
+            excelFullPath = ToFullPath(HomeAreaExcelAssetPath);
+            if (!File.Exists(excelFullPath))
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea 源 Excel 不存在：" + excelFullPath);
+                return false;
+            }
+
+            string backupPath = excelFullPath + ".trygame-backup-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                File.Copy(excelFullPath, backupPath, false);
+                using (ZipArchive archive = ZipFile.Open(excelFullPath, ZipArchiveMode.Update))
+                {
+                    UpdateHomeAreaExcelSheet(archive);
+                }
+
+                using (ZipArchive archive = ZipFile.OpenRead(excelFullPath))
+                {
+                    ValidateHomeAreaExcelSheet(archive);
+                }
+
+                TryDeleteExcelBackup(backupPath);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 写入 HomeArea 源 Excel 失败，开始恢复事务备份：excel=" + excelFullPath + ", backup=" + backupPath + "\n" + exception);
+                if (File.Exists(backupPath))
+                {
+                    try
+                    {
+                        File.Copy(backupPath, excelFullPath, true);
+                        Debug.LogWarning("[TryGameHomeAreaBoundsEditorWindow] HomeArea 源 Excel 写入失败后已恢复旧文件。");
+                    }
+                    catch (Exception restoreException)
+                    {
+                        Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 恢复 HomeArea 源 Excel 失败，请立即从版本控制或备份恢复：excel=" + excelFullPath + ", backup=" + backupPath + "\n" + restoreException);
+                    }
+                }
+                else
+                {
+                    Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea 源 Excel 写入失败，且事务备份不存在：" + backupPath);
+                }
+
+                return false;
+            }
+        }
+
+        private void UpdateHomeAreaExcelSheet(ZipArchive archive)
+        {
+            LoadHomeAreaSheet(archive, out ZipArchiveEntry sheetEntry, out XmlDocument sheetDocument, out XmlNamespaceManager sheetNs, out List<string> sharedStrings);
+            XmlNodeList rowNodes = sheetDocument.SelectNodes("//x:sheetData/x:row", sheetNs);
+            XmlNode headerRow = FindHeaderRow(rowNodes, sharedStrings, sheetNs, out Dictionary<string, int> columns);
+            RequireExcelColumns(columns);
+            HashSet<int> updatedIds = new HashSet<int>();
+            for (int i = 0; i < rowNodes.Count; i++)
+            {
+                XmlNode rowNode = rowNodes[i];
+                if (ReferenceEquals(rowNode, headerRow))
+                {
+                    continue;
+                }
+
+                if (!TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["id"]), sharedStrings, sheetNs), out int id) || !rowById.TryGetValue(id, out HomeAreaRow row))
+                {
+                    continue;
+                }
+
+                SetNumericCell(rowNode, columns["gridWidth"], row.GridWidth.ToString(InvariantCulture), sheetDocument, sheetNs);
+                SetNumericCell(rowNode, columns["gridHeight"], row.GridHeight.ToString(InvariantCulture), sheetDocument, sheetNs);
+                SetNumericCell(rowNode, columns["cellSize"], FormatFloat(row.CellSize), sheetDocument, sheetNs);
+                SetNumericCell(rowNode, columns["originX"], FormatFloat(row.OriginX), sheetDocument, sheetNs);
+                SetNumericCell(rowNode, columns["originY"], FormatFloat(row.OriginY), sheetDocument, sheetNs);
+                updatedIds.Add(id);
+            }
+
+            if (updatedIds.Count != rows.Count)
+            {
+                throw new InvalidDataException("HomeArea sheet 待更新行数不一致：expected=" + rows.Count + ", actual=" + updatedIds.Count);
+            }
+
+            using (Stream output = sheetEntry.Open())
+            {
+                output.SetLength(0);
+                sheetDocument.Save(output);
+            }
+        }
+
+        private void ValidateHomeAreaExcelSheet(ZipArchive archive)
+        {
+            LoadHomeAreaSheet(archive, out _, out XmlDocument sheetDocument, out XmlNamespaceManager sheetNs, out List<string> sharedStrings);
+            XmlNodeList rowNodes = sheetDocument.SelectNodes("//x:sheetData/x:row", sheetNs);
+            FindHeaderRow(rowNodes, sharedStrings, sheetNs, out Dictionary<string, int> columns);
+            RequireExcelColumns(columns);
+            HashSet<int> validatedIds = new HashSet<int>();
+            for (int i = 0; i < rowNodes.Count; i++)
+            {
+                XmlNode rowNode = rowNodes[i];
+                if (!TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["id"]), sharedStrings, sheetNs), out int id) || !rowById.TryGetValue(id, out HomeAreaRow expected))
+                {
+                    continue;
+                }
+
+                bool valid = TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["gridWidth"]), sharedStrings, sheetNs), out int gridWidth)
+                    && TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["gridHeight"]), sharedStrings, sheetNs), out int gridHeight)
+                    && TryParseExcelFloat(ReadCellValue(FindCell(rowNode, columns["cellSize"]), sharedStrings, sheetNs), out float cellSize)
+                    && TryParseExcelFloat(ReadCellValue(FindCell(rowNode, columns["originX"]), sharedStrings, sheetNs), out float originX)
+                    && TryParseExcelFloat(ReadCellValue(FindCell(rowNode, columns["originY"]), sharedStrings, sheetNs), out float originY)
+                    && gridWidth == expected.GridWidth && gridHeight == expected.GridHeight
+                    && Mathf.Approximately(cellSize, expected.CellSize) && Mathf.Approximately(originX, expected.OriginX) && Mathf.Approximately(originY, expected.OriginY);
+                if (!valid)
+                {
+                    throw new InvalidDataException("HomeArea 源 Excel 写后校验不一致：id=" + id);
+                }
+
+                validatedIds.Add(id);
+            }
+
+            if (validatedIds.Count != rows.Count)
+            {
+                throw new InvalidDataException("HomeArea 源 Excel 写后校验行数不一致：expected=" + rows.Count + ", actual=" + validatedIds.Count);
+            }
+        }
+
+        private static void LoadHomeAreaSheet(ZipArchive archive, out ZipArchiveEntry sheetEntry, out XmlDocument sheetDocument, out XmlNamespaceManager sheetNs, out List<string> sharedStrings)
+        {
+            sharedStrings = ReadExcelSharedStrings(archive);
+            XmlDocument workbook = LoadExcelXml(archive.GetEntry("xl/workbook.xml"), "workbook.xml");
+            XmlNamespaceManager workbookNs = new XmlNamespaceManager(workbook.NameTable);
+            workbookNs.AddNamespace("x", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+            XmlNode sheetNode = workbook.SelectSingleNode("//x:sheet[@name='HomeArea']", workbookNs);
+            XmlAttribute relationshipId = sheetNode?.Attributes?["id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships"];
+            if (relationshipId == null)
+            {
+                throw new InvalidDataException("h.家园1_0A.xlsx 缺少 HomeArea sheet 或 relationship id。");
+            }
+
+            XmlDocument relationships = LoadExcelXml(archive.GetEntry("xl/_rels/workbook.xml.rels"), "workbook.xml.rels");
+            XmlNamespaceManager relationshipsNs = new XmlNamespaceManager(relationships.NameTable);
+            relationshipsNs.AddNamespace("r", "http://schemas.openxmlformats.org/package/2006/relationships");
+            XmlNode relationship = relationships.SelectSingleNode("//r:Relationship[@Id='" + relationshipId.Value + "']", relationshipsNs);
+            XmlAttribute targetAttribute = relationship?.Attributes?["Target"];
+            if (targetAttribute == null)
+            {
+                throw new InvalidDataException("无法解析 HomeArea sheet 的目标 XML。");
+            }
+
+            string sheetPath = targetAttribute.Value.Replace("\\", "/").TrimStart('/');
+            if (!sheetPath.StartsWith("xl/", StringComparison.OrdinalIgnoreCase))
+            {
+                sheetPath = "xl/" + sheetPath;
+            }
+
+            sheetEntry = archive.GetEntry(sheetPath);
+            sheetDocument = LoadExcelXml(sheetEntry, sheetPath);
+            sheetNs = new XmlNamespaceManager(sheetDocument.NameTable);
+            sheetNs.AddNamespace("x", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+        }
+
+        private static XmlNode FindHeaderRow(XmlNodeList rowNodes, List<string> sharedStrings, XmlNamespaceManager sheetNs, out Dictionary<string, int> columns)
+        {
+            columns = null;
+            for (int i = 0; i < rowNodes.Count; i++)
+            {
+                Dictionary<string, int> candidate = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                XmlNodeList cells = rowNodes[i].SelectNodes("x:c", sheetNs);
+                for (int j = 0; j < cells.Count; j++)
+                {
+                    string value = ReadCellValue(cells[j], sharedStrings, sheetNs);
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        candidate[value.Trim()] = GetExcelColumnIndex(cells[j].Attributes?["r"]?.Value);
+                    }
+                }
+
+                if (candidate.ContainsKey("id") && candidate.ContainsKey("gridWidth") && candidate.ContainsKey("gridHeight") && candidate.ContainsKey("cellSize") && candidate.ContainsKey("originX") && candidate.ContainsKey("originY"))
+                {
+                    columns = candidate;
+                    return rowNodes[i];
                 }
             }
 
-            sortedRows.Sort((a, b) => a.Id.CompareTo(b.Id));
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("[");
-            AppendJsonRows(sb, sortedRows, 2);
-            sb.AppendLine("]");
-            File.WriteAllText(ToFullPath(HomeAreaServerJsonAssetPath), sb.ToString(), new UTF8Encoding(false));
+            throw new InvalidDataException("HomeArea sheet 未找到包含必要字段的表头行。");
         }
 
-        private static void AppendJsonRows(StringBuilder sb, List<HomeAreaRow> jsonRows, int indent)
+        private static void RequireExcelColumns(Dictionary<string, int> columns)
         {
-            string pad = new string(' ', indent);
-            string fieldPad = new string(' ', indent + 2);
-            for (int i = 0; i < jsonRows.Count; i++)
+            string[] required = { "id", "gridWidth", "gridHeight", "cellSize", "originX", "originY" };
+            for (int i = 0; i < required.Length; i++)
             {
-                HomeAreaRow row = jsonRows[i];
-                sb.AppendLine(pad + "{");
-                sb.AppendLine(fieldPad + "\"id\": " + row.Id + ",");
-                sb.AppendLine(fieldPad + "\"worldId\": " + row.WorldId + ",");
-                sb.AppendLine(fieldPad + "\"nameKey\": \"" + EscapeJson(row.NameKey) + "\",");
-                sb.AppendLine(fieldPad + "\"gridWidth\": " + row.GridWidth + ",");
-                sb.AppendLine(fieldPad + "\"gridHeight\": " + row.GridHeight + ",");
-                sb.AppendLine(fieldPad + "\"cellSize\": " + FormatFloat(row.CellSize) + ",");
-                sb.AppendLine(fieldPad + "\"originX\": " + FormatFloat(row.OriginX) + ",");
-                sb.AppendLine(fieldPad + "\"originY\": " + FormatFloat(row.OriginY));
-                sb.Append(pad + "}");
-                sb.AppendLine(i < jsonRows.Count - 1 ? "," : string.Empty);
-            }
-        }
-
-        private HashSet<int> ReadServerJsonIds()
-        {
-            HashSet<int> ids = new HashSet<int>();
-            string path = ToFullPath(HomeAreaServerJsonAssetPath);
-            if (!File.Exists(path))
-            {
-                return ids;
-            }
-
-            string text = File.ReadAllText(path, Encoding.UTF8);
-            MatchCollection matches = JsonIdRegex.Matches(text);
-            for (int i = 0; i < matches.Count; i++)
-            {
-                if (int.TryParse(matches[i].Groups["id"].Value, NumberStyles.Integer, InvariantCulture, out int id))
+                if (columns == null || !columns.ContainsKey(required[i]))
                 {
-                    ids.Add(id);
+                    throw new InvalidDataException("HomeArea sheet 缺少必要列：" + required[i]);
                 }
             }
-
-            return ids;
         }
 
-        private List<HomeAreaRow> GetRowsSortedById()
+        private static XmlNode FindCell(XmlNode rowNode, int columnIndex)
         {
-            List<HomeAreaRow> sortedRows = new List<HomeAreaRow>(rows);
-            sortedRows.Sort((a, b) => a.Id.CompareTo(b.Id));
-            return sortedRows;
+            if (rowNode == null) return null;
+            for (int i = 0; i < rowNode.ChildNodes.Count; i++)
+            {
+                XmlNode cell = rowNode.ChildNodes[i];
+                if (cell.LocalName == "c" && GetExcelColumnIndex(cell.Attributes?["r"]?.Value) == columnIndex) return cell;
+            }
+
+            return null;
+        }
+
+        private static void SetNumericCell(XmlNode rowNode, int columnIndex, string value, XmlDocument document, XmlNamespaceManager sheetNs)
+        {
+            XmlNode cell = FindCell(rowNode, columnIndex);
+            if (cell == null) throw new InvalidDataException("HomeArea sheet 数据行缺少单元格：columnIndex=" + columnIndex);
+            if (cell.SelectSingleNode("x:f", sheetNs) != null) throw new InvalidDataException("HomeArea sheet 目标单元格含公式，拒绝覆盖：cell=" + cell.Attributes?["r"]?.Value);
+            XmlAttribute type = cell.Attributes?["t"];
+            if (type != null && !string.IsNullOrEmpty(type.Value) && !string.Equals(type.Value, "n", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("HomeArea sheet 目标单元格不是数值类型，拒绝覆盖：cell=" + cell.Attributes?["r"]?.Value + ", type=" + type.Value);
+            }
+
+            if (type != null) cell.Attributes.Remove(type);
+            XmlNode valueNode = cell.SelectSingleNode("x:v", sheetNs);
+            if (valueNode == null)
+            {
+                valueNode = document.CreateElement("v", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+                cell.AppendChild(valueNode);
+            }
+
+            valueNode.InnerText = value;
+        }
+
+        private static string ReadCellValue(XmlNode cellNode, List<string> sharedStrings, XmlNamespaceManager sheetNs)
+        {
+            if (cellNode == null) return string.Empty;
+            string type = cellNode.Attributes?["t"]?.Value ?? string.Empty;
+            if (type == "inlineStr") return cellNode.SelectSingleNode(".//x:t", sheetNs)?.InnerText ?? string.Empty;
+            XmlNode valueNode = cellNode.SelectSingleNode("x:v", sheetNs);
+            if (valueNode == null) return string.Empty;
+            if (type == "s" && int.TryParse(valueNode.InnerText, NumberStyles.Integer, InvariantCulture, out int index) && index >= 0 && index < sharedStrings.Count) return sharedStrings[index];
+            return valueNode.InnerText;
+        }
+
+        private static List<string> ReadExcelSharedStrings(ZipArchive archive)
+        {
+            List<string> result = new List<string>();
+            ZipArchiveEntry entry = archive.GetEntry("xl/sharedStrings.xml");
+            if (entry == null) return result;
+            XmlDocument document = LoadExcelXml(entry, "sharedStrings.xml");
+            XmlNamespaceManager ns = new XmlNamespaceManager(document.NameTable);
+            ns.AddNamespace("x", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+            XmlNodeList stringNodes = document.SelectNodes("//x:si", ns);
+            for (int i = 0; i < stringNodes.Count; i++)
+            {
+                StringBuilder value = new StringBuilder();
+                XmlNodeList textNodes = stringNodes[i].SelectNodes(".//x:t", ns);
+                for (int j = 0; j < textNodes.Count; j++) value.Append(textNodes[j].InnerText);
+                result.Add(value.ToString());
+            }
+
+            return result;
+        }
+
+        private static XmlDocument LoadExcelXml(ZipArchiveEntry entry, string label)
+        {
+            if (entry == null) throw new InvalidDataException("Excel 内缺少文件：" + label);
+            XmlDocument document = new XmlDocument();
+            using (Stream stream = entry.Open()) document.Load(stream);
+            return document;
+        }
+
+        private static int GetExcelColumnIndex(string cellReference)
+        {
+            if (string.IsNullOrEmpty(cellReference)) return -1;
+            int result = 0;
+            for (int i = 0; i < cellReference.Length; i++)
+            {
+                char c = char.ToUpperInvariant(cellReference[i]);
+                if (c < 'A' || c > 'Z') break;
+                result = result * 26 + c - 'A' + 1;
+            }
+
+            return result - 1;
+        }
+
+        private static bool TryParseExcelInt(string value, out int result) => int.TryParse(value, NumberStyles.Integer, InvariantCulture, out result);
+        private static bool TryParseExcelFloat(string value, out float result) => float.TryParse(value, NumberStyles.Float, InvariantCulture, out result);
+
+        private static void TryDeleteExcelBackup(string backupPath)
+        {
+            try
+            {
+                if (File.Exists(backupPath)) File.Delete(backupPath);
+            }
+            catch (Exception cleanupException)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] 清理 Excel 事务备份失败，请手动删除：" + backupPath + "\n" + cleanupException);
+            }
         }
 
         private void SaveOpenScenesAndAssets()
@@ -809,16 +1164,6 @@ namespace TryGame.HomeDebugTools.Editor
             return columns != null && index >= 0 && index < columns.Length ? columns[index] : string.Empty;
         }
 
-        private static void SetColumn(string[] columns, int index, string value)
-        {
-            if (columns == null || index < 0 || index >= columns.Length)
-            {
-                return;
-            }
-
-            columns[index] = value;
-        }
-
         private static string FormatRect(Rect rect)
         {
             return $"center=({FormatFloat(rect.center.x)}, {FormatFloat(rect.center.y)}), size={FormatFloat(rect.width)} x {FormatFloat(rect.height)}";
@@ -827,11 +1172,6 @@ namespace TryGame.HomeDebugTools.Editor
         private static string FormatFloat(float value)
         {
             return value.ToString("0.###", InvariantCulture);
-        }
-
-        private static string EscapeJson(string value)
-        {
-            return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         private static string ToFullPath(string assetPath)
@@ -850,7 +1190,6 @@ namespace TryGame.HomeDebugTools.Editor
 
         private sealed class HomeAreaRow
         {
-            public int LineIndex;
             public string[] Columns;
             public int Id;
             public int WorldId;
@@ -860,6 +1199,22 @@ namespace TryGame.HomeDebugTools.Editor
             public float CellSize;
             public float OriginX;
             public float OriginY;
+
+            public HomeAreaRow Clone()
+            {
+                return new HomeAreaRow
+                {
+                    Columns = Columns != null ? (string[])Columns.Clone() : null,
+                    Id = Id,
+                    WorldId = WorldId,
+                    NameKey = NameKey,
+                    GridWidth = GridWidth,
+                    GridHeight = GridHeight,
+                    CellSize = CellSize,
+                    OriginX = OriginX,
+                    OriginY = OriginY,
+                };
+            }
 
             public Vector2 Center
             {

@@ -1,0 +1,22 @@
+* text=auto
+*.cs text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.fbs text eol=lf
+*.java text eol=lf
+*.txt text eol=lf
+*.meta text eol=lf
+*.asset text eol=lf
+*.prefab text eol=lf
+*.unity text eol=lf
+*.bytes binary
+*.xlsx binary
+*.xlsm binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.psd binary
+*.dll binary
+*.exe binary
+

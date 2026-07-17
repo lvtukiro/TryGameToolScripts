@@ -209,9 +209,25 @@ namespace TryGame.RefDataTools.Editor
         /// <summary>
         /// 导出指定 Excel 列表，并在成功后按需生成 Config 入口。
         /// </summary>
-        private static void ExportFiles(List<string> excelFullPaths, bool generateConfig)
+        internal static bool ExportFiles(List<string> excelFullPaths, bool generateConfig)
         {
+            if (excelFullPaths == null || excelFullPaths.Count == 0)
+            {
+                UnityEngine.Debug.LogError("[TryGameRefDataExportWindow] 配表导出失败，没有传入任何 Excel 文件。");
+                return false;
+            }
+
+            for (int i = 0; i < excelFullPaths.Count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(excelFullPaths[i]) || !File.Exists(excelFullPaths[i]))
+                {
+                    UnityEngine.Debug.LogError($"[TryGameRefDataExportWindow] 配表导出失败，Excel 文件不存在：index={i}, path={excelFullPaths[i] ?? "<null>"}");
+                    return false;
+                }
+            }
+
             bool autoRefresh = EditorPrefs.GetBool("kAutoRefresh");
+            bool success = false;
             try
             {
                 EditorPrefs.SetBool("kAutoRefresh", false);
@@ -220,7 +236,7 @@ namespace TryGame.RefDataTools.Editor
                 List<string> languageFiles = new List<string>();
                 SplitExportFiles(excelFullPaths, cltabtoyFiles, languageFiles);
 
-                bool success = true;
+                success = true;
                 if (cltabtoyFiles.Count > 0)
                 {
                     TryGameCLTabtoyProcess process = new TryGameCLTabtoyProcess(
@@ -239,6 +255,19 @@ namespace TryGame.RefDataTools.Editor
                 {
                     TryGameConfigGenerator.GenerateDefault();
                 }
+
+                if (!success)
+                {
+                    UnityEngine.Debug.LogError("[TryGameRefDataExportWindow] 配表导出失败，未继续生成 Config 入口。请查看此前的导出错误日志。");
+                }
+
+                return success;
+            }
+            catch (Exception exception)
+            {
+                success = false;
+                UnityEngine.Debug.LogError("[TryGameRefDataExportWindow] 配表导出流程异常：\n" + exception);
+                return false;
             }
             finally
             {
