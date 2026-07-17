@@ -14,6 +14,8 @@ namespace TryGame.RefDataTools.Editor
         private const string CommonDefineExcelName = "共用枚举结构体.xlsx";
         private const string ExcelRootPrefsKey = "TryGame.RefData.ExcelRoot";
         private const string ExportAfterGeneratePrefsKey = "TryGame.RefData.ExportAfterGenerate";
+        private const string LegacyExcelRootAssetPath = "Assets/Resources/TryGameRefdataRes/v2";
+        private const string LegacyRuntimeExcelRootAssetPath = "Assets/Resources/TryGameRefdataRuntimeRes/v2";
 
         private readonly List<ExcelItem> excelItems = new List<ExcelItem>();
         private Vector2 scrollPosition;
@@ -37,7 +39,7 @@ namespace TryGame.RefDataTools.Editor
         [MenuItem("TryGame/RefData/导出全部配表并生成入口")]
         public static void ExportAllByMenu()
         {
-            string excelRoot = EditorPrefs.GetString(ExcelRootPrefsKey, TryGameRefDataPaths.DefaultExcelRootAssetPath);
+            string excelRoot = ResolveConfiguredExcelRoot();
             List<string> excelPaths = FindExcelFiles(TryGameRefDataPaths.ToFullPath(excelRoot));
             ExportFiles(excelPaths, true);
         }
@@ -47,9 +49,51 @@ namespace TryGame.RefDataTools.Editor
         /// </summary>
         private void OnEnable()
         {
-            excelRootAssetPath = EditorPrefs.GetString(ExcelRootPrefsKey, TryGameRefDataPaths.DefaultExcelRootAssetPath);
+            excelRootAssetPath = ResolveConfiguredExcelRoot();
             generateConfigAfterExport = EditorPrefs.GetBool(ExportAfterGeneratePrefsKey, true);
             RefreshExcelList();
+        }
+
+        private static string ResolveConfiguredExcelRoot()
+        {
+            string configured = EditorPrefs.GetString(ExcelRootPrefsKey, TryGameRefDataPaths.DefaultExcelRootAssetPath);
+            if (IsLegacyExcelRoot(configured))
+            {
+                configured = TryGameRefDataPaths.DefaultExcelRootAssetPath;
+                EditorPrefs.SetString(ExcelRootPrefsKey, configured);
+                UnityEngine.Debug.LogWarning($"[TryGameRefDataExportWindow] 已把旧源表路径迁移为：{configured}");
+            }
+
+            return configured;
+        }
+
+        private static bool IsLegacyExcelRoot(string configured)
+        {
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                return false;
+            }
+
+            string normalized = configured.Trim().Replace("\\", "/").TrimEnd('/');
+            if (string.Equals(normalized, LegacyExcelRootAssetPath, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, LegacyRuntimeExcelRootAssetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            try
+            {
+                string configuredFullPath = TryGameRefDataPaths.ToFullPath(normalized).TrimEnd('/');
+                string legacyFullPath = TryGameRefDataPaths.ToFullPath(LegacyExcelRootAssetPath).TrimEnd('/');
+                string legacyRuntimeFullPath = TryGameRefDataPaths.ToFullPath(LegacyRuntimeExcelRootAssetPath).TrimEnd('/');
+                return string.Equals(configuredFullPath, legacyFullPath, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(configuredFullPath, legacyRuntimeFullPath, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception exception)
+            {
+                UnityEngine.Debug.LogError($"[TryGameRefDataExportWindow] 无法解析已保存的 Excel Root，保留原值等待用户修正：path={configured}\n{exception}");
+                return false;
+            }
         }
 
         /// <summary>
@@ -232,6 +276,12 @@ namespace TryGame.RefDataTools.Editor
             {
                 EditorPrefs.SetBool("kAutoRefresh", false);
 
+                if (!TryGameRefDataRuntimeSync.PrepareSourceOutputForExport())
+                {
+                    UnityEngine.Debug.LogError("[TryGameRefDataExportWindow] 配表导出失败：无法清理上次残留的源 bytes，未启动导表进程。");
+                    return false;
+                }
+
                 List<string> cltabtoyFiles = new List<string>();
                 List<string> languageFiles = new List<string>();
                 SplitExportFiles(excelFullPaths, cltabtoyFiles, languageFiles);
@@ -249,6 +299,11 @@ namespace TryGame.RefDataTools.Editor
                 if (success && languageFiles.Count > 0)
                 {
                     success = TryGameLanguageExcelExport.Export(languageFiles, TryGameRefDataPaths.DefaultOutputAssetPath);
+                }
+
+                if (success)
+                {
+                    success = TryGameRefDataRuntimeSync.SyncFromSourceOutput();
                 }
 
                 if (success && generateConfig)

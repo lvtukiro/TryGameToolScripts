@@ -16,7 +16,7 @@ namespace TryGame.PlaceholderTools.Editor
     /// </summary>
     public static class TryGameFurniturePlaceholderPrefabGenerator
     {
-        private const string ExcelRoot = "Assets/Resources/TryGameRefdataRes/v2";
+        private const string ExcelRoot = "RefDataSource/TryGameRefdataRes/v2";
         private const string FurnitureExcelName = "h.家园1_0A.xlsx";
         private const string ResourceExcelName = "z.资源相关表.xlsx";
         private const string SourceImageRoot = "Assets/Resources/TryGameBuildRes";
