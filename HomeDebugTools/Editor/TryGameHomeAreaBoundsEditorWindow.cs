@@ -19,8 +19,8 @@ namespace TryGame.HomeDebugTools.Editor
     /// </summary>
     public sealed class TryGameHomeAreaBoundsEditorWindow : EditorWindow
     {
-        private const string HomeAreaTxtAssetPath = "RefDataSource/TryGameRefdataRes/v2/Output/txt_data/HomeArea.txt";
-        private const string HomeAreaExcelAssetPath = "RefDataSource/TryGameRefdataRes/v2/h.家园1_0A.xlsx";
+        private static readonly string HomeAreaTxtAssetPath = TryGameRefDataPaths.DefaultOutputAssetPath + "/txt_data/HomeArea.txt";
+        private static readonly string HomeAreaExcelAssetPath = TryGameRefDataPaths.DefaultExcelRootAssetPath + "/h.家园1_0A.xlsx";
 
         private static readonly CultureInfo InvariantCulture = CultureInfo.InvariantCulture;
         private static readonly Regex DataLineRegex = new Regex(@"^\s*\d+\s*\t", RegexOptions.Compiled);
