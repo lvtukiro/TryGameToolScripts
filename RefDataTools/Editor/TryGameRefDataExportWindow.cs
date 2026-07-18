@@ -275,45 +275,13 @@ namespace TryGame.RefDataTools.Editor
             try
             {
                 EditorPrefs.SetBool("kAutoRefresh", false);
-
-                if (!TryGameRefDataRuntimeSync.PrepareSourceOutputForExport())
-                {
-                    UnityEngine.Debug.LogError("[TryGameRefDataExportWindow] 配表导出失败：无法清理上次残留的源 bytes，未启动导表进程。");
-                    return false;
-                }
-
-                List<string> cltabtoyFiles = new List<string>();
-                List<string> languageFiles = new List<string>();
-                SplitExportFiles(excelFullPaths, cltabtoyFiles, languageFiles);
-
-                success = true;
-                if (cltabtoyFiles.Count > 0)
-                {
-                    TryGameCLTabtoyProcess process = new TryGameCLTabtoyProcess(
-                        TryGameRefDataPaths.DefaultOutputAssetPath,
-                        TryGameRefDataPaths.DefaultGeneratedTableAssetPath,
-                        TryGameRefDataPaths.DefaultLuaOutputAssetPath);
-                    success = process.Export(cltabtoyFiles);
-                }
-
-                if (success && languageFiles.Count > 0)
-                {
-                    success = TryGameLanguageExcelExport.Export(languageFiles, TryGameRefDataPaths.DefaultOutputAssetPath);
-                }
-
-                if (success)
-                {
-                    success = TryGameRefDataRuntimeSync.SyncFromSourceOutput();
-                }
-
-                if (success && generateConfig)
-                {
-                    TryGameConfigGenerator.GenerateDefault();
-                }
+                success = TryGameRefDataExportTransaction.Execute(excelFullPaths, generateConfig);
 
                 if (!success)
                 {
-                    UnityEngine.Debug.LogError("[TryGameRefDataExportWindow] 配表导出失败，未继续生成 Config 入口。请查看此前的导出错误日志。");
+                    UnityEngine.Debug.LogError(
+                        "[TryGameRefDataExportWindow] 配表事务导出失败。正式目录应保持原样或已执行回滚；" +
+                        "请查看此前日志中的 staging/backup 路径。");
                 }
 
                 return success;
@@ -326,43 +294,28 @@ namespace TryGame.RefDataTools.Editor
             }
             finally
             {
-                EditorPrefs.SetBool("kAutoRefresh", autoRefresh);
-                AssetDatabase.Refresh();
-            }
-        }
-
-        /// <summary>
-        /// 语言表沿用原项目流程，不参与 cltabtoy 普通表导出。
-        /// </summary>
-        private static void SplitExportFiles(List<string> excelFullPaths, List<string> cltabtoyFiles, List<string> languageFiles)
-        {
-            if (excelFullPaths == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < excelFullPaths.Count; i++)
-            {
-                string path = excelFullPaths[i];
-                if (IsLanguageTable(path))
+                try
                 {
-                    languageFiles.Add(path);
+                    EditorPrefs.SetBool("kAutoRefresh", autoRefresh);
                 }
-                else
+                catch (Exception exception)
                 {
-                    cltabtoyFiles.Add(path);
+                    UnityEngine.Debug.LogError(
+                        "[TryGameRefDataExportWindow] 恢复 Unity 自动刷新设置失败。" +
+                        $"exportSucceeded={success}, expectedAutoRefresh={autoRefresh}\n{exception}");
+                }
+
+                try
+                {
+                    AssetDatabase.Refresh();
+                }
+                catch (Exception exception)
+                {
+                    UnityEngine.Debug.LogError(
+                        "[TryGameRefDataExportWindow] 导表结束后的 Unity 资源刷新失败，请手动刷新。" +
+                        $"exportSucceeded={success}\n{exception}");
                 }
             }
-        }
-
-        /// <summary>
-        /// 判断当前 Excel 是否是语言表。
-        /// </summary>
-        private static bool IsLanguageTable(string excelFullPath)
-        {
-            string name = Path.GetFileNameWithoutExtension(excelFullPath);
-            return name.IndexOf("Language", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("语言表", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         /// <summary>

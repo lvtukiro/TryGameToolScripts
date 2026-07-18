@@ -347,7 +347,10 @@ namespace TryGame.RefDataTools.Editor
                 sb.AppendLine("    }");
                 sb.AppendLine("}");
 
-                File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+                File.WriteAllText(
+                    path,
+                    TryGameRefDataTextNormalizer.NormalizeLineEndings(sb.ToString()),
+                    new UTF8Encoding(false));
             }
         }
 
@@ -374,7 +377,10 @@ namespace TryGame.RefDataTools.Editor
             sb.AppendLine("    }");
             sb.AppendLine("}");
 
-            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+            File.WriteAllText(
+                path,
+                TryGameRefDataTextNormalizer.NormalizeLineEndings(sb.ToString()),
+                new UTF8Encoding(false));
         }
 
         private static void CleanGeneratedConfigs(string configDir)

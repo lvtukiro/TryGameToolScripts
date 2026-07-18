@@ -9,12 +9,16 @@ namespace TryGame.RefDataTools.Editor
     internal static class TryGameRefDataPaths
     {
         public const string DefaultExcelRootAssetPath = "RefDataSource/TryGameRefdataRes/v2";
+        public const string SourceRepositoryAssetPath = "RefDataSource/TryGameRefdataRes";
         public const string DefaultOutputAssetPath = "RefDataSource/TryGameRefdataRes/v2/Output";
+        public const string RuntimeRepositoryAssetPath = "Assets/Resources/TryGameRefdataRes";
         public const string RuntimeOutputAssetPath = "Assets/Resources/TryGameRefdataRes/v2/Output";
+        public const string GeneratedRepositoryAssetPath = "Assets/TryGameRefdataScripts";
         public const string DefaultGeneratedTableAssetPath = "Assets/TryGameRefdataScripts/GeneratedTables";
         public const string DefaultGeneratedConfigAssetPath = "Assets/TryGameRefdataScripts/GeneratedConfig";
         public const string DefaultLuaOutputAssetPath = "Assets/TryGameToolScripts/RefDataTools/LuaOutput";
         public const string ToolBinAssetPath = "Assets/TryGameToolScripts/RefDataTools/Bin";
+        public const string ManifestFileName = "RefDataManifest.json";
 
         public static string ProjectRoot
         {

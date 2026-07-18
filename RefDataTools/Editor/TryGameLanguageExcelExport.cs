@@ -265,7 +265,7 @@ namespace TryGame.RefDataTools.Editor
                 sb.Append(value);
             }
 
-            sb.Append("\r\n");
+            sb.Append('\n');
         }
 
         /// <summary>

@@ -11,8 +11,6 @@ namespace TryGame.RefDataTools.Editor
     /// </summary>
     internal static class TryGameRefDataRuntimeSync
     {
-        private const string RuntimeRepositoryAssetPath = "Assets/Resources/TryGameRefdataRes";
-
         public static bool PrepareSourceOutputForExport()
         {
             if (!TryResolveRuntimeOutput(out _))
@@ -94,7 +92,7 @@ namespace TryGame.RefDataTools.Editor
 
         private static bool TryResolveRuntimeOutput(out string runtimeOutput)
         {
-            string runtimeRepository = TryGameRefDataPaths.ToFullPath(RuntimeRepositoryAssetPath);
+            string runtimeRepository = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.RuntimeRepositoryAssetPath);
             runtimeOutput = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.RuntimeOutputAssetPath);
             string gitMarker = Path.Combine(runtimeRepository, ".git");
             if (Directory.Exists(runtimeRepository) &&
