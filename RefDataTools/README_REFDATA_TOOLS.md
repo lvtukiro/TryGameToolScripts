@@ -52,7 +52,7 @@ Unity 菜单：
 - 每张表都有 FBS、bytes 和生成 C#。
 - 每份 bytes 都能用对应 FBS 经 `flatc` 反序列化。
 - `Language.bytes` 包含 `id`、`zh_cn`、`en_US`，必要字段非空且 key 唯一。
-- staging 中的 GeneratedTables 和 GeneratedConfig 能通过临时 `dotnet build`。
+- staging 中的 GeneratedTables 和 GeneratedConfig 能通过临时 `dotnet build`。临时工程从 Unity 生成的 `TryGame.RefData.Runtime.csproj` 派生，并把 GeneratedTables、GeneratedConfig 路径替换为 staging 路径；如果 Unity 尚未生成该工程，验证会明确失败，不回退使用 `Assembly-CSharp.csproj`。
 - 本次 Excel 输入在导出前后的 SHA256 一致，避免导出过程中改表却发布旧输出。
 - manifest 能完整序列化，并记录本次 Excel 输入、表名、行数、工具版本和 SHA256。
 
