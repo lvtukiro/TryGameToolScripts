@@ -21,6 +21,7 @@ namespace TryGame.RefDataTools.Editor
         private const int ProcessTimeoutMilliseconds = 300000;
         private const int ManifestFormatVersion = 1;
         private const string TransactionToolVersion = "1.1.0";
+        private const string RefDataRuntimeProjectFileName = "TryGame.RefData.Runtime.csproj";
 
         public static bool TryCaptureInputHashes(
             IReadOnlyList<string> excelFullPaths,
@@ -492,12 +493,22 @@ namespace TryGame.RefDataTools.Editor
             string stagedGeneratedTables,
             string stagedGeneratedConfig)
         {
-            string sourceProject = Path.Combine(TryGameRefDataPaths.ProjectRoot, "Assembly-CSharp.csproj");
-            EnsureFile(sourceProject, "Assembly-CSharp.csproj");
+            string sourceProject = Path.Combine(TryGameRefDataPaths.ProjectRoot, RefDataRuntimeProjectFileName);
+            if (!File.Exists(sourceProject))
+            {
+                throw new FileNotFoundException(
+                    $"RefData Runtime 工程文件不存在，无法准确验证 staging 生成代码。" +
+                    $"请先让 Unity 重新生成 {RefDataRuntimeProjectFileName}；" +
+                    "验证器不会回退到 Assembly-CSharp.csproj，以免掩盖程序集分层后的真实编译失败：" +
+                    sourceProject,
+                    sourceProject);
+            }
+
             string validationDirectory = Path.Combine(transactionRoot, "validation", "compile");
             Directory.CreateDirectory(validationDirectory);
             string projectPath = Path.Combine(validationDirectory, "RefDataStagingValidation.csproj");
 
+            Debug.Log($"[TryGameRefDataExportValidator] staging 编译验证基于程序集工程：{sourceProject}");
             XDocument project = XDocument.Load(sourceProject, LoadOptions.PreserveWhitespace);
             string formalTables = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedTableAssetPath);
             string formalConfig = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedConfigAssetPath);
