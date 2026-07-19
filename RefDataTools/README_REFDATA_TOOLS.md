@@ -50,7 +50,7 @@ Unity 菜单：
 - 客户端 JSON 与运行时 bytes 的表集合一致。
 - JSON 能解析，数据行数有效，同一表中的 ID 不重复。
 - 每张表都有 FBS、bytes 和生成 C#。
-- 每份 bytes 都能用对应 FBS 经 `flatc` 反序列化。
+- 每份 bytes 都能用对应 FBS 经 `flatc` 反序列化；同次生成的客户端 JSON 会再按该 FBS 编码为 expected bytes，并与运行时 bytes 做长度、SHA256 和逐字节一致性校验，避免旧 bytes 或错内容通过发布。
 - `Language.bytes` 包含 `id`、`zh_cn`、`en_US`，必要字段非空且 key 唯一。
 - staging 中的 GeneratedTables 和 GeneratedConfig 能通过临时 `dotnet build`。临时工程从 Unity 生成的 `TryGame.RefData.Runtime.csproj` 派生，并把 GeneratedTables、GeneratedConfig 路径替换为 staging 路径；如果 Unity 尚未生成该工程，验证会明确失败，不回退使用 `Assembly-CSharp.csproj`。
 - 本次 Excel 输入在导出前后的 SHA256 一致，避免导出过程中改表却发布旧输出。

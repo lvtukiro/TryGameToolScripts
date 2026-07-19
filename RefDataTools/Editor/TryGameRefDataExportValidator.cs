@@ -20,7 +20,7 @@ namespace TryGame.RefDataTools.Editor
     {
         private const int ProcessTimeoutMilliseconds = 300000;
         private const int ManifestFormatVersion = 1;
-        private const string TransactionToolVersion = "1.1.0";
+        private const string TransactionToolVersion = "1.2.0";
         private const string RefDataRuntimeProjectFileName = "TryGame.RefData.Runtime.csproj";
 
         public static bool TryCaptureInputHashes(
@@ -150,7 +150,9 @@ namespace TryGame.RefDataTools.Editor
                 }
 
                 string decodeDirectory = Path.Combine(transactionRoot, "validation", "decoded");
+                string expectedBytesDirectory = Path.Combine(transactionRoot, "validation", "expected-bytes");
                 Directory.CreateDirectory(decodeDirectory);
+                Directory.CreateDirectory(expectedBytesDirectory);
                 RefDataManifest manifest = new RefDataManifest
                 {
                     formatVersion = ManifestFormatVersion,
@@ -172,6 +174,14 @@ namespace TryGame.RefDataTools.Editor
 
                     int rowCount = ValidateJsonRowsAndUniqueIds(tableName, jsonPath);
                     ValidateBytesWithFlatc(flatcPath, fbsDirectory, fbsPath, bytesPath, decodeDirectory);
+                    ValidateBytesMatchesJson(
+                        flatcPath,
+                        fbsDirectory,
+                        fbsPath,
+                        jsonPath,
+                        bytesPath,
+                        expectedBytesDirectory,
+                        tableName);
                     manifest.tables.Add(new RefDataTableManifest
                     {
                         name = tableName,
@@ -485,6 +495,89 @@ namespace TryGame.RefDataTools.Editor
                 throw new InvalidDataException(
                     $"bytes 无法按 FBS 反序列化：bytes={bytesPath}, fbs={fbsPath}, exitCode={result.ExitCode}\n" +
                     result.CombinedOutput);
+            }
+        }
+
+        private static void ValidateBytesMatchesJson(
+            string flatcPath,
+            string fbsDirectory,
+            string fbsPath,
+            string jsonPath,
+            string actualBytesPath,
+            string expectedBytesDirectory,
+            string tableName)
+        {
+            string expectedBytesPath = Path.Combine(expectedBytesDirectory, tableName + ".bytes");
+            if (File.Exists(expectedBytesPath))
+            {
+                File.Delete(expectedBytesPath);
+            }
+
+            string arguments =
+                "-b --strict-json -o " + Quote(expectedBytesDirectory) + " " +
+                Quote(fbsPath) + " " + Quote(jsonPath);
+            ProcessResult result = RunProcess(flatcPath, arguments, fbsDirectory, ProcessTimeoutMilliseconds);
+            if (result.ExitCode != 0)
+            {
+                throw new InvalidDataException(
+                    $"客户端 JSON 无法按 FBS 重新编码用于 bytes 一致性验证：" +
+                    $"table={tableName}, json={jsonPath}, fbs={fbsPath}, exitCode={result.ExitCode}\n" +
+                    result.CombinedOutput);
+            }
+
+            EnsureFile(expectedBytesPath, "JSON 重新编码 bytes");
+            long expectedLength = new FileInfo(expectedBytesPath).Length;
+            long actualLength = new FileInfo(actualBytesPath).Length;
+            string expectedSha256 = ComputeSha256(expectedBytesPath);
+            string actualSha256 = ComputeSha256(actualBytesPath);
+            long firstDifferentOffset = FindFirstDifferentByteOffset(expectedBytesPath, actualBytesPath);
+            if (expectedLength != actualLength
+                || !string.Equals(expectedSha256, actualSha256, StringComparison.OrdinalIgnoreCase)
+                || firstDifferentOffset >= 0)
+            {
+                throw new InvalidDataException(
+                    $"客户端 JSON 与运行时 bytes 内容不一致，拒绝发布：" +
+                    $"table={tableName}, json={jsonPath}, actualBytes={actualBytesPath}, " +
+                    $"expectedBytes={expectedBytesPath}, expectedLength={expectedLength}, " +
+                    $"actualLength={actualLength}, expectedSha256={expectedSha256}, " +
+                    $"actualSha256={actualSha256}, firstDifferentByteOffset={firstDifferentOffset}");
+            }
+        }
+
+        private static long FindFirstDifferentByteOffset(string expectedPath, string actualPath)
+        {
+            const int bufferSize = 81920;
+            byte[] expectedBuffer = new byte[bufferSize];
+            byte[] actualBuffer = new byte[bufferSize];
+            long offset = 0L;
+            using (FileStream expected = File.OpenRead(expectedPath))
+            using (FileStream actual = File.OpenRead(actualPath))
+            {
+                while (true)
+                {
+                    int expectedRead = expected.Read(expectedBuffer, 0, expectedBuffer.Length);
+                    int actualRead = actual.Read(actualBuffer, 0, actualBuffer.Length);
+                    int commonLength = Math.Min(expectedRead, actualRead);
+                    for (int i = 0; i < commonLength; i++)
+                    {
+                        if (expectedBuffer[i] != actualBuffer[i])
+                        {
+                            return offset + i;
+                        }
+                    }
+
+                    if (expectedRead != actualRead)
+                    {
+                        return offset + commonLength;
+                    }
+
+                    if (expectedRead == 0)
+                    {
+                        return -1L;
+                    }
+
+                    offset += expectedRead;
+                }
             }
         }
 
