@@ -163,7 +163,12 @@ namespace TryGame.HomeDebugTools.Editor
         {
             if (save.furniture == null)
             {
-                save.furniture = new FurnitureSaveData();
+                save.furniture = new FurnitureSaveData
+                {
+                    inventory = new List<FurnitureStackData>(),
+                    placed = new List<PlacedFurnitureData>(),
+                    quarantine = new List<QuarantinedFurnitureData>(),
+                };
             }
 
             if (save.furniture.inventory == null)

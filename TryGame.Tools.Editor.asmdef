@@ -1,0 +1,21 @@
+{
+    "name": "TryGame.Tools.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:35ace684bda046aebfd91ec3288959e2",
+        "GUID:0ac0b2128f75492091d73abfcc3cad19",
+        "GUID:dd4b067452bc45eeab212cf29442dade",
+        "GUID:ab7759cac9b64b778c35db92f3f0c249"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
