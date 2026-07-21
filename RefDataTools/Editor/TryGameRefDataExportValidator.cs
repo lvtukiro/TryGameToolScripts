@@ -19,9 +19,13 @@ namespace TryGame.RefDataTools.Editor
     internal static class TryGameRefDataExportValidator
     {
         private const int ProcessTimeoutMilliseconds = 300000;
-        private const int ManifestFormatVersion = 1;
-        private const string TransactionToolVersion = "1.3.0";
+        private const int ManifestFormatVersion = 2;
+        private const string TransactionToolVersion = "1.4.0";
         private const string RefDataRuntimeProjectFileName = "TryGame.RefData.Runtime.csproj";
+        private const string SourceOutputRoot = "SourceOutput";
+        private const string RuntimeOutputRoot = "RuntimeOutput";
+        private const string GeneratedTablesRoot = "GeneratedTables";
+        private const string GeneratedConfigRoot = "GeneratedConfig";
 
         public static bool TryCaptureInputHashes(
             IReadOnlyList<string> excelFullPaths,
@@ -58,57 +62,100 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
-        public static bool ValidateManifestCopies(string phase, params string[] manifestDirectories)
+        public static bool ValidateInputHashesUnchanged(
+            string phase,
+            IReadOnlyList<string> inputFullPaths,
+            IReadOnlyDictionary<string, string> expectedInputHashes)
         {
             try
             {
-                if (manifestDirectories == null || manifestDirectories.Length != 3)
+                if (inputFullPaths == null || inputFullPaths.Count == 0)
+                {
+                    throw new InvalidDataException("没有可执行最终哈希门禁的 Excel 输入。");
+                }
+
+                if (expectedInputHashes == null || expectedInputHashes.Count != inputFullPaths.Count)
                 {
                     throw new InvalidDataException(
-                        $"manifest 校验必须传入三个仓库目录：actual={(manifestDirectories == null ? -1 : manifestDirectories.Length)}");
+                        $"最终哈希门禁输入数量不匹配：inputs={inputFullPaths.Count}, " +
+                        $"hashes={(expectedInputHashes == null ? -1 : expectedInputHashes.Count)}");
                 }
 
-                string[] paths = new string[manifestDirectories.Length];
-                string[] hashes = new string[manifestDirectories.Length];
-                byte[][] contents = new byte[manifestDirectories.Length][];
-                for (int i = 0; i < manifestDirectories.Length; i++)
+                HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < inputFullPaths.Count; i++)
                 {
-                    paths[i] = Path.Combine(manifestDirectories[i], TryGameRefDataPaths.ManifestFileName);
-                    EnsureFile(paths[i], $"{phase} manifest[{i}]");
-                    contents[i] = File.ReadAllBytes(paths[i]);
-                    hashes[i] = ComputeSha256(paths[i]);
-                }
+                    string path = Path.GetFullPath(inputFullPaths[i]);
+                    EnsureFile(path, $"{phase} Excel 输入");
+                    if (!seenPaths.Add(path))
+                    {
+                        throw new InvalidDataException($"{phase} 包含重复 Excel 输入：{path}");
+                    }
 
-                for (int i = 1; i < contents.Length; i++)
-                {
-                    if (contents[0].Length != contents[i].Length ||
-                        !string.Equals(hashes[0], hashes[i], StringComparison.OrdinalIgnoreCase) ||
-                        !contents[0].SequenceEqual(contents[i]))
+                    string actualSha256 = ComputeSha256(path);
+                    if (!expectedInputHashes.TryGetValue(path, out string expectedSha256) ||
+                        !string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase))
                     {
                         throw new InvalidDataException(
-                            $"三仓库 manifest 内容不一致：phase={phase}, " +
-                            $"referencePath={paths[0]}, referenceLength={contents[0].Length}, referenceSha256={hashes[0]}, " +
-                            $"differentPath={paths[i]}, differentLength={contents[i].Length}, differentSha256={hashes[i]}");
+                            $"Excel 输入在导出期间发生变化：phase={phase}, path={path}, " +
+                            $"expected={expectedSha256 ?? "<missing>"}, actual={actualSha256}");
                     }
                 }
 
                 Debug.Log(
-                    $"[TryGameRefDataExportValidator] 三仓库 manifest 自动校验通过：phase={phase}, " +
-                    $"length={contents[0].Length}, sha256={hashes[0]}\n" +
-                    string.Join("\n", paths));
+                    $"[TryGameRefDataExportValidator] Excel 输入最终哈希门禁通过：phase={phase}, " +
+                    $"count={seenPaths.Count}");
                 return true;
             }
             catch (Exception exception)
             {
                 Debug.LogError(
-                    $"[TryGameRefDataExportValidator] 三仓库 manifest 自动校验失败：phase={phase}\n{exception}");
+                    $"[TryGameRefDataExportValidator] Excel 输入最终哈希门禁失败：phase={phase}\n{exception}");
+                return false;
+            }
+        }
+
+        public static bool ValidateManifestAndPayloadCopies(
+            string phase,
+            string expectedManifestJson,
+            string sourceOutput,
+            string runtimeOutput,
+            string generatedTables,
+            string generatedConfig)
+        {
+            try
+            {
+                ValidateManifestCopiesAgainstExpected(
+                    phase,
+                    expectedManifestJson,
+                    sourceOutput,
+                    runtimeOutput,
+                    generatedTables);
+
+                RefDataManifest expectedManifest = DeserializeManifest(expectedManifestJson, phase);
+                List<RefDataPayloadFileManifest> actualPayloadFiles = BuildPayloadManifest(
+                    sourceOutput,
+                    runtimeOutput,
+                    generatedTables,
+                    generatedConfig);
+                ValidatePayloadSnapshot(phase, expectedManifest.payloadFiles, actualPayloadFiles);
+
+                Debug.Log(
+                    $"[TryGameRefDataExportValidator] manifest 与完整产物门禁通过：phase={phase}, " +
+                    $"payloadFiles={actualPayloadFiles.Count}");
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError(
+                    $"[TryGameRefDataExportValidator] manifest 或完整产物门禁失败：phase={phase}\n{exception}");
                 return false;
             }
         }
 
         public static bool ValidateAndWriteManifest(
             string transactionRoot,
-            IReadOnlyList<string> exportedExcelFullPaths,
+            IReadOnlyList<string> validationInputFullPaths,
+            IReadOnlyCollection<string> implicitDependencyFullPaths,
             IReadOnlyDictionary<string, string> expectedInputHashes,
             string stagedSourceOutput,
             string stagedRuntimeOutput,
@@ -198,13 +245,25 @@ namespace TryGame.RefDataTools.Editor
                     transactionRoot,
                     stagedGeneratedTables,
                     stagedGeneratedConfig);
-                manifest.inputs = BuildInputManifest(exportedExcelFullPaths, expectedInputHashes);
+                manifest.inputs = BuildInputManifest(
+                    validationInputFullPaths,
+                    implicitDependencyFullPaths,
+                    expectedInputHashes);
                 manifest.generatedCodeSha256 = ComputeDirectorySha256(
+                    stagedGeneratedTables,
+                    stagedGeneratedConfig);
+                manifest.payloadFiles = BuildPayloadManifest(
+                    stagedSourceOutput,
+                    stagedRuntimeOutput,
                     stagedGeneratedTables,
                     stagedGeneratedConfig);
 
                 manifestJson = TryGameRefDataTextNormalizer.NormalizeLineEndings(JsonUtility.ToJson(manifest, true)) + "\n";
-                ValidateManifestSerialization(manifestJson, manifest.inputs.Count, manifest.tables.Count);
+                ValidateManifestSerialization(
+                    manifestJson,
+                    manifest.inputs.Count,
+                    manifest.tables.Count,
+                    manifest.payloadFiles.Count);
                 string previewPath = Path.Combine(transactionRoot, "manifest.preview.json");
                 File.WriteAllText(previewPath, manifestJson, new UTF8Encoding(false));
                 Debug.Log(
@@ -221,26 +280,35 @@ namespace TryGame.RefDataTools.Editor
         }
 
         private static List<RefDataInputManifest> BuildInputManifest(
-            IReadOnlyList<string> exportedExcelFullPaths,
+            IReadOnlyList<string> validationInputFullPaths,
+            IReadOnlyCollection<string> implicitDependencyFullPaths,
             IReadOnlyDictionary<string, string> expectedInputHashes)
         {
-            if (exportedExcelFullPaths == null || exportedExcelFullPaths.Count == 0)
+            if (validationInputFullPaths == null || validationInputFullPaths.Count == 0)
             {
                 throw new InvalidDataException("manifest 没有任何本次导出的 Excel 输入。");
             }
 
-            if (expectedInputHashes == null || expectedInputHashes.Count != exportedExcelFullPaths.Count)
+            if (implicitDependencyFullPaths == null)
+            {
+                throw new InvalidDataException("manifest 的隐式 Excel 依赖集合为 null。");
+            }
+
+            if (expectedInputHashes == null || expectedInputHashes.Count != validationInputFullPaths.Count)
             {
                 throw new InvalidDataException(
-                    $"导出前 Excel 哈希数量不匹配：inputs={exportedExcelFullPaths.Count}, " +
+                    $"导出前 Excel 哈希数量不匹配：inputs={validationInputFullPaths.Count}, " +
                     $"hashes={(expectedInputHashes == null ? -1 : expectedInputHashes.Count)}");
             }
 
-            string[] files = exportedExcelFullPaths
+            string[] files = validationInputFullPaths
                 .Select(Path.GetFullPath)
                 .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+            HashSet<string> implicitDependencies = new HashSet<string>(
+                implicitDependencyFullPaths.Select(Path.GetFullPath),
+                StringComparer.OrdinalIgnoreCase);
 
             List<RefDataInputManifest> result = new List<RefDataInputManifest>(files.Length);
             HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -272,14 +340,44 @@ namespace TryGame.RefDataTools.Editor
                 result.Add(new RefDataInputManifest
                 {
                     file = Path.GetFileName(path),
+                    path = GetManifestInputPath(path),
+                    role = implicitDependencies.Contains(path) ? "implicitDependency" : "export",
                     sha256 = currentSha256,
                 });
+            }
+
+            int recordedDependencyCount = result.Count(input =>
+                string.Equals(input.role, "implicitDependency", StringComparison.Ordinal));
+            if (recordedDependencyCount != implicitDependencies.Count)
+            {
+                string missingDependencies = string.Join(", ", implicitDependencies
+                    .Where(path => !seenPaths.Contains(path))
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+                throw new InvalidDataException(
+                    "manifest 的隐式 Excel 依赖不属于有效输入集合：" +
+                    $"expected={implicitDependencies.Count}, actual={recordedDependencyCount}, " +
+                    $"missing=[{missingDependencies}]");
             }
 
             return result;
         }
 
-        private static void ValidateManifestSerialization(string manifestJson, int expectedInputCount, int expectedTableCount)
+        private static string GetManifestInputPath(string inputPath)
+        {
+            string fullPath = Path.GetFullPath(inputPath).Replace("\\", "/");
+            string projectRoot = Path.GetFullPath(TryGameRefDataPaths.ProjectRoot)
+                .Replace("\\", "/")
+                .TrimEnd('/') + "/";
+            return fullPath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase)
+                ? fullPath.Substring(projectRoot.Length)
+                : fullPath;
+        }
+
+        private static void ValidateManifestSerialization(
+            string manifestJson,
+            int expectedInputCount,
+            int expectedTableCount,
+            int expectedPayloadFileCount)
         {
             object root = MiniJsonParser.Deserialize(manifestJson);
             if (!(root is IDictionary<string, object> manifest))
@@ -306,11 +404,283 @@ namespace TryGame.RefDataTools.Editor
             {
                 throw new InvalidDataException("JsonUtility 生成的 manifest 缺少 language 对象。");
             }
+
+            if (!manifest.TryGetValue("payloadFiles", out object payloadFilesValue) ||
+                !(payloadFilesValue is IList payloadFiles) ||
+                payloadFiles.Count != expectedPayloadFileCount)
+            {
+                throw new InvalidDataException(
+                    $"JsonUtility 生成的 manifest payloadFiles 不完整：" +
+                    $"expected={expectedPayloadFileCount}, actual={GetListCount(payloadFilesValue)}");
+            }
         }
 
         private static int GetListCount(object value)
         {
             return value is IList list ? list.Count : -1;
+        }
+
+        private static void ValidateManifestCopiesAgainstExpected(
+            string phase,
+            string expectedManifestJson,
+            params string[] manifestDirectories)
+        {
+            if (string.IsNullOrEmpty(expectedManifestJson))
+            {
+                throw new InvalidDataException($"{phase} 没有本次事务生成的 expected manifest。");
+            }
+
+            if (manifestDirectories == null || manifestDirectories.Length != 3)
+            {
+                throw new InvalidDataException(
+                    $"manifest 校验必须传入三个仓库目录：actual={(manifestDirectories == null ? -1 : manifestDirectories.Length)}");
+            }
+
+            byte[] expectedContent = new UTF8Encoding(false).GetBytes(expectedManifestJson);
+            string expectedSha256 = ComputeSha256(expectedContent);
+            for (int i = 0; i < manifestDirectories.Length; i++)
+            {
+                string path = Path.Combine(manifestDirectories[i], TryGameRefDataPaths.ManifestFileName);
+                EnsureFile(path, $"{phase} manifest[{i}]");
+                byte[] actualContent = File.ReadAllBytes(path);
+                string actualSha256 = ComputeSha256(actualContent);
+                if (actualContent.Length != expectedContent.Length ||
+                    !string.Equals(actualSha256, expectedSha256, StringComparison.OrdinalIgnoreCase) ||
+                    !actualContent.SequenceEqual(expectedContent))
+                {
+                    throw new InvalidDataException(
+                        $"manifest 与本次事务生成内容不一致：phase={phase}, path={path}, " +
+                        $"expectedLength={expectedContent.Length}, actualLength={actualContent.Length}, " +
+                        $"expectedSha256={expectedSha256}, actualSha256={actualSha256}");
+                }
+            }
+        }
+
+        private static RefDataManifest DeserializeManifest(string manifestJson, string phase)
+        {
+            RefDataManifest manifest;
+            try
+            {
+                manifest = JsonUtility.FromJson<RefDataManifest>(manifestJson);
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidDataException($"{phase} expected manifest 无法反序列化。", exception);
+            }
+
+            if (manifest == null)
+            {
+                throw new InvalidDataException($"{phase} expected manifest 反序列化结果为 null。");
+            }
+
+            if (manifest.formatVersion != ManifestFormatVersion)
+            {
+                throw new InvalidDataException(
+                    $"{phase} manifest 版本不受支持：expected={ManifestFormatVersion}, actual={manifest.formatVersion}");
+            }
+
+            if (manifest.payloadFiles == null || manifest.payloadFiles.Count == 0)
+            {
+                throw new InvalidDataException($"{phase} manifest 没有任何 payloadFiles，拒绝视为空产物发布。");
+            }
+
+            return manifest;
+        }
+
+        private static List<RefDataPayloadFileManifest> BuildPayloadManifest(
+            string sourceOutput,
+            string runtimeOutput,
+            string generatedTables,
+            string generatedConfig)
+        {
+            PayloadRootDefinition[] roots =
+            {
+                new PayloadRootDefinition(SourceOutputRoot, sourceOutput),
+                new PayloadRootDefinition(RuntimeOutputRoot, runtimeOutput),
+                new PayloadRootDefinition(GeneratedTablesRoot, generatedTables),
+                new PayloadRootDefinition(GeneratedConfigRoot, generatedConfig),
+            };
+
+            List<RefDataPayloadFileManifest> result = new List<RefDataPayloadFileManifest>();
+            for (int rootIndex = 0; rootIndex < roots.Length; rootIndex++)
+            {
+                PayloadRootDefinition root = roots[rootIndex];
+                EnsureDirectory(root.Directory, root.LogicalRoot + " payload 根目录");
+                string[] files = Directory.GetFiles(root.Directory, "*", SearchOption.AllDirectories);
+                Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+                for (int fileIndex = 0; fileIndex < files.Length; fileIndex++)
+                {
+                    string file = files[fileIndex];
+                    if (IsExcludedPayloadFile(root.Directory, file))
+                    {
+                        continue;
+                    }
+
+                    result.Add(new RefDataPayloadFileManifest
+                    {
+                        logicalRoot = root.LogicalRoot,
+                        relativePath = GetPayloadRelativePath(root.Directory, file),
+                        sha256 = ComputeSha256(file),
+                    });
+                }
+            }
+
+            return result
+                .OrderBy(file => file.logicalRoot, StringComparer.Ordinal)
+                .ThenBy(file => file.relativePath, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        private static bool IsExcludedPayloadFile(string rootDirectory, string path)
+        {
+            if (Path.GetExtension(path).Equals(".meta", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string rootManifestPath = Path.GetFullPath(
+                Path.Combine(rootDirectory, TryGameRefDataPaths.ManifestFileName));
+            return Path.GetFullPath(path).Equals(rootManifestPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetPayloadRelativePath(string rootDirectory, string filePath)
+        {
+            string root = Path.GetFullPath(rootDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string prefix = root + Path.DirectorySeparatorChar;
+            string fullPath = Path.GetFullPath(filePath);
+            if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    $"payload 文件不在声明的根目录内：root={root}, file={fullPath}");
+            }
+
+            return fullPath.Substring(prefix.Length).Replace('\\', '/');
+        }
+
+        private static void ValidatePayloadSnapshot(
+            string phase,
+            IReadOnlyList<RefDataPayloadFileManifest> expectedFiles,
+            IReadOnlyList<RefDataPayloadFileManifest> actualFiles)
+        {
+            Dictionary<string, string> expected = BuildPayloadIndex(expectedFiles, phase + " expected");
+            Dictionary<string, string> actual = BuildPayloadIndex(actualFiles, phase + " actual");
+
+            List<string> missing = expected.Keys
+                .Except(actual.Keys, StringComparer.Ordinal)
+                .OrderBy(key => key, StringComparer.Ordinal)
+                .ToList();
+            List<string> unexpected = actual.Keys
+                .Except(expected.Keys, StringComparer.Ordinal)
+                .OrderBy(key => key, StringComparer.Ordinal)
+                .ToList();
+            if (missing.Count > 0 || unexpected.Count > 0)
+            {
+                throw new InvalidDataException(
+                    $"payload 文件集合与 manifest 不一致：phase={phase}, " +
+                    $"expected={expected.Count}, actual={actual.Count}, " +
+                    $"missing=[{FormatPayloadKeys(missing)}], unexpected=[{FormatPayloadKeys(unexpected)}]");
+            }
+
+            foreach (KeyValuePair<string, string> pair in expected.OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                string actualSha256 = actual[pair.Key];
+                if (!string.Equals(pair.Value, actualSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        $"payload 文件哈希与 manifest 不一致：phase={phase}, file={pair.Key}, " +
+                        $"expected={pair.Value}, actual={actualSha256}");
+                }
+            }
+        }
+
+        private static Dictionary<string, string> BuildPayloadIndex(
+            IReadOnlyList<RefDataPayloadFileManifest> files,
+            string label)
+        {
+            if (files == null || files.Count == 0)
+            {
+                throw new InvalidDataException($"{label} payload 文件清单为空。");
+            }
+
+            Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.Ordinal);
+            for (int i = 0; i < files.Count; i++)
+            {
+                RefDataPayloadFileManifest file = files[i];
+                if (file == null || !IsKnownPayloadRoot(file.logicalRoot))
+                {
+                    throw new InvalidDataException(
+                        $"{label} payload logicalRoot 无效：index={i}, root={file?.logicalRoot ?? "<null>"}");
+                }
+
+                if (string.IsNullOrWhiteSpace(file.relativePath) ||
+                    file.relativePath.IndexOf('\\') >= 0 ||
+                    Path.IsPathRooted(file.relativePath) ||
+                    file.relativePath.Equals("..", StringComparison.Ordinal) ||
+                    file.relativePath.StartsWith("../", StringComparison.Ordinal) ||
+                    file.relativePath.IndexOf("/../", StringComparison.Ordinal) >= 0)
+                {
+                    throw new InvalidDataException(
+                        $"{label} payload relativePath 无效：index={i}, path={file.relativePath ?? "<null>"}");
+                }
+
+                if (!IsSha256(file.sha256))
+                {
+                    throw new InvalidDataException(
+                        $"{label} payload SHA256 无效：index={i}, root={file.logicalRoot}, " +
+                        $"path={file.relativePath}, sha256={file.sha256 ?? "<null>"}");
+                }
+
+                string key = file.logicalRoot + "/" + file.relativePath;
+                if (result.ContainsKey(key))
+                {
+                    throw new InvalidDataException($"{label} payload 包含重复文件：{key}");
+                }
+
+                result.Add(key, file.sha256);
+            }
+
+            return result;
+        }
+
+        private static bool IsKnownPayloadRoot(string logicalRoot)
+        {
+            return string.Equals(logicalRoot, SourceOutputRoot, StringComparison.Ordinal) ||
+                string.Equals(logicalRoot, RuntimeOutputRoot, StringComparison.Ordinal) ||
+                string.Equals(logicalRoot, GeneratedTablesRoot, StringComparison.Ordinal) ||
+                string.Equals(logicalRoot, GeneratedConfigRoot, StringComparison.Ordinal);
+        }
+
+        private static bool IsSha256(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length != 64)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                if (!Uri.IsHexDigit(value[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string FormatPayloadKeys(IReadOnlyList<string> keys)
+        {
+            const int maxPrintedKeys = 20;
+            if (keys == null || keys.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            string value = string.Join(", ", keys.Take(maxPrintedKeys));
+            return keys.Count > maxPrintedKeys
+                ? value + $", ... ({keys.Count - maxPrintedKeys} more)"
+                : value;
         }
 
         private static int ValidateJsonRowsAndUniqueIds(string tableName, string jsonPath)
@@ -813,6 +1183,14 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
+        private static string ComputeSha256(byte[] content)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                return ToHex(sha256.ComputeHash(content));
+            }
+        }
+
         private static string ToHex(byte[] bytes)
         {
             StringBuilder sb = new StringBuilder(bytes.Length * 2);
@@ -1252,12 +1630,23 @@ namespace TryGame.RefDataTools.Editor
             public List<RefDataInputManifest> inputs = new List<RefDataInputManifest>();
             public List<RefDataTableManifest> tables = new List<RefDataTableManifest>();
             public RefDataLanguageManifest language;
+            public List<RefDataPayloadFileManifest> payloadFiles = new List<RefDataPayloadFileManifest>();
         }
 
         [Serializable]
         private sealed class RefDataInputManifest
         {
             public string file;
+            public string path;
+            public string role;
+            public string sha256;
+        }
+
+        [Serializable]
+        private sealed class RefDataPayloadFileManifest
+        {
+            public string logicalRoot;
+            public string relativePath;
             public string sha256;
         }
 
@@ -1277,6 +1666,18 @@ namespace TryGame.RefDataTools.Editor
         {
             public int rowCount;
             public string sha256;
+        }
+
+        private sealed class PayloadRootDefinition
+        {
+            public PayloadRootDefinition(string logicalRoot, string directory)
+            {
+                LogicalRoot = logicalRoot;
+                Directory = directory;
+            }
+
+            public string LogicalRoot { get; }
+            public string Directory { get; }
         }
     }
 }

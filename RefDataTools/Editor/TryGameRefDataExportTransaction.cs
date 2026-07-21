@@ -59,8 +59,18 @@ namespace TryGame.RefDataTools.Editor
                 return false;
             }
 
-            if (!TryGameRefDataExportValidator.TryCaptureInputHashes(
+            SplitExportFiles(excelFullPaths, out List<string> cltabtoyFiles, out List<string> languageFiles);
+            if (!TryBuildValidationInputFiles(
                 excelFullPaths,
+                cltabtoyFiles,
+                out List<string> validationInputFiles,
+                out HashSet<string> implicitDependencyFiles))
+            {
+                return false;
+            }
+
+            if (!TryGameRefDataExportValidator.TryCaptureInputHashes(
+                validationInputFiles,
                 out Dictionary<string, string> expectedInputHashes))
             {
                 return false;
@@ -102,7 +112,6 @@ namespace TryGame.RefDataTools.Editor
                 Directory.CreateDirectory(stagedLuaOutput);
                 DeleteRuntimeArtifactsFromSourceSnapshot(stagedSourceOutput);
 
-                SplitExportFiles(excelFullPaths, out List<string> cltabtoyFiles, out List<string> languageFiles);
                 if (cltabtoyFiles.Count > 0)
                 {
                     TryGameCLTabtoyProcess process = new TryGameCLTabtoyProcess(
@@ -164,7 +173,8 @@ namespace TryGame.RefDataTools.Editor
 
                 if (!TryGameRefDataExportValidator.ValidateAndWriteManifest(
                     transactionRoot,
-                    excelFullPaths,
+                    validationInputFiles,
+                    implicitDependencyFiles,
                     expectedInputHashes,
                     stagedSourceOutput,
                     stagedRuntimeOutput,
@@ -176,7 +186,7 @@ namespace TryGame.RefDataTools.Editor
                 }
 
                 if (cleanRebuild && !TryValidateFullCleanRebuildInputs(
-                    new HashSet<string>(expectedInputHashes.Keys, StringComparer.OrdinalIgnoreCase),
+                    new HashSet<string>(excelFullPaths.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase),
                     "before-publish"))
                 {
                     return FailBeforePublish(
@@ -202,13 +212,15 @@ namespace TryGame.RefDataTools.Editor
                         $"count={preservedMetaCount}");
                 }
 
-                if (!TryGameRefDataExportValidator.ValidateManifestCopies(
+                if (!TryGameRefDataExportValidator.ValidateManifestAndPayloadCopies(
                     "staging 发布前",
+                    manifestJson,
                     stagedSourceOutput,
                     stagedRuntimeOutput,
-                    stagedGeneratedTables))
+                    stagedGeneratedTables,
+                    stagedGeneratedConfig))
                 {
-                    return FailBeforePublish(transactionRoot, "staging 中三份 manifest 不一致，拒绝发布。", null);
+                    return FailBeforePublish(transactionRoot, "staging manifest 或完整产物门禁失败，拒绝发布。", null);
                 }
 
                 if (cleanRebuild)
@@ -224,17 +236,30 @@ namespace TryGame.RefDataTools.Editor
                         stagedGeneratedConfig);
                 }
 
+                if (!TryGameRefDataExportValidator.ValidateInputHashesUnchanged(
+                    "正式发布前",
+                    validationInputFiles,
+                    expectedInputHashes))
+                {
+                    return FailBeforePublish(
+                        transactionRoot,
+                        "Excel 输入在 staging 验证后发生变化，拒绝发布旧产物。",
+                        null);
+                }
+
                 DirectoryPublishTransaction publisher = new DirectoryPublishTransaction(transactionRoot);
                 publisher.Add("源表仓库 Output", stagedSourceOutput, sourceOutput);
                 publisher.Add("运行时 bytes 仓库 Output", stagedRuntimeOutput, runtimeOutput);
                 publisher.Add("生成代码仓库 GeneratedTables", stagedGeneratedTables, generatedTables);
                 publisher.Add("生成代码仓库 GeneratedConfig", stagedGeneratedConfig, generatedConfig);
 
-                if (!publisher.Commit(() => TryGameRefDataExportValidator.ValidateManifestCopies(
+                if (!publisher.Commit(() => TryGameRefDataExportValidator.ValidateManifestAndPayloadCopies(
                     "正式目录发布后",
+                    manifestJson,
                     sourceOutput,
                     runtimeOutput,
-                    generatedTables)))
+                    generatedTables,
+                    generatedConfig)))
                 {
                     Debug.LogError(
                         $"[TryGameRefDataExportTransaction] 正式目录发布失败；已执行反向回滚。" +
@@ -318,6 +343,16 @@ namespace TryGame.RefDataTools.Editor
                 if (Path.GetFileName(path).StartsWith("~$", StringComparison.OrdinalIgnoreCase))
                 {
                     Debug.LogError($"[TryGameRefDataExportTransaction] 拒绝导出 Excel 临时锁文件：{path}");
+                    return false;
+                }
+
+                if (Path.GetFileName(path).Equals(
+                    TryGameRefDataPaths.CommonDefineExcelName,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    Debug.LogError(
+                        "[TryGameRefDataExportTransaction] 共用枚举结构体只能作为 cltabtoy 隐式依赖，" +
+                        $"不能作为普通业务表显式导出：{fullPath}");
                     return false;
                 }
             }
@@ -437,6 +472,55 @@ namespace TryGame.RefDataTools.Editor
                     cltabtoyFiles.Add(path);
                 }
             }
+        }
+
+        private static bool TryBuildValidationInputFiles(
+            IReadOnlyList<string> explicitInputFiles,
+            IReadOnlyList<string> cltabtoyFiles,
+            out List<string> validationInputFiles,
+            out HashSet<string> implicitDependencyFiles)
+        {
+            validationInputFiles = new List<string>();
+            implicitDependencyFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < explicitInputFiles.Count; i++)
+            {
+                string fullPath = Path.GetFullPath(explicitInputFiles[i]);
+                if (seenPaths.Add(fullPath))
+                {
+                    validationInputFiles.Add(fullPath);
+                }
+            }
+
+            for (int i = 0; i < cltabtoyFiles.Count; i++)
+            {
+                string tablePath = Path.GetFullPath(cltabtoyFiles[i]);
+                string tableDirectory = Path.GetDirectoryName(tablePath);
+                string commonDefinePath = Path.GetFullPath(
+                    Path.Combine(tableDirectory, TryGameRefDataPaths.CommonDefineExcelName));
+                if (!File.Exists(commonDefinePath))
+                {
+                    Debug.LogError(
+                        "[TryGameRefDataExportTransaction] cltabtoy 普通表缺少同目录的共用枚举结构体依赖，" +
+                        $"事务未启动：table={tablePath}, dependency={commonDefinePath}");
+                    validationInputFiles.Clear();
+                    implicitDependencyFiles.Clear();
+                    return false;
+                }
+
+                if (seenPaths.Add(commonDefinePath))
+                {
+                    validationInputFiles.Add(commonDefinePath);
+                    implicitDependencyFiles.Add(commonDefinePath);
+                }
+            }
+
+            Debug.Log(
+                "[TryGameRefDataExportTransaction] 已建立导表有效输入集合：" +
+                $"explicit={explicitInputFiles.Count}, implicitDependencies={implicitDependencyFiles.Count}, " +
+                $"total={validationInputFiles.Count}");
+            return true;
         }
 
         private static void CopyDirectorySnapshot(string source, string destination)
