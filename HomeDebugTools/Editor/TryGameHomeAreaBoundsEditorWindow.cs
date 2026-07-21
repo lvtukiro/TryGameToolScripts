@@ -639,7 +639,10 @@ namespace TryGame.HomeDebugTools.Editor
                 return;
             }
 
-            if (!TryGameRefDataExportWindow.ExportFiles(new List<string> { excelFullPath }, true))
+            if (!TryGameRefDataExportWindow.ExportFiles(
+                new List<string> { excelFullPath },
+                true,
+                TryGameRefDataExportMode.Incremental))
             {
                 sourceSavedOutputStale = true;
                 Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] SourceSavedOutputStale：源 Excel 已保存，但正式导表失败，Output 仍可能是旧数据。请修复此前错误后重新导出：" + excelFullPath);

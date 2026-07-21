@@ -20,7 +20,7 @@ namespace TryGame.RefDataTools.Editor
     {
         private const int ProcessTimeoutMilliseconds = 300000;
         private const int ManifestFormatVersion = 1;
-        private const string TransactionToolVersion = "1.2.0";
+        private const string TransactionToolVersion = "1.3.0";
         private const string RefDataRuntimeProjectFileName = "TryGame.RefData.Runtime.csproj";
 
         public static bool TryCaptureInputHashes(

@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace TryGame.RefDataTools.Editor
@@ -19,6 +21,7 @@ namespace TryGame.RefDataTools.Editor
         public const string DefaultLuaOutputAssetPath = "Assets/TryGameToolScripts/RefDataTools/LuaOutput";
         public const string ToolBinAssetPath = "Assets/TryGameToolScripts/RefDataTools/Bin";
         public const string ManifestFileName = "RefDataManifest.json";
+        public const string CommonDefineExcelName = "共用枚举结构体.xlsx";
 
         public static string ProjectRoot
         {
@@ -45,6 +48,37 @@ namespace TryGame.RefDataTools.Editor
             string normalized = Path.GetFullPath(fullPath).Replace("\\", "/");
             string root = ProjectRoot.TrimEnd('/') + "/";
             return normalized.StartsWith(root) ? normalized.Substring(root.Length) : normalized;
+        }
+
+        /// <summary>
+        /// 按统一规则收集指定根目录下可直接导出的 Excel。
+        /// 共用枚举结构体由其它表引用，不作为独立导出输入。
+        /// </summary>
+        public static List<string> FindExportableExcelFiles(string rootFullPath)
+        {
+            List<string> result = new List<string>();
+            if (string.IsNullOrWhiteSpace(rootFullPath) || !Directory.Exists(rootFullPath))
+            {
+                return result;
+            }
+
+            string[] files = Directory.GetFiles(rootFullPath, "*.*", SearchOption.TopDirectoryOnly);
+            for (int i = 0; i < files.Length; i++)
+            {
+                string file = files[i];
+                string extension = Path.GetExtension(file);
+                string name = Path.GetFileName(file);
+                if ((extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ||
+                    extension.Equals(".xlsm", StringComparison.OrdinalIgnoreCase)) &&
+                    !name.StartsWith("~$", StringComparison.OrdinalIgnoreCase) &&
+                    !name.Equals(CommonDefineExcelName, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Add(Path.GetFullPath(file).Replace("\\", "/"));
+                }
+            }
+
+            result.Sort(StringComparer.OrdinalIgnoreCase);
+            return result;
         }
     }
 }

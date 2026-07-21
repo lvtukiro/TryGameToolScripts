@@ -2,12 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using UnityEditor;
 using Debug = UnityEngine.Debug;
 
 namespace TryGame.RefDataTools.Editor
 {
+    internal enum TryGameRefDataExportMode
+    {
+        Incremental = 0,
+        FullCleanRebuild = 1,
+    }
+
     /// <summary>
     /// RefData 三仓库总事务：所有导出先进入 Temp staging，验证通过后才替换正式目录。
     /// 目录发布不是操作系统级跨仓库原子操作，因此使用完整目录备份和反向回滚保证最终一致性。
@@ -16,11 +23,35 @@ namespace TryGame.RefDataTools.Editor
     {
         private const string TransactionFolderName = "TryGameRefDataTransactions";
 
-        public static bool Execute(IReadOnlyList<string> excelFullPaths, bool generateConfig)
+        public static bool Execute(
+            IReadOnlyList<string> excelFullPaths,
+            bool generateConfig,
+            TryGameRefDataExportMode exportMode)
         {
-            if (!TryValidateInputs(excelFullPaths))
+            if (!TryValidateInputs(excelFullPaths, exportMode))
             {
                 return false;
+            }
+
+            bool cleanRebuild = exportMode == TryGameRefDataExportMode.FullCleanRebuild;
+            if (cleanRebuild && !generateConfig)
+            {
+                Debug.LogError(
+                    "[TryGameRefDataExportTransaction] 全量清洁重建必须同时生成 Config 入口，事务未启动。");
+                return false;
+            }
+
+            if (cleanRebuild)
+            {
+                Debug.Log(
+                    $"[TryGameRefDataExportTransaction] 启动全量清洁重建：" +
+                    $"inputs={excelFullPaths.Count}, staging=empty, generateConfig={generateConfig}");
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "[TryGameRefDataExportTransaction] 当前为增量导出：不会清理已删除或已改名表的旧产物；" +
+                    "涉及删除/改名时请使用菜单 TryGame/RefData/导出全部配表并生成入口。");
             }
 
             if (!TryResolveRepositories(out string sourceRepository, out string runtimeRepository, out string generatedRepository))
@@ -53,10 +84,21 @@ namespace TryGame.RefDataTools.Editor
             try
             {
                 Directory.CreateDirectory(stagingRoot);
-                CopyDirectorySnapshot(sourceOutput, stagedSourceOutput);
-                CopyDirectorySnapshot(runtimeOutput, stagedRuntimeOutput);
-                CopyDirectorySnapshot(generatedTables, stagedGeneratedTables);
-                CopyDirectorySnapshot(generatedConfig, stagedGeneratedConfig);
+                if (cleanRebuild)
+                {
+                    Directory.CreateDirectory(stagedSourceOutput);
+                    Directory.CreateDirectory(stagedRuntimeOutput);
+                    Directory.CreateDirectory(stagedGeneratedTables);
+                    Directory.CreateDirectory(stagedGeneratedConfig);
+                }
+                else
+                {
+                    CopyDirectorySnapshot(sourceOutput, stagedSourceOutput);
+                    CopyDirectorySnapshot(runtimeOutput, stagedRuntimeOutput);
+                    CopyDirectorySnapshot(generatedTables, stagedGeneratedTables);
+                    CopyDirectorySnapshot(generatedConfig, stagedGeneratedConfig);
+                }
+
                 Directory.CreateDirectory(stagedLuaOutput);
                 DeleteRuntimeArtifactsFromSourceSnapshot(stagedSourceOutput);
 
@@ -133,11 +175,33 @@ namespace TryGame.RefDataTools.Editor
                     return FailBeforePublish(transactionRoot, "staging 完整性验证失败，正式目录保持不变。", null);
                 }
 
+                if (cleanRebuild && !TryValidateFullCleanRebuildInputs(
+                    new HashSet<string>(expectedInputHashes.Keys, StringComparer.OrdinalIgnoreCase),
+                    "before-publish"))
+                {
+                    return FailBeforePublish(
+                        transactionRoot,
+                        "规范源表集合在全量导出期间发生变化，拒绝发布可能漏表的清洁 staging。",
+                        null);
+                }
+
                 WriteManifestCopies(
                     manifestJson,
                     stagedSourceOutput,
                     stagedRuntimeOutput,
                     stagedGeneratedTables);
+                if (cleanRebuild)
+                {
+                    int preservedMetaCount =
+                        PreserveMatchingMetaFiles(sourceOutput, stagedSourceOutput) +
+                        PreserveMatchingMetaFiles(runtimeOutput, stagedRuntimeOutput) +
+                        PreserveMatchingMetaFiles(generatedTables, stagedGeneratedTables) +
+                        PreserveMatchingMetaFiles(generatedConfig, stagedGeneratedConfig);
+                    Debug.Log(
+                        $"[TryGameRefDataExportTransaction] 全量清洁重建已恢复仍存活资源的旧 meta：" +
+                        $"count={preservedMetaCount}");
+                }
+
                 if (!TryGameRefDataExportValidator.ValidateManifestCopies(
                     "staging 发布前",
                     stagedSourceOutput,
@@ -145,6 +209,19 @@ namespace TryGame.RefDataTools.Editor
                     stagedGeneratedTables))
                 {
                     return FailBeforePublish(transactionRoot, "staging 中三份 manifest 不一致，拒绝发布。", null);
+                }
+
+                if (cleanRebuild)
+                {
+                    PrintCleanRebuildRemovalPlan(
+                        sourceOutput,
+                        stagedSourceOutput,
+                        runtimeOutput,
+                        stagedRuntimeOutput,
+                        generatedTables,
+                        stagedGeneratedTables,
+                        generatedConfig,
+                        stagedGeneratedConfig);
                 }
 
                 DirectoryPublishTransaction publisher = new DirectoryPublishTransaction(transactionRoot);
@@ -195,8 +272,18 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
-        private static bool TryValidateInputs(IReadOnlyList<string> excelFullPaths)
+        private static bool TryValidateInputs(
+            IReadOnlyList<string> excelFullPaths,
+            TryGameRefDataExportMode exportMode)
         {
+            if (exportMode != TryGameRefDataExportMode.Incremental &&
+                exportMode != TryGameRefDataExportMode.FullCleanRebuild)
+            {
+                Debug.LogError(
+                    $"[TryGameRefDataExportTransaction] 未知导出模式，事务未启动：mode={exportMode}");
+                return false;
+            }
+
             if (excelFullPaths == null || excelFullPaths.Count == 0)
             {
                 Debug.LogError("[TryGameRefDataExportTransaction] 没有传入任何 Excel，事务未启动。");
@@ -235,6 +322,68 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
 
+            if (exportMode == TryGameRefDataExportMode.FullCleanRebuild &&
+                !TryValidateFullCleanRebuildInputs(seenPaths, "before-export"))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 清洁重建会把未生成文件视为已删除，因此只允许规范源目录的最新完整输入集合。
+        /// </summary>
+        private static bool TryValidateFullCleanRebuildInputs(
+            HashSet<string> suppliedPaths,
+            string phase)
+        {
+            string canonicalRoot = Path.GetFullPath(
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultExcelRootAssetPath));
+            List<string> expectedFiles = TryGameRefDataPaths.FindExportableExcelFiles(canonicalRoot);
+            HashSet<string> expectedPaths = new HashSet<string>(
+                expectedFiles.Select(Path.GetFullPath),
+                StringComparer.OrdinalIgnoreCase);
+
+            if (expectedPaths.Count == 0)
+            {
+                Debug.LogError(
+                    $"[TryGameRefDataExportTransaction] 规范源目录没有可导出的 Excel，拒绝全量清洁重建：" +
+                    $"phase={phase}, root={canonicalRoot}");
+                return false;
+            }
+
+            if (!expectedPaths.SetEquals(suppliedPaths))
+            {
+                string missing = string.Join(", ", expectedPaths
+                    .Except(suppliedPaths, StringComparer.OrdinalIgnoreCase)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+                string unexpected = string.Join(", ", suppliedPaths
+                    .Except(expectedPaths, StringComparer.OrdinalIgnoreCase)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+                Debug.LogError(
+                    $"[TryGameRefDataExportTransaction] 全量清洁重建输入不是规范源目录的最新完整集合，" +
+                    $"拒绝把未传入表误判为删除：phase={phase}, root={canonicalRoot}, " +
+                    $"expected={expectedPaths.Count}, actual={suppliedPaths.Count}, " +
+                    $"missing=[{missing}], unexpected=[{unexpected}]");
+                return false;
+            }
+
+            string commonDefinePath = Path.Combine(canonicalRoot, TryGameRefDataPaths.CommonDefineExcelName);
+            if (!File.Exists(commonDefinePath))
+            {
+                Debug.LogError(
+                    $"[TryGameRefDataExportTransaction] 全量清洁重建缺少共用枚举结构体源表，事务未启动：" +
+                    $"phase={phase}, path={commonDefinePath}");
+                return false;
+            }
+
+            Debug.Log(
+                $"[TryGameRefDataExportTransaction] 全量清洁重建输入集合校验通过：" +
+                $"phase={phase}, root={canonicalRoot}, inputs={expectedPaths.Count}, " +
+                $"commonDefine={commonDefinePath}");
             return true;
         }
 
@@ -319,6 +468,154 @@ namespace TryGame.RefDataTools.Editor
                 Directory.CreateDirectory(Path.GetDirectoryName(target));
                 File.Copy(files[i], target, false);
             }
+        }
+
+        /// <summary>
+        /// 清洁重建从空 staging 生成；这里只给仍存在的同路径文件或目录补回旧 meta。
+        /// 删除/改名对象的 meta 不会被带回，新对象由 Unity 刷新时生成新 GUID。
+        /// </summary>
+        private static int PreserveMatchingMetaFiles(string baselineRoot, string stagedRoot)
+        {
+            if (!Directory.Exists(baselineRoot) || !Directory.Exists(stagedRoot))
+            {
+                return 0;
+            }
+
+            string[] metaFiles = Directory.GetFiles(baselineRoot, "*.meta", SearchOption.AllDirectories);
+            Array.Sort(metaFiles, StringComparer.OrdinalIgnoreCase);
+            int copiedCount = 0;
+            for (int i = 0; i < metaFiles.Length; i++)
+            {
+                string relativeMetaPath = MakeRelativePath(baselineRoot, metaFiles[i]);
+                string relativeAssetPath = relativeMetaPath.Substring(
+                    0,
+                    relativeMetaPath.Length - ".meta".Length);
+                string stagedAssetPath = Path.Combine(stagedRoot, relativeAssetPath);
+                if (!File.Exists(stagedAssetPath) && !Directory.Exists(stagedAssetPath))
+                {
+                    continue;
+                }
+
+                string stagedMetaPath = stagedAssetPath + ".meta";
+                Directory.CreateDirectory(Path.GetDirectoryName(stagedMetaPath));
+                File.Copy(metaFiles[i], stagedMetaPath, true);
+                copiedCount++;
+            }
+
+            return copiedCount;
+        }
+
+        /// <summary>
+        /// 发布前打印正式目录中存在、但清洁 staging 已不再生成的文件。
+        /// 这里只报告计划，真正删除仍由后续目录发布事务统一完成并受回滚保护。
+        /// </summary>
+        private static void PrintCleanRebuildRemovalPlan(
+            string sourceBaseline,
+            string stagedSource,
+            string runtimeBaseline,
+            string stagedRuntime,
+            string tablesBaseline,
+            string stagedTables,
+            string configBaseline,
+            string stagedConfig)
+        {
+            StringBuilder details = new StringBuilder();
+            int removedArtifactCount = 0;
+            int removedMetaCount = 0;
+            AppendRemovalPlanSection(
+                details,
+                "SourceOutput",
+                sourceBaseline,
+                stagedSource,
+                ref removedArtifactCount,
+                ref removedMetaCount);
+            AppendRemovalPlanSection(
+                details,
+                "RuntimeOutput",
+                runtimeBaseline,
+                stagedRuntime,
+                ref removedArtifactCount,
+                ref removedMetaCount);
+            AppendRemovalPlanSection(
+                details,
+                "GeneratedTables",
+                tablesBaseline,
+                stagedTables,
+                ref removedArtifactCount,
+                ref removedMetaCount);
+            AppendRemovalPlanSection(
+                details,
+                "GeneratedConfig",
+                configBaseline,
+                stagedConfig,
+                ref removedArtifactCount,
+                ref removedMetaCount);
+
+            if (removedArtifactCount == 0 && removedMetaCount == 0)
+            {
+                Debug.Log(
+                    "[TryGameRefDataExportTransaction] 全量清洁重建删除计划：<none>；" +
+                    "尚未发布，正式目录当前未发生变化。");
+                return;
+            }
+
+            Debug.LogWarning(
+                $"[TryGameRefDataExportTransaction] 全量清洁重建删除计划（尚未发布）：" +
+                $"artifacts={removedArtifactCount}, metas={removedMetaCount}\n" +
+                details.ToString().TrimEnd());
+        }
+
+        private static void AppendRemovalPlanSection(
+            StringBuilder output,
+            string label,
+            string baselineRoot,
+            string stagedRoot,
+            ref int totalArtifactCount,
+            ref int totalMetaCount)
+        {
+            if (!Directory.Exists(baselineRoot))
+            {
+                return;
+            }
+
+            string[] baselineFiles = Directory.GetFiles(baselineRoot, "*", SearchOption.AllDirectories);
+            Array.Sort(baselineFiles, StringComparer.OrdinalIgnoreCase);
+            StringBuilder section = new StringBuilder();
+            int sectionArtifactCount = 0;
+            int sectionMetaCount = 0;
+            for (int i = 0; i < baselineFiles.Length; i++)
+            {
+                string relativePath = MakeRelativePath(baselineRoot, baselineFiles[i]);
+                string stagedPath = Path.Combine(stagedRoot, relativePath);
+                if (File.Exists(stagedPath))
+                {
+                    continue;
+                }
+
+                if (relativePath.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+                {
+                    sectionMetaCount++;
+                    continue;
+                }
+
+                sectionArtifactCount++;
+                section.Append("- ").AppendLine(relativePath.Replace('\\', '/'));
+            }
+
+            if (sectionArtifactCount == 0 && sectionMetaCount == 0)
+            {
+                return;
+            }
+
+            output.Append('[').Append(label).AppendLine("]");
+            output.Append(section);
+            if (sectionMetaCount > 0)
+            {
+                output.Append("- <paired-or-orphan-meta> count=").AppendLine(sectionMetaCount.ToString());
+            }
+
+            totalArtifactCount += sectionArtifactCount;
+            totalMetaCount += sectionMetaCount;
         }
 
         private static void OverlayRuntimeArtifacts(string stagedSourceOutput, string stagedRuntimeOutput)

@@ -8,6 +8,11 @@ Unity 菜单：
 - `TryGame/RefData/导出全部配表并生成入口`
 - `TryGame/RefData/生成 Config 读取入口`
 
+导出模式：
+
+- 导表窗口中的“单项导出”和“导出选中项”是增量导出，会保留未选中 Excel 的既有产物；它不会判断某张表是否已删除或改名。
+- 菜单“导出全部配表并生成入口”固定读取正式源表目录，并执行全量清洁重建。删除或改名表后必须使用该入口。
+
 ## 三仓库目录
 
 - Excel 配表：`RefDataSource/TryGameRefdataRes/v2`
@@ -31,11 +36,11 @@ Unity 菜单：
 
 流程如下：
 
-1. 把源仓库 Output、运行时 Output、GeneratedTables、GeneratedConfig 复制到 `staging`。
+1. 增量导出会把源仓库 Output、运行时 Output、GeneratedTables、GeneratedConfig 复制到 `staging`；全量清洁重建则从四个空 staging 目录开始生成。
 2. cltabtoy、Language 和 Config 全部输出到 staging。
 3. 把本次生成的 bytes 同步到 staging 运行时目录，并从 staging 源目录删除临时 bytes。
 4. 把生成的 JSON/FBS/Java/TXT、文本型 `Language.bytes` 和生成 C# 统一为 LF，并保留各文件既有 UTF-8 BOM 约定；若与旧正式文件仅有行末空白差异则沿用旧格式，再在 staging 内完成全部验证。
-5. 验证通过后生成同一份 `RefDataManifest.json`，分别放入源仓库 Output、运行时 Output 和 GeneratedTables，并逐字节比较三份 staging manifest。
+5. 验证通过后生成同一份 `RefDataManifest.json`，分别放入源仓库 Output、运行时 Output 和 GeneratedTables，并逐字节比较三份 staging manifest。全量清洁重建只给仍存在的同路径文件和目录恢复旧 `.meta`，并在发布前打印旧产物删除计划。
 6. 发布时先把每个旧正式目录移动到 `backup`，再把对应 staging 目录移动为正式目录。
 7. 四个目录移动完成后、清理 backup 前，再逐字节比较三个正式 manifest；不一致会输出路径、长度和 SHA256，并自动回滚。
 8. 任一目录发布或发布后校验失败时，从当前失败项开始反向回滚；已发布的新目录保留到 `failed-new`，失败日志会打印 target、backup、failed-new 和异常。
@@ -80,7 +85,7 @@ BattleSkill  -> BattleConfig.GetSkill(id)
 
 1. 在 `RefDataSource/TryGameRefdataRes/v2` 新增或修改 Excel。
 2. 表名按 `PetBase`、`CommonAudio` 这类规则命名。
-3. 打开导表窗口，导出选中表或全部表。
+3. 普通数值修改可在导表窗口导出单项或选中项；删除/改名表时使用菜单“导出全部配表并生成入口”执行清洁重建。
 4. 等待 staging 导出；cltabtoy 提示后在控制台按任意键退出。
 5. 只有全部验证通过后，工具才会同时发布源输出、正式 bytes、生成表代码和 Config。
 6. 查看 Unity 日志末尾打印的三个仓库差异，再分别检查 Git diff。

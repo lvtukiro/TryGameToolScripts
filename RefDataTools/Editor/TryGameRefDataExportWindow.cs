@@ -11,7 +11,6 @@ namespace TryGame.RefDataTools.Editor
     /// </summary>
     public sealed class TryGameRefDataExportWindow : EditorWindow
     {
-        private const string CommonDefineExcelName = "共用枚举结构体.xlsx";
         private const string ExcelRootPrefsKey = "TryGame.RefData.ExcelRoot";
         private const string ExportAfterGeneratePrefsKey = "TryGame.RefData.ExportAfterGenerate";
         private const string LegacyExcelRootAssetPath = "Assets/Resources/TryGameRefdataRes/v2";
@@ -39,9 +38,10 @@ namespace TryGame.RefDataTools.Editor
         [MenuItem("TryGame/RefData/导出全部配表并生成入口")]
         public static void ExportAllByMenu()
         {
-            string excelRoot = ResolveConfiguredExcelRoot();
-            List<string> excelPaths = FindExcelFiles(TryGameRefDataPaths.ToFullPath(excelRoot));
-            ExportFiles(excelPaths, true);
+            string excelRoot = TryGameRefDataPaths.DefaultExcelRootAssetPath;
+            List<string> excelPaths = TryGameRefDataPaths.FindExportableExcelFiles(
+                TryGameRefDataPaths.ToFullPath(excelRoot));
+            ExportFiles(excelPaths, true, TryGameRefDataExportMode.FullCleanRebuild);
         }
 
         /// <summary>
@@ -178,6 +178,10 @@ namespace TryGame.RefDataTools.Editor
 
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space(4f);
+            EditorGUILayout.HelpBox(
+                "单项/选中项导出是增量模式，不会删除旧表产物。删除或重命名表后，" +
+                "请使用菜单 TryGame/RefData/导出全部配表并生成入口 执行全量清洁重建。",
+                MessageType.Info);
         }
 
         /// <summary>
@@ -207,7 +211,10 @@ namespace TryGame.RefDataTools.Editor
 
                 if (GUILayout.Button("单项导出", GUILayout.Width(92f)))
                 {
-                    ExportFiles(new List<string> { item.FullPath }, generateConfigAfterExport);
+                    ExportFiles(
+                        new List<string> { item.FullPath },
+                        generateConfigAfterExport,
+                        TryGameRefDataExportMode.Incremental);
                 }
 
                 EditorGUILayout.EndHorizontal();
@@ -224,7 +231,7 @@ namespace TryGame.RefDataTools.Editor
             excelItems.Clear();
 
             string root = TryGameRefDataPaths.ToFullPath(excelRootAssetPath);
-            List<string> files = FindExcelFiles(root);
+            List<string> files = TryGameRefDataPaths.FindExportableExcelFiles(root);
             for (int i = 0; i < files.Count; i++)
             {
                 excelItems.Add(new ExcelItem(files[i]));
@@ -247,13 +254,16 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
 
-            ExportFiles(selected, generateConfigAfterExport);
+            ExportFiles(selected, generateConfigAfterExport, TryGameRefDataExportMode.Incremental);
         }
 
         /// <summary>
         /// 导出指定 Excel 列表，并在成功后按需生成 Config 入口。
         /// </summary>
-        internal static bool ExportFiles(List<string> excelFullPaths, bool generateConfig)
+        internal static bool ExportFiles(
+            List<string> excelFullPaths,
+            bool generateConfig,
+            TryGameRefDataExportMode exportMode)
         {
             if (excelFullPaths == null || excelFullPaths.Count == 0)
             {
@@ -275,7 +285,7 @@ namespace TryGame.RefDataTools.Editor
             try
             {
                 EditorPrefs.SetBool("kAutoRefresh", false);
-                success = TryGameRefDataExportTransaction.Execute(excelFullPaths, generateConfig);
+                success = TryGameRefDataExportTransaction.Execute(excelFullPaths, generateConfig, exportMode);
 
                 if (!success)
                 {
@@ -327,36 +337,6 @@ namespace TryGame.RefDataTools.Editor
             {
                 excelItems[i].Selected = selected;
             }
-        }
-
-        /// <summary>
-        /// 查找指定目录下可导出的 Excel 文件。
-        /// </summary>
-        private static List<string> FindExcelFiles(string root)
-        {
-            List<string> result = new List<string>();
-            if (!Directory.Exists(root))
-            {
-                return result;
-            }
-
-            string[] files = Directory.GetFiles(root, "*.*", SearchOption.TopDirectoryOnly);
-            for (int i = 0; i < files.Length; i++)
-            {
-                string file = files[i];
-                string extension = Path.GetExtension(file);
-                string name = Path.GetFileName(file);
-                if ((extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ||
-                    extension.Equals(".xlsm", StringComparison.OrdinalIgnoreCase)) &&
-                    !name.StartsWith("~$", StringComparison.OrdinalIgnoreCase) &&
-                    !name.Equals(CommonDefineExcelName, StringComparison.OrdinalIgnoreCase))
-                {
-                    result.Add(file.Replace("\\", "/"));
-                }
-            }
-
-            result.Sort(StringComparer.OrdinalIgnoreCase);
-            return result;
         }
 
         private sealed class ExcelItem
