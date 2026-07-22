@@ -641,7 +641,6 @@ namespace TryGame.HomeDebugTools.Editor
 
             if (!TryGameRefDataExportWindow.ExportFiles(
                 new List<string> { excelFullPath },
-                true,
                 TryGameRefDataExportMode.Incremental))
             {
                 sourceSavedOutputStale = true;

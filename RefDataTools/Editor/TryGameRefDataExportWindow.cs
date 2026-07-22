@@ -12,14 +12,12 @@ namespace TryGame.RefDataTools.Editor
     public sealed class TryGameRefDataExportWindow : EditorWindow
     {
         private const string ExcelRootPrefsKey = "TryGame.RefData.ExcelRoot";
-        private const string ExportAfterGeneratePrefsKey = "TryGame.RefData.ExportAfterGenerate";
         private const string LegacyExcelRootAssetPath = "Assets/Resources/TryGameRefdataRes/v2";
         private const string LegacyRuntimeExcelRootAssetPath = "Assets/Resources/TryGameRefdataRuntimeRes/v2";
 
         private readonly List<ExcelItem> excelItems = new List<ExcelItem>();
         private Vector2 scrollPosition;
         private string excelRootAssetPath;
-        private bool generateConfigAfterExport;
 
         /// <summary>
         /// 打开 TryGame 配表导出窗口。
@@ -41,7 +39,7 @@ namespace TryGame.RefDataTools.Editor
             string excelRoot = TryGameRefDataPaths.DefaultExcelRootAssetPath;
             List<string> excelPaths = TryGameRefDataPaths.FindExportableExcelFiles(
                 TryGameRefDataPaths.ToFullPath(excelRoot));
-            ExportFiles(excelPaths, true, TryGameRefDataExportMode.FullCleanRebuild);
+            ExportFiles(excelPaths, TryGameRefDataExportMode.FullCleanRebuild);
         }
 
         /// <summary>
@@ -50,7 +48,6 @@ namespace TryGame.RefDataTools.Editor
         private void OnEnable()
         {
             excelRootAssetPath = ResolveConfiguredExcelRoot();
-            generateConfigAfterExport = EditorPrefs.GetBool(ExportAfterGeneratePrefsKey, true);
             RefreshExcelList();
         }
 
@@ -141,7 +138,7 @@ namespace TryGame.RefDataTools.Editor
         }
 
         /// <summary>
-        /// 绘制导出、刷新和生成入口按钮。
+        /// 绘制导出和选择按钮。
         /// </summary>
         private void DrawToolbar()
         {
@@ -162,19 +159,7 @@ namespace TryGame.RefDataTools.Editor
                 ExportSelected();
             }
 
-            if (GUILayout.Button("只生成 Config 入口", GUILayout.Width(140f)))
-            {
-                TryGameConfigGenerator.GenerateDefault();
-            }
-
             GUILayout.FlexibleSpace();
-
-            EditorGUI.BeginChangeCheck();
-            generateConfigAfterExport = GUILayout.Toggle(generateConfigAfterExport, "导表后生成 Config 入口", GUILayout.Width(180f));
-            if (EditorGUI.EndChangeCheck())
-            {
-                EditorPrefs.SetBool(ExportAfterGeneratePrefsKey, generateConfigAfterExport);
-            }
 
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space(4f);
@@ -213,7 +198,6 @@ namespace TryGame.RefDataTools.Editor
                 {
                     ExportFiles(
                         new List<string> { item.FullPath },
-                        generateConfigAfterExport,
                         TryGameRefDataExportMode.Incremental);
                 }
 
@@ -254,15 +238,14 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
 
-            ExportFiles(selected, generateConfigAfterExport, TryGameRefDataExportMode.Incremental);
+            ExportFiles(selected, TryGameRefDataExportMode.Incremental);
         }
 
         /// <summary>
-        /// 导出指定 Excel 列表，并在成功后按需生成 Config 入口。
+        /// 导出指定 Excel 列表，并始终在同一 staging 事务内重新生成 Config 入口。
         /// </summary>
         internal static bool ExportFiles(
             List<string> excelFullPaths,
-            bool generateConfig,
             TryGameRefDataExportMode exportMode)
         {
             if (excelFullPaths == null || excelFullPaths.Count == 0)
@@ -285,7 +268,7 @@ namespace TryGame.RefDataTools.Editor
             try
             {
                 EditorPrefs.SetBool("kAutoRefresh", false);
-                success = TryGameRefDataExportTransaction.Execute(excelFullPaths, generateConfig, exportMode);
+                success = TryGameRefDataExportTransaction.Execute(excelFullPaths, exportMode);
 
                 if (!success)
                 {

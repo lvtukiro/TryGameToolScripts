@@ -25,7 +25,6 @@ namespace TryGame.RefDataTools.Editor
 
         public static bool Execute(
             IReadOnlyList<string> excelFullPaths,
-            bool generateConfig,
             TryGameRefDataExportMode exportMode)
         {
             if (!TryValidateInputs(excelFullPaths, exportMode))
@@ -34,18 +33,11 @@ namespace TryGame.RefDataTools.Editor
             }
 
             bool cleanRebuild = exportMode == TryGameRefDataExportMode.FullCleanRebuild;
-            if (cleanRebuild && !generateConfig)
-            {
-                Debug.LogError(
-                    "[TryGameRefDataExportTransaction] 全量清洁重建必须同时生成 Config 入口，事务未启动。");
-                return false;
-            }
-
             if (cleanRebuild)
             {
                 Debug.Log(
                     $"[TryGameRefDataExportTransaction] 启动全量清洁重建：" +
-                    $"inputs={excelFullPaths.Count}, staging=empty, generateConfig={generateConfig}");
+                    $"inputs={excelFullPaths.Count}, staging=empty, generateConfig=always");
             }
             else
             {
@@ -155,10 +147,7 @@ namespace TryGame.RefDataTools.Editor
                     Path.Combine(stagedRuntimeOutput, "txt_data", "Language.bytes"),
                     Path.Combine(runtimeOutput, "txt_data", "Language.bytes")) ? 1 : 0;
 
-                if (generateConfig)
-                {
-                    TryGameConfigGenerator.Generate(stagedGeneratedTables, stagedGeneratedConfig);
-                }
+                TryGameConfigGenerator.Generate(stagedGeneratedTables, stagedGeneratedConfig);
 
                 int normalizedGeneratedFiles =
                     TryGameRefDataTextNormalizer.NormalizeCodeDirectoryAgainstBaseline(

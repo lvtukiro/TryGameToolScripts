@@ -30,17 +30,6 @@ namespace TryGame.RefDataTools.Editor
             RegexOptions.Compiled);
 
         /// <summary>
-        /// 生成默认目录下的 Config 入口代码。
-        /// </summary>
-        [MenuItem("TryGame/RefData/生成 Config 读取入口")]
-        public static void GenerateDefault()
-        {
-            Generate(
-                TryGameRefDataPaths.DefaultGeneratedTableAssetPath,
-                TryGameRefDataPaths.DefaultGeneratedConfigAssetPath);
-        }
-
-        /// <summary>
         /// 扫描生成表代码，并按“第一个单词为模块名”的规则输出 Config 文件。
         /// </summary>
         public static void Generate(string generatedTableAssetPath, string generatedConfigAssetPath)
