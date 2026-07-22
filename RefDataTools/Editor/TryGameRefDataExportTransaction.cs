@@ -23,6 +23,49 @@ namespace TryGame.RefDataTools.Editor
     {
         private const string TransactionFolderName = "TryGameRefDataTransactions";
 
+        /// <summary>
+        /// 在会修改源 Excel 的编辑器工具写盘前，先确认当前正式基线允许这组增量输入。
+        /// 正式 Execute 仍会在写盘后重新执行同一套检查，防止预检后的竞态变化。
+        /// </summary>
+        public static bool ValidateIncrementalPreflight(IReadOnlyList<string> excelFullPaths)
+        {
+            if (!TryValidateInputs(excelFullPaths, TryGameRefDataExportMode.Incremental))
+            {
+                return false;
+            }
+
+            if (!TryResolveRepositories(out _, out _, out _))
+            {
+                return false;
+            }
+
+            if (!TryBuildCanonicalInputSnapshot(
+                excelFullPaths,
+                out List<string> validationInputFiles,
+                out HashSet<string> implicitDependencyFiles,
+                out _))
+            {
+                return false;
+            }
+
+            if (!TryGameRefDataExportValidator.TryCaptureInputHashes(
+                validationInputFiles,
+                out Dictionary<string, string> expectedInputHashes))
+            {
+                return false;
+            }
+
+            return TryGameRefDataExportValidator.ValidateIncrementalSourceSnapshot(
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultOutputAssetPath),
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.RuntimeOutputAssetPath),
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedTableAssetPath),
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedConfigAssetPath),
+                excelFullPaths,
+                validationInputFiles,
+                implicitDependencyFiles,
+                expectedInputHashes);
+        }
+
         public static bool Execute(
             IReadOnlyList<string> excelFullPaths,
             TryGameRefDataExportMode exportMode)
@@ -51,12 +94,17 @@ namespace TryGame.RefDataTools.Editor
                 return false;
             }
 
+            string sourceOutput = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultOutputAssetPath);
+            string runtimeOutput = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.RuntimeOutputAssetPath);
+            string generatedTables = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedTableAssetPath);
+            string generatedConfig = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedConfigAssetPath);
+
             SplitExportFiles(excelFullPaths, out List<string> cltabtoyFiles, out List<string> languageFiles);
-            if (!TryBuildValidationInputFiles(
+            if (!TryBuildCanonicalInputSnapshot(
                 excelFullPaths,
-                cltabtoyFiles,
                 out List<string> validationInputFiles,
-                out HashSet<string> implicitDependencyFiles))
+                out HashSet<string> implicitDependencyFiles,
+                out HashSet<string> initialCanonicalInputPaths))
             {
                 return false;
             }
@@ -64,6 +112,19 @@ namespace TryGame.RefDataTools.Editor
             if (!TryGameRefDataExportValidator.TryCaptureInputHashes(
                 validationInputFiles,
                 out Dictionary<string, string> expectedInputHashes))
+            {
+                return false;
+            }
+
+            if (!cleanRebuild && !TryGameRefDataExportValidator.ValidateIncrementalSourceSnapshot(
+                sourceOutput,
+                runtimeOutput,
+                generatedTables,
+                generatedConfig,
+                excelFullPaths,
+                validationInputFiles,
+                implicitDependencyFiles,
+                expectedInputHashes))
             {
                 return false;
             }
@@ -77,11 +138,6 @@ namespace TryGame.RefDataTools.Editor
             string stagedGeneratedTables = Path.Combine(stagingRoot, "GeneratedTables");
             string stagedGeneratedConfig = Path.Combine(stagingRoot, "GeneratedConfig");
             string stagedLuaOutput = Path.Combine(stagingRoot, "LuaOutput");
-
-            string sourceOutput = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultOutputAssetPath);
-            string runtimeOutput = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.RuntimeOutputAssetPath);
-            string generatedTables = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedTableAssetPath);
-            string generatedConfig = TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultGeneratedConfigAssetPath);
 
             try
             {
@@ -160,6 +216,14 @@ namespace TryGame.RefDataTools.Editor
                     "[TryGameRefDataExportTransaction] staging 生成文本已规范为 LF，并保留既有 UTF-8 BOM 约定：" +
                     $"source={normalizedSourceFiles}, runtime={normalizedRuntimeFiles}, generated={normalizedGeneratedFiles}");
 
+                if (!TryValidateCanonicalInputSetUnchanged(initialCanonicalInputPaths, "staging-validation"))
+                {
+                    return FailBeforePublish(
+                        transactionRoot,
+                        "规范源表集合在导出期间发生变化，拒绝生成不完整 manifest。",
+                        null);
+                }
+
                 if (!TryGameRefDataExportValidator.ValidateAndWriteManifest(
                     transactionRoot,
                     validationInputFiles,
@@ -174,13 +238,11 @@ namespace TryGame.RefDataTools.Editor
                     return FailBeforePublish(transactionRoot, "staging 完整性验证失败，正式目录保持不变。", null);
                 }
 
-                if (cleanRebuild && !TryValidateFullCleanRebuildInputs(
-                    new HashSet<string>(excelFullPaths.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase),
-                    "before-publish"))
+                if (!TryValidateCanonicalInputSetUnchanged(initialCanonicalInputPaths, "before-publish"))
                 {
                     return FailBeforePublish(
                         transactionRoot,
-                        "规范源表集合在全量导出期间发生变化，拒绝发布可能漏表的清洁 staging。",
+                        "规范源表集合在导出期间发生变化，拒绝发布可能漏表的 staging。",
                         null);
                 }
 
@@ -242,13 +304,21 @@ namespace TryGame.RefDataTools.Editor
                 publisher.Add("生成代码仓库 GeneratedTables", stagedGeneratedTables, generatedTables);
                 publisher.Add("生成代码仓库 GeneratedConfig", stagedGeneratedConfig, generatedConfig);
 
-                if (!publisher.Commit(() => TryGameRefDataExportValidator.ValidateManifestAndPayloadCopies(
-                    "正式目录发布后",
-                    manifestJson,
-                    sourceOutput,
-                    runtimeOutput,
-                    generatedTables,
-                    generatedConfig)))
+                if (!publisher.Commit(() =>
+                    TryGameRefDataExportValidator.ValidateManifestAndPayloadCopies(
+                        "正式目录发布后",
+                        manifestJson,
+                        sourceOutput,
+                        runtimeOutput,
+                        generatedTables,
+                        generatedConfig) &&
+                    TryValidateCanonicalInputSetUnchanged(
+                        initialCanonicalInputPaths,
+                        "after-publish") &&
+                    TryGameRefDataExportValidator.ValidateInputHashesUnchanged(
+                        "正式目录发布后",
+                        validationInputFiles,
+                        expectedInputHashes)))
                 {
                     Debug.LogError(
                         $"[TryGameRefDataExportTransaction] 正式目录发布失败；已执行反向回滚。" +
@@ -463,52 +533,122 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
-        private static bool TryBuildValidationInputFiles(
-            IReadOnlyList<string> explicitInputFiles,
-            IReadOnlyList<string> cltabtoyFiles,
+        private static bool TryBuildCanonicalInputSnapshot(
+            IReadOnlyList<string> selectedInputFiles,
             out List<string> validationInputFiles,
-            out HashSet<string> implicitDependencyFiles)
+            out HashSet<string> implicitDependencyFiles,
+            out HashSet<string> canonicalInputPaths)
         {
             validationInputFiles = new List<string>();
             implicitDependencyFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            canonicalInputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            for (int i = 0; i < explicitInputFiles.Count; i++)
+            string canonicalRoot = Path.GetFullPath(
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultExcelRootAssetPath));
+            List<string> exportableFiles = TryGameRefDataPaths.FindExportableExcelFiles(canonicalRoot);
+            if (exportableFiles.Count == 0)
             {
-                string fullPath = Path.GetFullPath(explicitInputFiles[i]);
-                if (seenPaths.Add(fullPath))
+                Debug.LogError(
+                    "[TryGameRefDataExportTransaction] 规范源目录没有可导出的 Excel，" +
+                    $"无法建立完整 manifest 输入快照：root={canonicalRoot}");
+                return false;
+            }
+
+            HashSet<string> exportablePaths = new HashSet<string>(
+                exportableFiles.Select(Path.GetFullPath),
+                StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < selectedInputFiles.Count; i++)
+            {
+                string selectedPath = Path.GetFullPath(selectedInputFiles[i]);
+                if (!exportablePaths.Contains(selectedPath))
                 {
-                    validationInputFiles.Add(fullPath);
+                    Debug.LogError(
+                        "[TryGameRefDataExportTransaction] 正式导表只允许选择规范源目录中的 Excel，" +
+                        $"避免 manifest 记录 canonical 快照但产物来自外部文件：selected={selectedPath}, root={canonicalRoot}");
+                    validationInputFiles.Clear();
+                    implicitDependencyFiles.Clear();
+                    canonicalInputPaths.Clear();
+                    return false;
                 }
             }
 
-            for (int i = 0; i < cltabtoyFiles.Count; i++)
+            for (int i = 0; i < exportableFiles.Count; i++)
             {
-                string tablePath = Path.GetFullPath(cltabtoyFiles[i]);
-                string tableDirectory = Path.GetDirectoryName(tablePath);
-                string commonDefinePath = Path.GetFullPath(
-                    Path.Combine(tableDirectory, TryGameRefDataPaths.CommonDefineExcelName));
-                if (!File.Exists(commonDefinePath))
-                {
-                    Debug.LogError(
-                        "[TryGameRefDataExportTransaction] cltabtoy 普通表缺少同目录的共用枚举结构体依赖，" +
-                        $"事务未启动：table={tablePath}, dependency={commonDefinePath}");
-                    validationInputFiles.Clear();
-                    implicitDependencyFiles.Clear();
-                    return false;
-                }
+                string fullPath = Path.GetFullPath(exportableFiles[i]);
+                validationInputFiles.Add(fullPath);
+                canonicalInputPaths.Add(fullPath);
+            }
 
-                if (seenPaths.Add(commonDefinePath))
-                {
-                    validationInputFiles.Add(commonDefinePath);
-                    implicitDependencyFiles.Add(commonDefinePath);
-                }
+            string commonDefinePath = Path.GetFullPath(
+                Path.Combine(canonicalRoot, TryGameRefDataPaths.CommonDefineExcelName));
+            if (!File.Exists(commonDefinePath))
+            {
+                Debug.LogError(
+                    "[TryGameRefDataExportTransaction] 规范源目录缺少共用枚举结构体，" +
+                    $"无法建立完整 manifest 输入快照：path={commonDefinePath}");
+                validationInputFiles.Clear();
+                canonicalInputPaths.Clear();
+                return false;
+            }
+
+            validationInputFiles.Add(commonDefinePath);
+            implicitDependencyFiles.Add(commonDefinePath);
+            canonicalInputPaths.Add(commonDefinePath);
+
+            string selectedNames = string.Join(", ", selectedInputFiles
+                .Select(Path.GetFileName)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+            Debug.Log(
+                "[TryGameRefDataExportTransaction] 已建立完整规范源表快照；本次执行选择只用于导出，不写入 manifest：" +
+                $"selected={selectedInputFiles.Count}, selectedFiles=[{selectedNames}], " +
+                $"canonicalSources={exportableFiles.Count}, implicitDependencies={implicitDependencyFiles.Count}, " +
+                $"snapshotTotal={validationInputFiles.Count}");
+            return true;
+        }
+
+        private static bool TryValidateCanonicalInputSetUnchanged(
+            HashSet<string> expectedCanonicalPaths,
+            string phase)
+        {
+            if (expectedCanonicalPaths == null || expectedCanonicalPaths.Count == 0)
+            {
+                Debug.LogError(
+                    $"[TryGameRefDataExportTransaction] 缺少导出开始时的规范源表集合：phase={phase}");
+                return false;
+            }
+
+            string canonicalRoot = Path.GetFullPath(
+                TryGameRefDataPaths.ToFullPath(TryGameRefDataPaths.DefaultExcelRootAssetPath));
+            List<string> currentFiles = TryGameRefDataPaths.FindExportableExcelFiles(canonicalRoot);
+            HashSet<string> currentPaths = new HashSet<string>(
+                currentFiles.Select(Path.GetFullPath),
+                StringComparer.OrdinalIgnoreCase);
+            string commonDefinePath = Path.GetFullPath(
+                Path.Combine(canonicalRoot, TryGameRefDataPaths.CommonDefineExcelName));
+            if (File.Exists(commonDefinePath))
+            {
+                currentPaths.Add(commonDefinePath);
+            }
+
+            if (!expectedCanonicalPaths.SetEquals(currentPaths))
+            {
+                string added = string.Join(", ", currentPaths
+                    .Except(expectedCanonicalPaths, StringComparer.OrdinalIgnoreCase)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+                string removed = string.Join(", ", expectedCanonicalPaths
+                    .Except(currentPaths, StringComparer.OrdinalIgnoreCase)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+                Debug.LogError(
+                    "[TryGameRefDataExportTransaction] 规范源表集合在导出期间发生变化：" +
+                    $"phase={phase}, expected={expectedCanonicalPaths.Count}, actual={currentPaths.Count}, " +
+                    $"added=[{added}], removed=[{removed}]");
+                return false;
             }
 
             Debug.Log(
-                "[TryGameRefDataExportTransaction] 已建立导表有效输入集合：" +
-                $"explicit={explicitInputFiles.Count}, implicitDependencies={implicitDependencyFiles.Count}, " +
-                $"total={validationInputFiles.Count}");
+                $"[TryGameRefDataExportTransaction] 规范源表集合门禁通过：phase={phase}, count={currentPaths.Count}");
             return true;
         }
 

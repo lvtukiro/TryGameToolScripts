@@ -11,10 +11,6 @@ namespace TryGame.RefDataTools.Editor
     /// </summary>
     public sealed class TryGameRefDataExportWindow : EditorWindow
     {
-        private const string ExcelRootPrefsKey = "TryGame.RefData.ExcelRoot";
-        private const string LegacyExcelRootAssetPath = "Assets/Resources/TryGameRefdataRes/v2";
-        private const string LegacyRuntimeExcelRootAssetPath = "Assets/Resources/TryGameRefdataRuntimeRes/v2";
-
         private readonly List<ExcelItem> excelItems = new List<ExcelItem>();
         private Vector2 scrollPosition;
         private string excelRootAssetPath;
@@ -47,50 +43,8 @@ namespace TryGame.RefDataTools.Editor
         /// </summary>
         private void OnEnable()
         {
-            excelRootAssetPath = ResolveConfiguredExcelRoot();
+            excelRootAssetPath = TryGameRefDataPaths.DefaultExcelRootAssetPath;
             RefreshExcelList();
-        }
-
-        private static string ResolveConfiguredExcelRoot()
-        {
-            string configured = EditorPrefs.GetString(ExcelRootPrefsKey, TryGameRefDataPaths.DefaultExcelRootAssetPath);
-            if (IsLegacyExcelRoot(configured))
-            {
-                configured = TryGameRefDataPaths.DefaultExcelRootAssetPath;
-                EditorPrefs.SetString(ExcelRootPrefsKey, configured);
-                UnityEngine.Debug.LogWarning($"[TryGameRefDataExportWindow] 已把旧源表路径迁移为：{configured}");
-            }
-
-            return configured;
-        }
-
-        private static bool IsLegacyExcelRoot(string configured)
-        {
-            if (string.IsNullOrWhiteSpace(configured))
-            {
-                return false;
-            }
-
-            string normalized = configured.Trim().Replace("\\", "/").TrimEnd('/');
-            if (string.Equals(normalized, LegacyExcelRootAssetPath, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(normalized, LegacyRuntimeExcelRootAssetPath, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            try
-            {
-                string configuredFullPath = TryGameRefDataPaths.ToFullPath(normalized).TrimEnd('/');
-                string legacyFullPath = TryGameRefDataPaths.ToFullPath(LegacyExcelRootAssetPath).TrimEnd('/');
-                string legacyRuntimeFullPath = TryGameRefDataPaths.ToFullPath(LegacyRuntimeExcelRootAssetPath).TrimEnd('/');
-                return string.Equals(configuredFullPath, legacyFullPath, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(configuredFullPath, legacyRuntimeFullPath, StringComparison.OrdinalIgnoreCase);
-            }
-            catch (Exception exception)
-            {
-                UnityEngine.Debug.LogError($"[TryGameRefDataExportWindow] 无法解析已保存的 Excel Root，保留原值等待用户修正：path={configured}\n{exception}");
-                return false;
-            }
         }
 
         /// <summary>
@@ -104,30 +58,13 @@ namespace TryGame.RefDataTools.Editor
         }
 
         /// <summary>
-        /// 绘制配表根目录选择栏。
+        /// 显示固定的正式源表目录。manifest v3 只允许 canonical 源快照，不能从临时目录发布正式产物。
         /// </summary>
         private void DrawPathBar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             EditorGUILayout.LabelField("Excel Root", GUILayout.Width(80f));
-
-            EditorGUI.BeginChangeCheck();
-            excelRootAssetPath = EditorGUILayout.TextField(excelRootAssetPath);
-            if (EditorGUI.EndChangeCheck())
-            {
-                EditorPrefs.SetString(ExcelRootPrefsKey, excelRootAssetPath);
-            }
-
-            if (GUILayout.Button("选择", EditorStyles.toolbarButton, GUILayout.Width(56f)))
-            {
-                string selected = EditorUtility.OpenFolderPanel("选择配表目录", TryGameRefDataPaths.ToFullPath(excelRootAssetPath), "");
-                if (!string.IsNullOrEmpty(selected))
-                {
-                    excelRootAssetPath = TryGameRefDataPaths.ToAssetPath(selected);
-                    EditorPrefs.SetString(ExcelRootPrefsKey, excelRootAssetPath);
-                    RefreshExcelList();
-                }
-            }
+            EditorGUILayout.LabelField(excelRootAssetPath);
 
             if (GUILayout.Button("刷新", EditorStyles.toolbarButton, GUILayout.Width(56f)))
             {

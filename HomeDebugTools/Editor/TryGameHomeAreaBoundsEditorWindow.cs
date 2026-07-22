@@ -632,6 +632,17 @@ namespace TryGame.HomeDebugTools.Editor
                 return;
             }
 
+            string preflightExcelFullPath = ToFullPath(HomeAreaExcelAssetPath);
+            if (!TryGameRefDataExportTransaction.ValidateIncrementalPreflight(
+                new List<string> { preflightExcelFullPath }))
+            {
+                Debug.LogError(
+                    "[TryGameHomeAreaBoundsEditorWindow] HomeArea 增量导出预检失败，" +
+                    "源 Excel 和 Output 均未修改。请先按此前日志建立 manifest v3 全量基线，" +
+                    "或处理其它未选源表/公共定义的变化。");
+                return;
+            }
+
             List<HomeAreaRow> expectedRows = CloneRows(rows);
             if (!TryWriteHomeAreaExcel(out string excelFullPath))
             {

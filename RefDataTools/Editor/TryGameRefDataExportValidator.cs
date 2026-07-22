@@ -19,13 +19,15 @@ namespace TryGame.RefDataTools.Editor
     internal static class TryGameRefDataExportValidator
     {
         private const int ProcessTimeoutMilliseconds = 300000;
-        private const int ManifestFormatVersion = 2;
-        private const string TransactionToolVersion = "1.4.0";
+        private const int ManifestFormatVersion = 3;
+        private const string TransactionToolVersion = "1.5.0";
         private const string RefDataRuntimeProjectFileName = "TryGame.RefData.Runtime.csproj";
         private const string SourceOutputRoot = "SourceOutput";
         private const string RuntimeOutputRoot = "RuntimeOutput";
         private const string GeneratedTablesRoot = "GeneratedTables";
         private const string GeneratedConfigRoot = "GeneratedConfig";
+        private const string CanonicalSourceInputRole = "canonicalSource";
+        private const string ImplicitDependencyInputRole = "implicitDependency";
 
         public static bool TryCaptureInputHashes(
             IReadOnlyList<string> excelFullPaths,
@@ -110,6 +112,211 @@ namespace TryGame.RefDataTools.Editor
             {
                 Debug.LogError(
                     $"[TryGameRefDataExportValidator] Excel 输入最终哈希门禁失败：phase={phase}\n{exception}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 增量导出必须建立在一份完整、可复核的正式快照上。
+        /// 未选择但已经变化的源表不能把新哈希写入 manifest 并继续保留旧产物；
+        /// 源表集合或公共定义变化时必须执行全量清洁重建。
+        /// </summary>
+        public static bool ValidateIncrementalSourceSnapshot(
+            string sourceOutput,
+            string runtimeOutput,
+            string generatedTables,
+            string generatedConfig,
+            IReadOnlyList<string> selectedInputFullPaths,
+            IReadOnlyList<string> completeInputFullPaths,
+            IReadOnlyCollection<string> implicitDependencyFullPaths,
+            IReadOnlyDictionary<string, string> currentInputHashes)
+        {
+            const string Phase = "增量导出正式基线";
+            try
+            {
+                string manifestPath = Path.Combine(sourceOutput, TryGameRefDataPaths.ManifestFileName);
+                EnsureFile(manifestPath, Phase + " manifest");
+                string manifestJson = File.ReadAllText(manifestPath, Encoding.UTF8);
+                if (!ValidateManifestAndPayloadCopies(
+                    Phase,
+                    manifestJson,
+                    sourceOutput,
+                    runtimeOutput,
+                    generatedTables,
+                    generatedConfig))
+                {
+                    Debug.LogError(
+                        "[TryGameRefDataExportValidator] 增量导出基线的三份 manifest 或 payload 已不一致；" +
+                        "请先执行“导出全部配表并生成入口”建立新的完整基线。");
+                    return false;
+                }
+
+                RefDataManifest publishedManifest = DeserializeManifest(manifestJson, Phase);
+                if (publishedManifest.inputs == null || publishedManifest.inputs.Count == 0)
+                {
+                    throw new InvalidDataException("正式 manifest 没有任何源表快照输入。");
+                }
+
+                if (selectedInputFullPaths == null || selectedInputFullPaths.Count == 0)
+                {
+                    throw new InvalidDataException("增量导出没有任何本次选中输入。");
+                }
+
+                if (completeInputFullPaths == null || completeInputFullPaths.Count == 0)
+                {
+                    throw new InvalidDataException("增量导出无法建立完整规范源表快照。");
+                }
+
+                if (implicitDependencyFullPaths == null)
+                {
+                    throw new InvalidDataException("完整源表快照的隐式依赖集合为 null。");
+                }
+
+                if (currentInputHashes == null || currentInputHashes.Count != completeInputFullPaths.Count)
+                {
+                    throw new InvalidDataException(
+                        $"完整源表快照哈希数量不匹配：inputs={completeInputFullPaths.Count}, " +
+                        $"hashes={(currentInputHashes == null ? -1 : currentInputHashes.Count)}");
+                }
+
+                HashSet<string> completePaths = new HashSet<string>(
+                    completeInputFullPaths.Select(Path.GetFullPath),
+                    StringComparer.OrdinalIgnoreCase);
+                if (completePaths.Count != completeInputFullPaths.Count)
+                {
+                    throw new InvalidDataException("完整规范源表快照包含重复路径。");
+                }
+
+                HashSet<string> implicitPaths = new HashSet<string>(
+                    implicitDependencyFullPaths.Select(Path.GetFullPath),
+                    StringComparer.OrdinalIgnoreCase);
+                if (!implicitPaths.IsSubsetOf(completePaths))
+                {
+                    throw new InvalidDataException("隐式依赖不属于完整规范源表快照。");
+                }
+
+                HashSet<string> selectedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < selectedInputFullPaths.Count; i++)
+                {
+                    string selectedPath = Path.GetFullPath(selectedInputFullPaths[i]);
+                    if (!selectedPaths.Add(selectedPath))
+                    {
+                        throw new InvalidDataException("增量导出包含重复选中源表：" + selectedPath);
+                    }
+
+                    if (!completePaths.Contains(selectedPath) || implicitPaths.Contains(selectedPath))
+                    {
+                        throw new InvalidDataException("增量导出选中了规范源表集合之外的文件：" + selectedPath);
+                    }
+                }
+
+                Dictionary<string, RefDataInputManifest> publishedInputs =
+                    new Dictionary<string, RefDataInputManifest>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < publishedManifest.inputs.Count; i++)
+                {
+                    RefDataInputManifest input = publishedManifest.inputs[i];
+                    if (input == null)
+                    {
+                        throw new InvalidDataException($"正式 manifest inputs 包含空记录：index={i}");
+                    }
+
+                    string fullPath = ResolveManifestInputFullPath(input.path);
+                    if (publishedInputs.ContainsKey(fullPath))
+                    {
+                        throw new InvalidDataException("正式 manifest inputs 包含重复路径：" + fullPath);
+                    }
+
+                    publishedInputs.Add(fullPath, input);
+
+                    if (!string.Equals(input.file, Path.GetFileName(fullPath), StringComparison.OrdinalIgnoreCase) ||
+                        string.IsNullOrWhiteSpace(input.sha256))
+                    {
+                        throw new InvalidDataException(
+                            $"正式 manifest 输入记录不完整：index={i}, file={input.file}, path={input.path}, sha256={input.sha256}");
+                    }
+                }
+
+                HashSet<string> publishedPaths = new HashSet<string>(
+                    publishedInputs.Keys,
+                    StringComparer.OrdinalIgnoreCase);
+                if (!publishedPaths.SetEquals(completePaths))
+                {
+                    string missing = string.Join(", ", completePaths
+                        .Except(publishedPaths, StringComparer.OrdinalIgnoreCase)
+                        .Select(Path.GetFileName)
+                        .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+                    string obsolete = string.Join(", ", publishedPaths
+                        .Except(completePaths, StringComparer.OrdinalIgnoreCase)
+                        .Select(Path.GetFileName)
+                        .OrderBy(name => name, StringComparer.OrdinalIgnoreCase));
+                    throw new InvalidDataException(
+                        "正式 manifest 不是当前规范源目录的完整输入快照；新增、删除、改名或旧版单项 manifest " +
+                        "必须先执行全量清洁重建：" +
+                        $"current={completePaths.Count}, published={publishedPaths.Count}, " +
+                        $"missingInManifest=[{missing}], obsoleteInManifest=[{obsolete}]");
+                }
+
+                List<string> changedSelected = new List<string>();
+                List<string> changedNotSelected = new List<string>();
+                foreach (string path in completePaths.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+                {
+                    RefDataInputManifest publishedInput = publishedInputs[path];
+                    bool isImplicit = implicitPaths.Contains(path);
+                    string expectedRole = isImplicit ? ImplicitDependencyInputRole : CanonicalSourceInputRole;
+                    if (!string.Equals(publishedInput.role, expectedRole, StringComparison.Ordinal))
+                    {
+                        throw new InvalidDataException(
+                            $"正式 manifest 输入角色不符合完整快照约定：path={path}, " +
+                            $"expectedRole={expectedRole}, actualRole={publishedInput.role}");
+                    }
+
+                    if (!currentInputHashes.TryGetValue(path, out string currentSha256) ||
+                        string.IsNullOrWhiteSpace(currentSha256))
+                    {
+                        throw new InvalidDataException("当前完整源表快照缺少哈希：" + path);
+                    }
+
+                    if (string.Equals(currentSha256, publishedInput.sha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (isImplicit)
+                    {
+                        throw new InvalidDataException(
+                            "共用枚举结构体已变化，可能影响全部普通表；拒绝只重导部分表。" +
+                            $"请执行全量清洁重建：path={path}, published={publishedInput.sha256}, current={currentSha256}");
+                    }
+
+                    if (selectedPaths.Contains(path))
+                    {
+                        changedSelected.Add(Path.GetFileName(path));
+                    }
+                    else
+                    {
+                        changedNotSelected.Add(Path.GetFileName(path));
+                    }
+                }
+
+                if (changedNotSelected.Count > 0)
+                {
+                    throw new InvalidDataException(
+                        "存在已修改但本次未选中的 Excel，拒绝把新源表哈希与旧产物写成同一份 manifest。" +
+                        "请把这些表一并选中，或执行全量清洁重建：" +
+                        $"changedNotSelected=[{string.Join(", ", changedNotSelected)}]");
+                }
+
+                Debug.Log(
+                    "[TryGameRefDataExportValidator] 增量导出完整源表基线通过：" +
+                    $"snapshotInputs={completePaths.Count}, selected={selectedPaths.Count}, " +
+                    $"changedSelected=[{string.Join(", ", changedSelected)}]");
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError(
+                    "[TryGameRefDataExportValidator] 增量导出完整源表基线校验失败，正式目录保持不变。" +
+                    "请按日志补选已修改表，或执行“导出全部配表并生成入口”：\n" + exception);
                 return false;
             }
         }
@@ -286,7 +493,7 @@ namespace TryGame.RefDataTools.Editor
         {
             if (validationInputFullPaths == null || validationInputFullPaths.Count == 0)
             {
-                throw new InvalidDataException("manifest 没有任何本次导出的 Excel 输入。");
+                throw new InvalidDataException("manifest 没有任何完整规范源表快照输入。");
             }
 
             if (implicitDependencyFullPaths == null)
@@ -303,8 +510,7 @@ namespace TryGame.RefDataTools.Editor
 
             string[] files = validationInputFullPaths
                 .Select(Path.GetFullPath)
-                .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
-                .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(GetManifestInputPath, StringComparer.Ordinal)
                 .ToArray();
             HashSet<string> implicitDependencies = new HashSet<string>(
                 implicitDependencyFullPaths.Select(Path.GetFullPath),
@@ -325,7 +531,7 @@ namespace TryGame.RefDataTools.Editor
 
                 if (!seenPaths.Add(path))
                 {
-                    throw new InvalidDataException("本次导出包含重复 Excel 输入：" + path);
+                    throw new InvalidDataException("完整规范源表快照包含重复 Excel 输入：" + path);
                 }
 
                 string currentSha256 = ComputeSha256(path);
@@ -341,13 +547,13 @@ namespace TryGame.RefDataTools.Editor
                 {
                     file = Path.GetFileName(path),
                     path = GetManifestInputPath(path),
-                    role = implicitDependencies.Contains(path) ? "implicitDependency" : "export",
+                    role = implicitDependencies.Contains(path) ? ImplicitDependencyInputRole : CanonicalSourceInputRole,
                     sha256 = currentSha256,
                 });
             }
 
             int recordedDependencyCount = result.Count(input =>
-                string.Equals(input.role, "implicitDependency", StringComparison.Ordinal));
+                string.Equals(input.role, ImplicitDependencyInputRole, StringComparison.Ordinal));
             if (recordedDependencyCount != implicitDependencies.Count)
             {
                 string missingDependencies = string.Join(", ", implicitDependencies
@@ -371,6 +577,20 @@ namespace TryGame.RefDataTools.Editor
             return fullPath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase)
                 ? fullPath.Substring(projectRoot.Length)
                 : fullPath;
+        }
+
+        private static string ResolveManifestInputFullPath(string manifestInputPath)
+        {
+            if (string.IsNullOrWhiteSpace(manifestInputPath))
+            {
+                throw new InvalidDataException("manifest 输入路径为空。");
+            }
+
+            string normalized = manifestInputPath.Replace('/', Path.DirectorySeparatorChar);
+            return Path.GetFullPath(
+                Path.IsPathRooted(normalized)
+                    ? normalized
+                    : Path.Combine(TryGameRefDataPaths.ProjectRoot, normalized));
         }
 
         private static void ValidateManifestSerialization(
