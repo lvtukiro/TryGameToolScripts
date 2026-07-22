@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Game;
+using RefData;
 using UnityEditor;
 using UnityEngine;
 
@@ -138,15 +139,35 @@ namespace TryGame.HomeDebugTools.Editor
                 return;
             }
 
-            if (save.world.unlockedHomeAreaIds == null)
+            if (save.home == null)
             {
-                save.world.unlockedHomeAreaIds = new List<int>();
+                Debug.LogError("[TryGameHomeAreaDebugUnlockWindow] 当前存档缺少 HomeProgressSaveData，无法修改 HomeArea 解锁状态。");
+                return;
+            }
+
+            if (!TryResolveCurrentHomeWorldZone(save, out int homeWorldZoneId))
+            {
+                Debug.LogError("[TryGameHomeAreaDebugUnlockWindow] 无法解析当前存档对应的 Home WorldZone，已拒绝修改 HomeArea 解锁状态。");
+                return;
+            }
+
+            if (save.home.unlockedHomeAreaIds == null)
+            {
+                save.home.unlockedHomeAreaIds = new List<int>();
             }
 
             List<int> areaIds = new List<int>();
             if (!HomeAreaDebugUnlocks.ParseAreaIds(areaIdsText, areaIds))
             {
                 Debug.LogError("[TryGameHomeAreaDebugUnlockWindow] 没有有效 HomeAreaId。");
+                return;
+            }
+
+            if (!ValidateAreasBelongToHomeWorldZone(areaIds, homeWorldZoneId))
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] 输入中至少有一个 HomeArea 不属于当前 Home WorldZone，" +
+                    $"已拒绝整批修改：worldZoneId={homeWorldZoneId}");
                 return;
             }
 
@@ -163,7 +184,9 @@ namespace TryGame.HomeDebugTools.Editor
             }
 
             string action = unlock ? "解锁" : "锁定";
-            Debug.Log($"[TryGameHomeAreaDebugUnlockWindow] 已{action}当前档 HomeArea：{string.Join(", ", areaIds)}");
+            Debug.Log(
+                $"[TryGameHomeAreaDebugUnlockWindow] 已{action}当前档 HomeArea：" +
+                $"worldZoneId={homeWorldZoneId}, areas={string.Join(", ", areaIds)}");
         }
 
         private void ApplyItemCountChange(bool add)
@@ -192,30 +215,123 @@ namespace TryGame.HomeDebugTools.Editor
 
         private static bool UnlockArea(SaveData save, int homeAreaId)
         {
-            if (!TryGameConfigProvider.GetHomeArea(homeAreaId).HasValue)
-            {
-                Debug.LogError($"[TryGameHomeAreaDebugUnlockWindow] HomeArea 配置不存在，不能解锁：{homeAreaId}");
-                return false;
-            }
-
-            if (save.world.unlockedHomeAreaIds.Contains(homeAreaId))
+            if (save.home.unlockedHomeAreaIds.Contains(homeAreaId))
             {
                 return false;
             }
 
-            save.world.unlockedHomeAreaIds.Add(homeAreaId);
+            save.home.unlockedHomeAreaIds.Add(homeAreaId);
             return true;
         }
 
         private static bool LockArea(SaveData save, int homeAreaId)
         {
-            bool removed = save.world.unlockedHomeAreaIds.Remove(homeAreaId);
-            if (removed && save.world.currentHomeAreaId == homeAreaId)
+            bool removed = save.home.unlockedHomeAreaIds.Remove(homeAreaId);
+            if (removed && save.home.lastHomeAreaId == homeAreaId)
             {
-                Debug.LogError($"[TryGameHomeAreaDebugUnlockWindow] 已锁定当前所在 HomeArea：{homeAreaId}。当前场景不会自动切区，下次进档会由 WorldRuntime 校验并回默认区域。");
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] 已锁定当前 Home Zone 最后使用的 HomeArea：{homeAreaId}。" +
+                    "当前场景不会自动切区，下次进入 Home Zone 时会由 WorldRuntime 校验并回默认区域。");
             }
 
             return removed;
+        }
+
+        private static bool TryResolveCurrentHomeWorldZone(SaveData save, out int homeWorldZoneId)
+        {
+            homeWorldZoneId = 0;
+            if (save?.world == null || save.home == null)
+            {
+                Debug.LogError("[TryGameHomeAreaDebugUnlockWindow] 解析 Home WorldZone 失败，存档世界或 Home 进度为空。");
+                return false;
+            }
+
+            HomeArea? lastHomeArea = TryGameConfigProvider.GetHomeArea(save.home.lastHomeAreaId);
+            if (!lastHomeArea.HasValue)
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] 解析 Home WorldZone 失败，最后 HomeArea 配置不存在：" +
+                    $"homeAreaId={save.home.lastHomeAreaId}");
+                return false;
+            }
+
+            homeWorldZoneId = lastHomeArea.Value.WorldZoneId;
+            WorldZone? homeZone = TryGameConfigProvider.GetWorldZone(homeWorldZoneId);
+            if (!homeZone.HasValue
+                || homeZone.Value.ZoneType != EnumWorldZoneType.Home
+                || homeZone.Value.WorldId != save.world.currentWorldId)
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] 最后 HomeArea 没有归属当前世界的 Home WorldZone：" +
+                    $"homeAreaId={lastHomeArea.Value.Id}, worldZoneId={homeWorldZoneId}, " +
+                    $"currentWorldId={save.world.currentWorldId}, hasZone={homeZone.HasValue}, " +
+                    $"zoneType={(homeZone.HasValue ? homeZone.Value.ZoneType.ToString() : "<missing>")}, " +
+                    $"zoneWorldId={(homeZone.HasValue ? homeZone.Value.WorldId : 0)}");
+                homeWorldZoneId = 0;
+                return false;
+            }
+
+            WorldZone? activeZone = TryGameConfigProvider.GetWorldZone(save.world.currentWorldZoneId);
+            if (!activeZone.HasValue || activeZone.Value.WorldId != save.world.currentWorldId)
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] 当前 WorldZone 配置无效：" +
+                    $"worldZoneId={save.world.currentWorldZoneId}, currentWorldId={save.world.currentWorldId}");
+                homeWorldZoneId = 0;
+                return false;
+            }
+
+            if (activeZone.Value.ZoneType == EnumWorldZoneType.Home
+                && activeZone.Value.Id != homeWorldZoneId)
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] 当前 Home WorldZone 与最后 HomeArea 归属不一致：" +
+                    $"activeWorldZoneId={activeZone.Value.Id}, areaWorldZoneId={homeWorldZoneId}, " +
+                    $"homeAreaId={lastHomeArea.Value.Id}");
+                homeWorldZoneId = 0;
+                return false;
+            }
+
+            if (save.world.unlockedWorldZoneIds == null
+                || !save.world.unlockedWorldZoneIds.Contains(homeWorldZoneId))
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaDebugUnlockWindow] Home WorldZone 尚未解锁或解锁列表为空：" +
+                    $"worldZoneId={homeWorldZoneId}");
+                homeWorldZoneId = 0;
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool ValidateAreasBelongToHomeWorldZone(List<int> areaIds, int homeWorldZoneId)
+        {
+            bool valid = true;
+            for (int i = 0; i < areaIds.Count; i++)
+            {
+                int homeAreaId = areaIds[i];
+                HomeArea? area = TryGameConfigProvider.GetHomeArea(homeAreaId);
+                if (!area.HasValue)
+                {
+                    Debug.LogError(
+                        $"[TryGameHomeAreaDebugUnlockWindow] HomeArea 配置不存在，不能修改解锁状态：" +
+                        $"homeAreaId={homeAreaId}");
+                    valid = false;
+                    continue;
+                }
+
+                if (area.Value.WorldZoneId != homeWorldZoneId)
+                {
+                    Debug.LogError(
+                        $"[TryGameHomeAreaDebugUnlockWindow] HomeArea 不属于当前 Home WorldZone：" +
+                        $"homeAreaId={homeAreaId}, areaWorldZoneId={area.Value.WorldZoneId}, " +
+                        $"currentHomeWorldZoneId={homeWorldZoneId}");
+                    valid = false;
+                }
+            }
+
+            return valid;
         }
     }
 }

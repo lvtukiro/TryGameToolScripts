@@ -20,6 +20,7 @@ namespace TryGame.HomeDebugTools.Editor
     public sealed class TryGameHomeAreaBoundsEditorWindow : EditorWindow
     {
         private static readonly string HomeAreaTxtAssetPath = TryGameRefDataPaths.DefaultOutputAssetPath + "/txt_data/HomeArea.txt";
+        private static readonly string WorldZoneTxtAssetPath = TryGameRefDataPaths.DefaultOutputAssetPath + "/txt_data/WorldZone.txt";
         private static readonly string HomeAreaExcelAssetPath = TryGameRefDataPaths.DefaultExcelRootAssetPath + "/h.家园1_0A.xlsx";
 
         private static readonly CultureInfo InvariantCulture = CultureInfo.InvariantCulture;
@@ -27,6 +28,7 @@ namespace TryGame.HomeDebugTools.Editor
 
         private readonly List<HomeAreaRow> rows = new List<HomeAreaRow>();
         private readonly Dictionary<int, HomeAreaRow> rowById = new Dictionary<int, HomeAreaRow>();
+        private readonly Dictionary<int, WorldZoneRow> worldZoneById = new Dictionary<int, WorldZoneRow>();
 
         private Vector2 scrollPosition;
         private int selectedAreaId;
@@ -36,7 +38,10 @@ namespace TryGame.HomeDebugTools.Editor
         private bool tableLoadSucceeded;
         private bool sourceSavedOutputStale;
         private int idColumn = -1;
-        private int worldIdColumn = -1;
+        private int legacyWorldIdColumn = -1;
+        private int worldZoneIdColumn = -1;
+        private int homeAreaSceneIdColumn = -1;
+        private int isDefaultColumn = -1;
         private int nameKeyColumn = -1;
         private int gridWidthColumn = -1;
         private int gridHeightColumn = -1;
@@ -470,8 +475,17 @@ namespace TryGame.HomeDebugTools.Editor
         {
             rows.Clear();
             rowById.Clear();
+            worldZoneById.Clear();
             dirty = false;
             tableLoadSucceeded = false;
+
+            if (!TryLoadWorldZones())
+            {
+                Debug.LogError(
+                    "[TryGameHomeAreaBoundsEditorWindow] WorldZone 配置未完整加载，" +
+                    "已禁止读取和写入 HomeArea，避免把区域绑定到错误的大区域。");
+                return;
+            }
 
             string path = ToFullPath(HomeAreaTxtAssetPath);
             if (!File.Exists(path))
@@ -489,7 +503,10 @@ namespace TryGame.HomeDebugTools.Editor
 
             string[] headers = SplitLine(lines[0]);
             idColumn = FindColumn(headers, "id");
-            worldIdColumn = FindColumn(headers, "worldId");
+            legacyWorldIdColumn = FindColumn(headers, "worldId");
+            worldZoneIdColumn = FindColumn(headers, "worldZoneId");
+            homeAreaSceneIdColumn = FindColumn(headers, "homeAreaSceneId");
+            isDefaultColumn = FindColumn(headers, "isDefault");
             nameKeyColumn = FindColumn(headers, "nameKey");
             gridWidthColumn = FindColumn(headers, "gridWidth");
             gridHeightColumn = FindColumn(headers, "gridHeight");
@@ -541,6 +558,14 @@ namespace TryGame.HomeDebugTools.Editor
                 return;
             }
 
+            if (!ValidateDefaultHomeAreas())
+            {
+                Debug.LogError(
+                    "[TryGameHomeAreaBoundsEditorWindow] HomeArea 默认区域配置无效，" +
+                    "已禁止写入源 Excel。每个 Home WorldZone 必须且只能有一个 isDefault=1 的 HomeArea。");
+                return;
+            }
+
             tableLoadSucceeded = true;
             if (rows.Count > 0 && !rowById.ContainsKey(selectedAreaId))
             {
@@ -548,10 +573,141 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
 
+        private bool TryLoadWorldZones()
+        {
+            string path = ToFullPath(WorldZoneTxtAssetPath);
+            if (!File.Exists(path))
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 不存在：" + path);
+                return false;
+            }
+
+            string[] lines = File.ReadAllLines(path, Encoding.UTF8);
+            if (lines.Length == 0)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 为空。");
+                return false;
+            }
+
+            string[] headers = SplitLine(lines[0]);
+            int zoneIdColumn = FindColumn(headers, "id");
+            int zoneWorldIdColumn = FindColumn(headers, "worldId");
+            int zoneTypeColumn = FindColumn(headers, "zoneType");
+            int sortOrderColumn = FindColumn(headers, "sortOrder");
+            if (zoneIdColumn < 0 || zoneWorldIdColumn < 0 || zoneTypeColumn < 0 || sortOrderColumn < 0)
+            {
+                Debug.LogError(
+                    "[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 缺少必要列：" +
+                    "id/worldId/zoneType/sortOrder。");
+                return false;
+            }
+
+            bool parseFailed = false;
+            int homeZoneCount = 0;
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (!DataLineRegex.IsMatch(lines[i]))
+                {
+                    continue;
+                }
+
+                string[] columns = SplitLine(lines[i]);
+                string zoneType = GetColumn(columns, zoneTypeColumn).Trim();
+                if (!TryParseInt(columns, zoneIdColumn, out int id)
+                    || !TryParseInt(columns, zoneWorldIdColumn, out int worldId)
+                    || !TryParseInt(columns, sortOrderColumn, out int sortOrder)
+                    || id <= 0 || worldId <= 0 || string.IsNullOrWhiteSpace(zoneType))
+                {
+                    Debug.LogError(
+                        $"[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 第 {i + 1} 行解析失败：" +
+                        $"id={GetColumn(columns, zoneIdColumn)}, worldId={GetColumn(columns, zoneWorldIdColumn)}, " +
+                        $"zoneType={zoneType}, sortOrder={GetColumn(columns, sortOrderColumn)}");
+                    parseFailed = true;
+                    continue;
+                }
+
+                if (worldZoneById.ContainsKey(id))
+                {
+                    Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 存在重复 id：{id}");
+                    parseFailed = true;
+                    continue;
+                }
+
+                WorldZoneRow row = new WorldZoneRow
+                {
+                    Id = id,
+                    WorldId = worldId,
+                    ZoneType = zoneType,
+                    SortOrder = sortOrder,
+                };
+                worldZoneById.Add(id, row);
+                if (row.IsHome)
+                {
+                    homeZoneCount++;
+                }
+            }
+
+            if (worldZoneById.Count == 0)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 没有读取到任何有效数据行。");
+                return false;
+            }
+
+            if (homeZoneCount == 0)
+            {
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] WorldZone.txt 没有 Home 类型大区域。");
+                return false;
+            }
+
+            return !parseFailed;
+        }
+
+        private bool ValidateDefaultHomeAreas()
+        {
+            Dictionary<int, int> areaCountByZone = new Dictionary<int, int>();
+            Dictionary<int, int> defaultCountByZone = new Dictionary<int, int>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                HomeAreaRow row = rows[i];
+                areaCountByZone.TryGetValue(row.WorldZoneId, out int areaCount);
+                areaCountByZone[row.WorldZoneId] = areaCount + 1;
+                if (row.IsDefault)
+                {
+                    defaultCountByZone.TryGetValue(row.WorldZoneId, out int defaultCount);
+                    defaultCountByZone[row.WorldZoneId] = defaultCount + 1;
+                }
+            }
+
+            bool valid = true;
+            foreach (WorldZoneRow zone in worldZoneById.Values)
+            {
+                if (!zone.IsHome)
+                {
+                    continue;
+                }
+
+                areaCountByZone.TryGetValue(zone.Id, out int areaCount);
+                defaultCountByZone.TryGetValue(zone.Id, out int defaultCount);
+                if (areaCount > 0 && defaultCount == 1)
+                {
+                    continue;
+                }
+
+                valid = false;
+                Debug.LogError(
+                    $"[TryGameHomeAreaBoundsEditorWindow] Home WorldZone 的默认区域数量非法：" +
+                    $"worldZoneId={zone.Id}, homeAreaCount={areaCount}, defaultCount={defaultCount}");
+            }
+
+            return valid;
+        }
+
         private bool ValidateColumns()
         {
             bool valid = idColumn >= 0
-                && worldIdColumn >= 0
+                && worldZoneIdColumn >= 0
+                && homeAreaSceneIdColumn >= 0
+                && isDefaultColumn >= 0
                 && nameKeyColumn >= 0
                 && gridWidthColumn >= 0
                 && gridHeightColumn >= 0
@@ -561,7 +717,10 @@ namespace TryGame.HomeDebugTools.Editor
 
             if (!valid)
             {
-                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 缺少必要列：id/worldId/nameKey/gridWidth/gridHeight/cellSize/originX/originY。");
+                Debug.LogError(
+                    "[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 缺少必要列：" +
+                    "id/worldZoneId/homeAreaSceneId/isDefault/nameKey/gridWidth/gridHeight/cellSize/originX/originY。" +
+                    "旧 worldId 列仅在新旧并存阶段作为可选一致性校验，不再作为正式归属来源。");
             }
 
             return valid;
@@ -571,7 +730,9 @@ namespace TryGame.HomeDebugTools.Editor
         {
             row = null;
             if (!TryParseInt(columns, idColumn, out int id)
-                || !TryParseInt(columns, worldIdColumn, out int worldId)
+                || !TryParseInt(columns, worldZoneIdColumn, out int worldZoneId)
+                || !TryParseInt(columns, homeAreaSceneIdColumn, out int homeAreaSceneId)
+                || !TryParseInt(columns, isDefaultColumn, out int isDefault)
                 || !TryParseInt(columns, gridWidthColumn, out int gridWidth)
                 || !TryParseInt(columns, gridHeightColumn, out int gridHeight)
                 || !TryParseFloat(columns, cellSizeColumn, out float cellSize)
@@ -582,20 +743,56 @@ namespace TryGame.HomeDebugTools.Editor
                 return false;
             }
 
-            if (id <= 0 || gridWidth <= 0 || gridHeight <= 1
+            if (id <= 0 || worldZoneId <= 0 || homeAreaSceneId <= 0 || (isDefault != 0 && isDefault != 1)
+                || gridWidth <= 0 || gridHeight <= 1
                 || float.IsNaN(cellSize) || float.IsInfinity(cellSize) || cellSize <= 0f
                 || float.IsNaN(originX) || float.IsInfinity(originX)
                 || float.IsNaN(originY) || float.IsInfinity(originY))
             {
-                Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 第 {lineIndex + 1} 行数值非法：id={id}, grid=({gridWidth},{gridHeight}), cellSize={cellSize}, origin=({originX},{originY})");
+                Debug.LogError(
+                    $"[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 第 {lineIndex + 1} 行数值非法：" +
+                    $"id={id}, worldZoneId={worldZoneId}, homeAreaSceneId={homeAreaSceneId}, " +
+                    $"isDefault={isDefault}, grid=({gridWidth},{gridHeight}), cellSize={cellSize}, origin=({originX},{originY})");
                 return false;
+            }
+
+            if (!worldZoneById.TryGetValue(worldZoneId, out WorldZoneRow worldZone))
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaBoundsEditorWindow] HomeArea.txt 第 {lineIndex + 1} 行引用了不存在的 WorldZone：" +
+                    $"homeAreaId={id}, worldZoneId={worldZoneId}");
+                return false;
+            }
+
+            if (!worldZone.IsHome)
+            {
+                Debug.LogError(
+                    $"[TryGameHomeAreaBoundsEditorWindow] HomeArea 只能归属于 Home 类型 WorldZone：" +
+                    $"homeAreaId={id}, worldZoneId={worldZoneId}, zoneType={worldZone.ZoneType}");
+                return false;
+            }
+
+            if (legacyWorldIdColumn >= 0)
+            {
+                if (!TryParseInt(columns, legacyWorldIdColumn, out int legacyWorldId)
+                    || legacyWorldId != worldZone.WorldId)
+                {
+                    Debug.LogError(
+                        $"[TryGameHomeAreaBoundsEditorWindow] HomeArea 新旧归属列不一致：" +
+                        $"homeAreaId={id}, legacyWorldId={GetColumn(columns, legacyWorldIdColumn)}, " +
+                        $"worldZoneId={worldZoneId}, zoneWorldId={worldZone.WorldId}");
+                    return false;
+                }
             }
 
             row = new HomeAreaRow
             {
                 Columns = columns,
                 Id = id,
-                WorldId = worldId,
+                WorldId = worldZone.WorldId,
+                WorldZoneId = worldZoneId,
+                HomeAreaSceneId = homeAreaSceneId,
+                IsDefault = isDefault != 0,
                 NameKey = GetColumn(columns, nameKeyColumn),
                 GridWidth = gridWidth,
                 GridHeight = gridHeight,
@@ -672,7 +869,7 @@ namespace TryGame.HomeDebugTools.Editor
             {
                 sourceSavedOutputStale = true;
                 RestoreRows(expectedRows);
-                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] SourceSavedOutputStale：正式导表进程返回成功，但 Output 的五个目标字段未通过逐 ID 对比；窗口已保留待导出的目标值。");
+                Debug.LogError("[TryGameHomeAreaBoundsEditorWindow] SourceSavedOutputStale：正式导表进程返回成功，但 Output 的五个范围字段或 WorldZone 只读关联未通过逐 ID 对比；窗口已保留待导出的目标值。");
                 return;
             }
 
@@ -704,13 +901,19 @@ namespace TryGame.HomeDebugTools.Editor
                     && actual.GridHeight == expected.GridHeight
                     && Mathf.Approximately(actual.CellSize, expected.CellSize)
                     && Mathf.Approximately(actual.OriginX, expected.OriginX)
-                    && Mathf.Approximately(actual.OriginY, expected.OriginY);
+                    && Mathf.Approximately(actual.OriginY, expected.OriginY)
+                    && actual.WorldId == expected.WorldId
+                    && actual.WorldZoneId == expected.WorldZoneId
+                    && actual.HomeAreaSceneId == expected.HomeAreaSceneId
+                    && actual.IsDefault == expected.IsDefault;
                 if (!rowValid)
                 {
                     Debug.LogError(
-                        $"[TryGameHomeAreaBoundsEditorWindow] Output HomeArea 五字段不一致：id={expected.Id}, " +
-                        $"expected=({expected.GridWidth},{expected.GridHeight},{expected.CellSize},{expected.OriginX},{expected.OriginY}), " +
-                        $"actual=({actual.GridWidth},{actual.GridHeight},{actual.CellSize},{actual.OriginX},{actual.OriginY})");
+                        $"[TryGameHomeAreaBoundsEditorWindow] Output HomeArea 字段或 WorldZone 归属不一致：id={expected.Id}, " +
+                        $"expectedBounds=({expected.GridWidth},{expected.GridHeight},{expected.CellSize},{expected.OriginX},{expected.OriginY}), " +
+                        $"actualBounds=({actual.GridWidth},{actual.GridHeight},{actual.CellSize},{actual.OriginX},{actual.OriginY}), " +
+                        $"expectedRelation=({expected.WorldId},{expected.WorldZoneId},{expected.HomeAreaSceneId},{expected.IsDefault}), " +
+                        $"actualRelation=({actual.WorldId},{actual.WorldZoneId},{actual.HomeAreaSceneId},{actual.IsDefault})");
                     valid = false;
                 }
             }
@@ -763,6 +966,12 @@ namespace TryGame.HomeDebugTools.Editor
                 HomeAreaRow row = rows[i];
                 bool rowValid = row != null
                     && row.Id > 0
+                    && row.WorldId > 0
+                    && row.WorldZoneId > 0
+                    && row.HomeAreaSceneId > 0
+                    && worldZoneById.TryGetValue(row.WorldZoneId, out WorldZoneRow worldZone)
+                    && worldZone.IsHome
+                    && worldZone.WorldId == row.WorldId
                     && row.GridWidth > 0
                     && row.GridHeight > 1
                     && !float.IsNaN(row.CellSize) && !float.IsInfinity(row.CellSize) && row.CellSize > 0f
@@ -774,10 +983,15 @@ namespace TryGame.HomeDebugTools.Editor
                 }
 
                 valid = false;
-                Debug.LogError($"[TryGameHomeAreaBoundsEditorWindow] HomeArea 待保存数值非法：id={row?.Id ?? 0}, grid=({row?.GridWidth ?? 0},{row?.GridHeight ?? 0}), cellSize={row?.CellSize ?? 0f}, origin=({row?.OriginX ?? 0f},{row?.OriginY ?? 0f})");
+                Debug.LogError(
+                    $"[TryGameHomeAreaBoundsEditorWindow] HomeArea 待保存数值或 WorldZone 归属非法：" +
+                    $"id={row?.Id ?? 0}, worldId={row?.WorldId ?? 0}, worldZoneId={row?.WorldZoneId ?? 0}, " +
+                    $"homeAreaSceneId={row?.HomeAreaSceneId ?? 0}, isDefault={row?.IsDefault ?? false}, " +
+                    $"grid=({row?.GridWidth ?? 0},{row?.GridHeight ?? 0}), cellSize={row?.CellSize ?? 0f}, " +
+                    $"origin=({row?.OriginX ?? 0f},{row?.OriginY ?? 0f})");
             }
 
-            return valid;
+            return valid && ValidateDefaultHomeAreas();
         }
 
         private bool TryWriteHomeAreaExcel(out string excelFullPath)
@@ -850,6 +1064,7 @@ namespace TryGame.HomeDebugTools.Editor
                     continue;
                 }
 
+                ValidateExcelReadOnlyColumns(rowNode, columns, sharedStrings, sheetNs, row, "写入前");
                 SetNumericCell(rowNode, columns["gridWidth"], row.GridWidth.ToString(InvariantCulture), sheetDocument, sheetNs);
                 SetNumericCell(rowNode, columns["gridHeight"], row.GridHeight.ToString(InvariantCulture), sheetDocument, sheetNs);
                 SetNumericCell(rowNode, columns["cellSize"], FormatFloat(row.CellSize), sheetDocument, sheetNs);
@@ -892,6 +1107,7 @@ namespace TryGame.HomeDebugTools.Editor
                     && TryParseExcelFloat(ReadCellValue(FindCell(rowNode, columns["originY"]), sharedStrings, sheetNs), out float originY)
                     && gridWidth == expected.GridWidth && gridHeight == expected.GridHeight
                     && Mathf.Approximately(cellSize, expected.CellSize) && Mathf.Approximately(originX, expected.OriginX) && Mathf.Approximately(originY, expected.OriginY);
+                ValidateExcelReadOnlyColumns(rowNode, columns, sharedStrings, sheetNs, expected, "写后校验");
                 if (!valid)
                 {
                     throw new InvalidDataException("HomeArea 源 Excel 写后校验不一致：id=" + id);
@@ -969,7 +1185,18 @@ namespace TryGame.HomeDebugTools.Editor
 
         private static void RequireExcelColumns(Dictionary<string, int> columns)
         {
-            string[] required = { "id", "gridWidth", "gridHeight", "cellSize", "originX", "originY" };
+            string[] required =
+            {
+                "id",
+                "worldZoneId",
+                "homeAreaSceneId",
+                "isDefault",
+                "gridWidth",
+                "gridHeight",
+                "cellSize",
+                "originX",
+                "originY",
+            };
             for (int i = 0; i < required.Length; i++)
             {
                 if (columns == null || !columns.ContainsKey(required[i]))
@@ -977,6 +1204,42 @@ namespace TryGame.HomeDebugTools.Editor
                     throw new InvalidDataException("HomeArea sheet 缺少必要列：" + required[i]);
                 }
             }
+        }
+
+        private static void ValidateExcelReadOnlyColumns(
+            XmlNode rowNode,
+            Dictionary<string, int> columns,
+            List<string> sharedStrings,
+            XmlNamespaceManager sheetNs,
+            HomeAreaRow expected,
+            string phase)
+        {
+            bool valid = expected != null
+                && TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["worldZoneId"]), sharedStrings, sheetNs), out int worldZoneId)
+                && TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["homeAreaSceneId"]), sharedStrings, sheetNs), out int homeAreaSceneId)
+                && TryParseExcelInt(ReadCellValue(FindCell(rowNode, columns["isDefault"]), sharedStrings, sheetNs), out int isDefault)
+                && worldZoneId == expected.WorldZoneId
+                && homeAreaSceneId == expected.HomeAreaSceneId
+                && isDefault == (expected.IsDefault ? 1 : 0);
+
+            if (valid && columns.TryGetValue("worldId", out int legacyWorldIdColumnIndex))
+            {
+                valid = TryParseExcelInt(
+                        ReadCellValue(FindCell(rowNode, legacyWorldIdColumnIndex), sharedStrings, sheetNs),
+                        out int legacyWorldId)
+                    && legacyWorldId == expected.WorldId;
+            }
+
+            if (valid)
+            {
+                return;
+            }
+
+            string idText = ReadCellValue(FindCell(rowNode, columns["id"]), sharedStrings, sheetNs);
+            throw new InvalidDataException(
+                $"HomeArea 源 Excel {phase}只读关联列不一致：id={idText}, " +
+                $"expectedWorldId={expected?.WorldId ?? 0}, expectedWorldZoneId={expected?.WorldZoneId ?? 0}, " +
+                $"expectedHomeAreaSceneId={expected?.HomeAreaSceneId ?? 0}, expectedIsDefault={expected?.IsDefault ?? false}");
         }
 
         private static XmlNode FindCell(XmlNode rowNode, int columnIndex)
@@ -1205,6 +1468,9 @@ namespace TryGame.HomeDebugTools.Editor
             public string[] Columns;
             public int Id;
             public int WorldId;
+            public int WorldZoneId;
+            public int HomeAreaSceneId;
+            public bool IsDefault;
             public string NameKey;
             public int GridWidth;
             public int GridHeight;
@@ -1219,6 +1485,9 @@ namespace TryGame.HomeDebugTools.Editor
                     Columns = Columns != null ? (string[])Columns.Clone() : null,
                     Id = Id,
                     WorldId = WorldId,
+                    WorldZoneId = WorldZoneId,
+                    HomeAreaSceneId = HomeAreaSceneId,
+                    IsDefault = IsDefault,
                     NameKey = NameKey,
                     GridWidth = GridWidth,
                     GridHeight = GridHeight,
@@ -1250,6 +1519,16 @@ namespace TryGame.HomeDebugTools.Editor
                     return new Rect(OriginX - width * 0.5f, OriginY - height * 0.5f, width, height);
                 }
             }
+        }
+
+        private sealed class WorldZoneRow
+        {
+            public int Id;
+            public int WorldId;
+            public string ZoneType;
+            public int SortOrder;
+
+            public bool IsHome => string.Equals(ZoneType, "Home", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
