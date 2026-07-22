@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using UnityEditor;
 using Debug = UnityEngine.Debug;
 
 namespace TryGame.RefDataTools.Editor
@@ -333,27 +332,12 @@ namespace TryGame.RefDataTools.Editor
 
             // Commit 返回 true 后四个正式目录已经全部切换。下面均属于发布后维护，任何失败都必须记录，
             // 但不能再把已经成功的发布伪装成“正式目录未改变”，也不能在这里触发回滚。
-            TryRefreshAssetDatabase(transactionRoot);
             Debug.Log(
                 $"[TryGameRefDataExportTransaction] 三仓库事务导表完成：transaction={transactionId}, " +
                 $"source={sourceRepository}, runtime={runtimeRepository}, generated={generatedRepository}");
             PrintRepositoryDiffs(sourceRepository, runtimeRepository, generatedRepository);
             TryDeleteTransactionDirectory(transactionRoot, transactionParent, "成功事务目录");
             return true;
-        }
-
-        private static void TryRefreshAssetDatabase(string transactionRoot)
-        {
-            try
-            {
-                AssetDatabase.Refresh();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError(
-                    "[TryGameRefDataExportTransaction] 正式目录已经发布成功，但 AssetDatabase.Refresh 失败。" +
-                    $"请在 Unity 中手动刷新资源；transaction={transactionRoot}\n{exception}");
-            }
         }
 
         private static bool TryValidateInputs(

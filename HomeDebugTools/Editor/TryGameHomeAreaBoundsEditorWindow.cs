@@ -660,7 +660,6 @@ namespace TryGame.HomeDebugTools.Editor
             }
 
             LoadTable();
-            AssetDatabase.Refresh();
             if (!tableLoadSucceeded)
             {
                 sourceSavedOutputStale = true;

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using UnityEditor;
 
 namespace TryGame.RefDataTools.Editor
 {
@@ -104,7 +103,6 @@ namespace TryGame.RefDataTools.Editor
                         return false;
                     }
 
-                    AssetDatabase.Refresh();
                     UnityEngine.Debug.Log("配表导出完成。");
                     return true;
                 }

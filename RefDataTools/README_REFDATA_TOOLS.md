@@ -11,7 +11,7 @@ Unity 菜单：
 
 导出模式：
 
-- 导表窗口中的“单项导出”和“导出选中项”是增量导出，会保留未选中 Excel 的既有产物；它不会判断某张表是否已删除或改名。所有增量与全量导出都会在 staging 内基于完整 GeneratedTables 重新生成 Config，不提供跳过或直接写正式 Config 的入口。
+- 导表窗口中的“单项导出”和“导出选中项”是增量导出，会保留未选中 Excel 的既有产物；启动前会用 manifest v3 比较完整源表集合和未选源表哈希，检测到删除、改名或未选源表变化时会拒绝增量，必须改走全量清洁重建。所有增量与全量导出都会在 staging 内基于完整 GeneratedTables 重新生成 Config，不提供跳过或直接写正式 Config 的入口。
 - 菜单“导出全部配表并生成入口”固定读取正式源表目录，并执行全量清洁重建。删除或改名表后必须使用该入口。
 - 增量导出要求正式目录已有 manifest v3 完整源表基线；所有已修改 Excel 必须包含在本次选择中。新增、删除、改名源表或修改 `共用枚举结构体.xlsx` 时必须全量清洁重建。旧 manifest v2 需先全量导出一次升级为 v3。
 - HomeArea 编辑工具会在写源 Excel 前执行一次只读增量预检；预检失败时源 Excel 和 Output 都保持不变，写入后正式事务仍会重新校验以防止竞态变化。
@@ -26,6 +26,8 @@ Unity 菜单：
 - 工具二进制：`Assets/TryGameToolScripts/RefDataTools/Bin`
 
 源仓库中的 `fb_data/*.bytes` 和 `txt_data/Language.bytes` 只是在 staging 内同步时使用的临时产物，发布到源仓库前会删除。正式 bytes 只保存在运行时仓库。
+
+正式 Runtime Output 与 GeneratedConfig 没有非事务直写入口；旧 `TryGameRefDataRuntimeSync` 同步旁路和独立 Config 菜单均已删除。
 
 导表前必须初始化以下三个 Git 仓库，否则事务会在启动 cltabtoy 前报错并中止：
 
@@ -49,9 +51,9 @@ Unity 菜单：
 8. 再次确认完整 canonical 源文件集合和全部 SHA256 未变化；随后先把每个旧正式目录移动到 `backup`，再把对应 staging 目录移动为正式目录。
 9. 四个目录移动完成后、清理 backup 前，重新要求三份正式 manifest 等于本次 manifest，并按 manifest 核对四个正式目录的完整文件集合与逐文件 SHA256，同时再次复核 canonical 源集合和哈希。任一文件缺失、多出、哈希不符或源表中途变化都会打印具体信息并自动回滚。
 10. 任一目录发布或发布后校验失败时，从当前失败项开始反向回滚；已发布的新目录保留到 `failed-new`，失败日志会打印 target、backup、failed-new 和异常。
-11. 发布及正式门禁全部成功后再刷新 Unity，并分别用 `git diff`、`git diff --cached` 和 untracked 查询打印三个仓库的真实内容差异，避免 `git status` 把换行/stat 缓存噪声误报为修改。
+11. cltabtoy、Language、Config、事务发布器和 HomeArea 工具在事务中途都不刷新 Unity；`ExportFiles` 在恢复 `kAutoRefresh` 后统一执行一次 `AssetDatabase.Refresh()`，成功、失败回滚和异常都走同一路径。随后分别用 `git diff`、`git diff --cached` 和 untracked 查询打印三个仓库的真实内容差异，避免 `git status` 把换行/stat 缓存噪声误报为修改。
 
-成功事务会尝试自动删除事务目录。若发布前的导出或验证失败，staging 会保留并在错误日志中打印完整路径，便于检查。若发布成功后 Unity 刷新、Git 差异读取或 backup 清理失败，只记录明确错误，不会把已经完成的发布误报成“正式目录未改变”。
+成功事务会尝试自动删除事务目录。若发布前的导出或验证失败，staging 会保留并在错误日志中打印完整路径，便于检查。统一 Unity 刷新失败时会输出 Error 并要求手动刷新；若发布成功后刷新、Git 差异读取或 backup 清理失败，只记录明确错误，不会回滚或把已经完成的发布误报成“正式目录未改变”。
 
 ### 发布前验证
 

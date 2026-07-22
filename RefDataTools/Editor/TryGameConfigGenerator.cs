@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using UnityEditor;
-using UnityEngine;
 
 namespace TryGame.RefDataTools.Editor
 {
@@ -136,7 +134,6 @@ namespace TryGame.RefDataTools.Editor
 
             GenerateAndCommitConfigs(configDir, accessorsByModule, generalAccessor);
 
-            AssetDatabase.Refresh();
             UnityEngine.Debug.Log("Config 读取入口生成完成：" + generatedConfigAssetPath);
         }
 

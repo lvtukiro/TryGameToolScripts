@@ -5,7 +5,6 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Xml;
-using UnityEditor;
 using UnityEngine;
 
 namespace TryGame.RefDataTools.Editor
@@ -96,7 +95,6 @@ namespace TryGame.RefDataTools.Editor
 
             string outputPath = Path.Combine(outputDir, LanguageSheetName + ".bytes");
             WriteAllTextAtomic(outputPath, output);
-            AssetDatabase.Refresh();
 
             Debug.Log("语言表导出完成：" + TryGameRefDataPaths.ToAssetPath(outputPath));
             return true;
