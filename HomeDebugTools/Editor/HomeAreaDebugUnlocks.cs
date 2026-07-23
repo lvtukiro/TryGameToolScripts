@@ -16,6 +16,7 @@ namespace TryGame.HomeDebugTools.Editor
         public const string DefaultAreaIdsText = "10002";
         public const string DefaultItemIdText = "1001";
         public const string DefaultItemCountText = "1";
+        public const string DefaultShopInstanceIdText = "90001";
 
         private static readonly Regex SplitRegex = new Regex(@"[,\s;，；]+", RegexOptions.Compiled);
 
@@ -80,17 +81,21 @@ namespace TryGame.HomeDebugTools.Editor
             return TryChangeItemCount(itemId, count, false);
         }
 
-        public static bool RandomRefreshHomeShop()
+        public static bool RandomRefreshHomeShop(int shopInstanceId)
         {
-            int count = HomeShopRuntimeStore.RandomRefreshGoods();
+            int count = HomeShopRuntimeStore.RandomRefreshGoods(shopInstanceId);
             if (count <= 0)
             {
-                Debug.LogError("[HomeAreaDebugUnlocks] 商店随机刷新失败：没有可用的家具商品。");
+                Debug.LogError(
+                    $"[HomeAreaDebugUnlocks] 商店实例随机刷新失败：" +
+                    $"shopInstanceId={shopInstanceId}，实例不存在或没有可用的家具商品。");
                 return false;
             }
 
-            MsgSend.SendMsg(MsgType.RefreshShop, null);
-            Debug.Log($"[HomeAreaDebugUnlocks] 已随机刷新商店商品，数量：{count}");
+            MsgSend.SendMsg(MsgType.RefreshShop, shopInstanceId);
+            Debug.Log(
+                $"[HomeAreaDebugUnlocks] 已随机刷新商店实例商品：" +
+                $"shopInstanceId={shopInstanceId}, count={count}");
             return true;
         }
 

@@ -939,49 +939,87 @@ namespace TryGame.RefDataTools.Editor
                     throw new InvalidDataException($"JSON 根结构不是表对象：table={tableName}, path={jsonPath}");
                 }
 
-                return 1;
+                if (string.Equals(tableName, "General", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 1;
+                }
+
+                throw new InvalidDataException(
+                    $"表缺少数据行数组：table={tableName}, row=<none>, rawId=<missing>, path={jsonPath}");
             }
 
             int rowCount = 0;
-            Dictionary<string, int> ids = new Dictionary<string, int>(StringComparer.Ordinal);
+            Dictionary<int, int> ids = new Dictionary<int, int>();
             for (int arrayIndex = 0; arrayIndex < rowArrays.Count; arrayIndex++)
             {
                 IList rows = rowArrays[arrayIndex];
+                int rowOffset = rowCount;
                 rowCount += rows.Count;
                 for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
+                    int absoluteRow = rowOffset + rowIndex + 1;
                     IDictionary<string, object> row = (IDictionary<string, object>)rows[rowIndex];
                     string idKey = row.Keys.FirstOrDefault(
                         key => string.Equals(key, "id", StringComparison.OrdinalIgnoreCase));
                     if (idKey == null)
                     {
-                        continue;
+                        throw new InvalidDataException(
+                            $"表数据行缺少 ID：table={tableName}, row={absoluteRow}, rawId=<missing>");
                     }
 
                     object idValue = row[idKey];
-                    string id = Convert.ToString(idValue, CultureInfo.InvariantCulture);
-                    if (string.IsNullOrWhiteSpace(id))
+                    string rawId = Convert.ToString(idValue, CultureInfo.InvariantCulture);
+                    if (!int.TryParse(rawId, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id))
                     {
-                        throw new InvalidDataException($"表存在空 ID：table={tableName}, row={rowIndex + 1}");
+                        throw new InvalidDataException(
+                            $"表数据行 ID 不是有效整数：table={tableName}, row={absoluteRow}, " +
+                            $"rawId={FormatRawJsonValue(idValue)}");
+                    }
+
+                    if (id <= 0)
+                    {
+                        throw new InvalidDataException(
+                            $"表数据行 ID 必须大于 0：table={tableName}, row={absoluteRow}, " +
+                            $"rawId={FormatRawJsonValue(idValue)}, parsedId={id}");
                     }
 
                     if (ids.TryGetValue(id, out int previousRow))
                     {
                         throw new InvalidDataException(
-                            $"表存在重复 ID：table={tableName}, id={id}, firstRow={previousRow}, " +
-                            $"duplicateRow={rowCount - rows.Count + rowIndex + 1}");
+                            $"表存在重复 ID：table={tableName}, row={absoluteRow}, " +
+                            $"rawId={FormatRawJsonValue(idValue)}, parsedId={id}, firstRow={previousRow}");
                     }
 
-                    ids.Add(id, rowCount - rows.Count + rowIndex + 1);
+                    ids.Add(id, absoluteRow);
                 }
             }
 
             if (rowCount <= 0)
             {
-                throw new InvalidDataException($"表没有任何数据行：table={tableName}, path={jsonPath}");
+                throw new InvalidDataException(
+                    $"表没有任何数据行：table={tableName}, row=<none>, rawId=<missing>, path={jsonPath}");
             }
 
             return rowCount;
+        }
+
+        private static string FormatRawJsonValue(object value)
+        {
+            if (value == null)
+            {
+                return "<null>";
+            }
+
+            if (value is string stringValue)
+            {
+                return "\"" + stringValue
+                    .Replace("\\", "\\\\")
+                    .Replace("\r", "\\r")
+                    .Replace("\n", "\\n")
+                    .Replace("\"", "\\\"") + "\"";
+            }
+
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
         }
 
         private static bool IsObjectRowArray(IList values)

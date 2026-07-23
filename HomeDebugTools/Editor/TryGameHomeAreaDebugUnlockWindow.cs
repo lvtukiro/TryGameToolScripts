@@ -16,6 +16,7 @@ namespace TryGame.HomeDebugTools.Editor
         private string itemIdText = HomeAreaDebugUnlocks.DefaultItemIdText;
         private string addItemCountText = HomeAreaDebugUnlocks.DefaultItemCountText;
         private string removeItemCountText = HomeAreaDebugUnlocks.DefaultItemCountText;
+        private string shopInstanceIdText = HomeAreaDebugUnlocks.DefaultShopInstanceIdText;
         private Vector2 scrollPosition;
 
         [MenuItem("TryGame/Home/运行时 Home 作弊工具")]
@@ -109,14 +110,21 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.Space(12f);
             EditorGUILayout.LabelField("商店测试", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "随机刷新会按 HomeShopGoods 表权重抽取商品，并发送 RefreshShop 消息让已打开的商店界面立即刷新。",
+                "按商店实例 ID 随机刷新；shopId 只由该实例绑定的配置决定。实例必须已由商人入口创建。",
                 MessageType.None);
+            shopInstanceIdText = EditorGUILayout.TextField("商店实例 id", shopInstanceIdText);
 
             using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
             {
                 if (GUILayout.Button("商人随机刷新商品"))
                 {
-                    HomeAreaDebugUnlocks.RandomRefreshHomeShop();
+                    if (HomeAreaDebugUnlocks.TryParsePositiveInt(
+                            shopInstanceIdText,
+                            "商店实例 id",
+                            out int shopInstanceId))
+                    {
+                        HomeAreaDebugUnlocks.RandomRefreshHomeShop(shopInstanceId);
+                    }
                 }
             }
         }
