@@ -20,7 +20,7 @@ namespace TryGame.RefDataTools.Editor
     {
         private const int ProcessTimeoutMilliseconds = 300000;
         private const int ManifestFormatVersion = 3;
-        private const string TransactionToolVersion = "1.5.0";
+        private const string TransactionToolVersion = "1.5.1";
         private const string RefDataRuntimeProjectFileName = "TryGame.RefData.Runtime.csproj";
         private const string SourceOutputRoot = "SourceOutput";
         private const string RuntimeOutputRoot = "RuntimeOutput";
@@ -28,6 +28,18 @@ namespace TryGame.RefDataTools.Editor
         private const string GeneratedConfigRoot = "GeneratedConfig";
         private const string CanonicalSourceInputRole = "canonicalSource";
         private const string ImplicitDependencyInputRole = "implicitDependency";
+
+        // Media is being landed as an intentionally dormant subsystem: its schemas and
+        // generated accessors must exist before the first production asset rows are added.
+        // Keep this list exact. Other empty tables still fail validation, and every permitted
+        // empty table is logged below so an accidental empty export cannot be silent.
+        private static readonly HashSet<string> ExplicitlyAllowedEmptyTables =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "MediaResource",
+                "AudioDefinition",
+                "EffectDefinition",
+            };
 
         public static bool TryCaptureInputHashes(
             IReadOnlyList<string> excelFullPaths,
@@ -996,6 +1008,15 @@ namespace TryGame.RefDataTools.Editor
 
             if (rowCount <= 0)
             {
+                if (ExplicitlyAllowedEmptyTables.Contains(tableName))
+                {
+                    Debug.LogWarning(
+                        $"[TryGameRefDataExportValidator] 已按精确 schema-only 许可发布空表：" +
+                        $"table={tableName}, rowCount=0, path={jsonPath}。" +
+                        "除 MediaResource/AudioDefinition/EffectDefinition 外，其它空表仍会拒绝发布。");
+                    return 0;
+                }
+
                 throw new InvalidDataException(
                     $"表没有任何数据行：table={tableName}, row=<none>, rawId=<missing>, path={jsonPath}");
             }

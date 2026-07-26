@@ -46,7 +46,7 @@ Unity 菜单：
 3. cltabtoy 和 Language 输出完成后，固定基于 staging 中的完整 GeneratedTables 重新生成 Config；所有产物都只写 staging。
 4. 把本次生成的 bytes 同步到 staging 运行时目录，并从 staging 源目录删除临时 bytes。
 5. 把生成的 JSON/FBS/Java/TXT、文本型 `Language.bytes` 和生成 C# 统一为 LF，并保留各文件既有 UTF-8 BOM 约定；若与旧正式文件仅有行末空白差异则沿用旧格式，再在 staging 内完成全部验证。
-6. 验证通过后生成 manifest v3（transaction tool 1.5.0）。`inputs` 记录完整 canonical 源快照，不记录本次按钮选择；`payloadFiles` 记录四个待发布目录全部有效文件的逻辑根、相对路径和 SHA256；`.meta` 与 manifest 自身不参与递归哈希。因此源表和 payload 都未变化时，单项与全量导出生成的 manifest 完全相同。
+6. 验证通过后生成 manifest v3（transaction tool 1.5.1）。`inputs` 记录完整 canonical 源快照，不记录本次按钮选择；`payloadFiles` 记录四个待发布目录全部有效文件的逻辑根、相对路径和 SHA256；`.meta` 与 manifest 自身不参与递归哈希。因此源表和 payload 都未变化时，单项与全量导出生成的 manifest 完全相同。
 7. 同一份 `RefDataManifest.json` 分别写入源仓库 Output、运行时 Output 和 GeneratedTables。发布前要求三份都逐字节等于本次内存中的 manifest，并按 `payloadFiles` 核对 staging 的文件集合与逐文件哈希。全量清洁重建只给仍存在的同路径文件和目录恢复旧 `.meta`，并打印旧产物删除计划。
 8. 再次确认完整 canonical 源文件集合和全部 SHA256 未变化；随后先把每个旧正式目录移动到 `backup`，再把对应 staging 目录移动为正式目录。
 9. 四个目录移动完成后、清理 backup 前，重新要求三份正式 manifest 等于本次 manifest，并按 manifest 核对四个正式目录的完整文件集合与逐文件 SHA256，同时再次复核 canonical 源集合和哈希。任一文件缺失、多出、哈希不符或源表中途变化都会打印具体信息并自动回滚。
@@ -61,6 +61,7 @@ Unity 菜单：
 
 - 客户端 JSON 与运行时 bytes 的表集合一致。
 - JSON 能解析，数据行数有效，同一表中的 ID 不重复。
+- 只有 `MediaResource`、`AudioDefinition`、`EffectDefinition` 允许在媒体系统尚未接业务资源时作为 schema-only 空表发布，验证器会逐表输出明确 Warning；其它任何空表仍会拒绝发布。
 - 每张表都有 FBS、bytes 和生成 C#。
 - 每份 bytes 都能用对应 FBS 经 `flatc` 反序列化；同次生成的客户端 JSON 会再按该 FBS 编码为 expected bytes，并与运行时 bytes 做长度、SHA256 和逐字节一致性校验，避免旧 bytes 或错内容通过发布。
 - `Language.bytes` 包含 `id`、`zh_cn`、`en_US`，必要字段非空且 key 唯一。
