@@ -21,6 +21,12 @@ namespace TryGame.Tools.Editor
     {
         private const string MenuPath = "TryGame/Validation/校验 Gameplay 帧入口与时间";
         private const string ScriptsRoot = "Assets/TryGameScripts";
+        private const string WindowsNativeRoot =
+            "Assets/TryGameScripts/platform_windows_runtime/Native";
+
+        private static readonly Regex NativeImportDeclarationRegex = new Regex(
+            @"\b(?:DllImport|LibraryImport)\s*\(",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private static readonly string[] TimeGuardRoots =
         {
@@ -90,15 +96,18 @@ namespace TryGame.Tools.Editor
                 Dictionary<Type, string> scriptPaths = BuildRuntimeScriptPathMap();
                 int frameTypeCount = 0;
                 int scannedFileCount = 0;
+                int platformFileCount = 0;
                 int violationCount = ValidateFrameEntrypoints(scriptPaths, ref frameTypeCount);
                 violationCount += ValidateUnityTimeUsage(scriptPaths, ref scannedFileCount);
+                violationCount += ValidatePlatformBoundaries(ref platformFileCount);
 
                 if (violationCount > 0)
                 {
                     Debug.LogError(
                         $"[TryGameGameplayArchitectureValidator] Gameplay 架构校验失败：" +
                         $"violations={violationCount}, gameplayTypes={frameTypeCount}, " +
-                        $"timeGuardFiles={scannedFileCount}。请先修复全部 TG-GP 规则再继续验收。");
+                        $"timeGuardFiles={scannedFileCount}, platformFiles={platformFileCount}。" +
+                        "请先修复全部 TG-GP/TG-PL 规则再继续验收。");
                     return false;
                 }
 
@@ -106,7 +115,8 @@ namespace TryGame.Tools.Editor
                 {
                     Debug.Log(
                         $"[TryGameGameplayArchitectureValidator] Gameplay 架构校验通过：" +
-                        $"gameplayTypes={frameTypeCount}, timeGuardFiles={scannedFileCount}。");
+                        $"gameplayTypes={frameTypeCount}, timeGuardFiles={scannedFileCount}, " +
+                        $"platformFiles={platformFileCount}。");
                 }
 
                 return true;
@@ -444,6 +454,193 @@ namespace TryGame.Tools.Editor
                         $"System、UI、Loading 或媒体真实时间应留在各自底层来源中。");
                     violations++;
                 }
+            }
+
+            return violations;
+        }
+
+        private static int ValidatePlatformBoundaries(ref int scannedFileCount)
+        {
+            int violations = 0;
+            string scriptsRoot = AssetPathToAbsolute(ScriptsRoot);
+            string nativeRoot = AssetPathToAbsolute(WindowsNativeRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            string[] sourceFiles = Directory.GetFiles(
+                scriptsRoot,
+                "*.cs",
+                SearchOption.AllDirectories);
+            Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
+            for (int fileIndex = 0; fileIndex < sourceFiles.Length; fileIndex++)
+            {
+                string absolutePath = Path.GetFullPath(sourceFiles[fileIndex]);
+                scannedFileCount++;
+                string source;
+                try
+                {
+                    source = File.ReadAllText(absolutePath);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError(
+                        $"[TryGameGameplayArchitectureValidator][TG-PL001] 无法读取平台边界源码，" +
+                        $"本次扫描不完整：file={AbsoluteToAssetPath(absolutePath)}\n{exception}");
+                    violations++;
+                    continue;
+                }
+
+                string searchable = StripCommentsAndLiterals(source);
+                MatchCollection imports = NativeImportDeclarationRegex.Matches(searchable);
+                if (imports.Count == 0
+                    || absolutePath.StartsWith(nativeRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                for (int matchIndex = 0; matchIndex < imports.Count; matchIndex++)
+                {
+                    Match import = imports[matchIndex];
+                    Debug.LogError(
+                        $"[TryGameGameplayArchitectureValidator][TG-PL001] P/Invoke 声明越过 Windows Native 边界：" +
+                        $"expression={import.Value}, " +
+                        $"file={FormatLocation(AbsoluteToAssetPath(absolutePath), GetLineNumber(searchable, import.Index))}。" +
+                        $"所有 DllImport/LibraryImport 必须留在 {WindowsNativeRoot}。");
+                    violations++;
+                }
+            }
+
+            violations += ValidateAssemblyReferenceBoundary(
+                "TG-PL002",
+                "Assets/TryGameScripts/TryGame.Gameplay.asmdef",
+                new[]
+                {
+                    "aab40a6944cc4d92b91f27ef4cbf9cec",
+                    "18e636c958294bc29ec33435849b3175",
+                    "f4c7d4e3a6dd40be9a039efeec5062c8",
+                    "TryGame.Platform.",
+                },
+                "Gameplay 不得引用任何 Platform 程序集。");
+
+            violations += ValidateAssemblyReferenceBoundary(
+                "TG-PL003",
+                "Assets/TryGameScripts/application_contracts_runtime/TryGame.Application.Contracts.asmdef",
+                new[]
+                {
+                    "18e636c958294bc29ec33435849b3175",
+                    "f4c7d4e3a6dd40be9a039efeec5062c8",
+                    "TryGame.Platform.Runtime",
+                    "TryGame.Platform.Windows",
+                },
+                "Application.Contracts 只能依赖纯 C# Platform.Contracts，不得依赖 Platform.Runtime 或 Windows 实现。");
+            violations += ValidateAssemblyReferenceBoundary(
+                "TG-PL003",
+                "Assets/TryGameScripts/application_runtime/TryGame.Application.asmdef",
+                new[]
+                {
+                    "f4c7d4e3a6dd40be9a039efeec5062c8",
+                    "TryGame.Platform.Windows",
+                },
+                "Application 可以依赖 Platform Contracts/Runtime，但不得直接引用 Windows 实现。");
+            violations += ValidateAssemblyReferenceBoundary(
+                "TG-PL003",
+                "Assets/TryGameScripts/ui/TryGame.Presentation.asmdef",
+                new[]
+                {
+                    "18e636c958294bc29ec33435849b3175",
+                    "f4c7d4e3a6dd40be9a039efeec5062c8",
+                    "TryGame.Platform.Runtime",
+                    "TryGame.Platform.Windows",
+                },
+                "Presentation 只能通过 Application 端口或 Platform.Contracts 通信，不得直接引用 Platform.Runtime/Windows。");
+
+            violations += ValidateAssemblyReferenceBoundary(
+                "TG-PL004",
+                "Assets/TryGameScripts/platform_windows_runtime/TryGame.Platform.Windows.asmdef",
+                new[]
+                {
+                    "ab7759cac9b64b778c35db92f3f0c249",
+                    "f41dcdd887b0493695107ca67415fd33",
+                    "a86b1da1290644b1bcbbfbc99339fcac",
+                    "35ace684bda046aebfd91ec3288959e2",
+                    "0ac0b2128f75492091d73abfcc3cad19",
+                    "dd4b067452bc45eeab212cf29442dade",
+                    "TryGame.Gameplay",
+                    "TryGame.Application",
+                    "TryGame.Presentation",
+                    "TryGame.Save.",
+                    "TryGame.RefData.",
+                },
+                "Platform.Windows 不得反向依赖 Gameplay、Application、Presentation、Save 或 RefData。");
+
+            string contractsAsmdef = AssetPathToAbsolute(
+                "Assets/TryGameScripts/platform_contracts_runtime/TryGame.Platform.Contracts.asmdef");
+            if (!File.Exists(contractsAsmdef))
+            {
+                Debug.LogError(
+                    "[TryGameGameplayArchitectureValidator][TG-PL005] Platform Contracts asmdef 不存在，" +
+                    "无法确认纯 C# 合同边界。");
+                violations++;
+            }
+            else
+            {
+                string contractsSource = File.ReadAllText(contractsAsmdef);
+                if (!Regex.IsMatch(
+                        contractsSource,
+                        "\\\"noEngineReferences\\\"\\s*:\\s*true",
+                        RegexOptions.CultureInvariant))
+                {
+                    Debug.LogError(
+                        "[TryGameGameplayArchitectureValidator][TG-PL005] " +
+                        "TryGame.Platform.Contracts 必须保持 noEngineReferences=true，" +
+                        "不能把 UnityEngine、HWND 或 RefData 类型带入跨平台合同。");
+                    violations++;
+                }
+            }
+
+            return violations;
+        }
+
+        private static int ValidateAssemblyReferenceBoundary(
+            string rule,
+            string assetPath,
+            IReadOnlyList<string> forbiddenReferences,
+            string remediation)
+        {
+            string absolutePath = AssetPathToAbsolute(assetPath);
+            if (!File.Exists(absolutePath))
+            {
+                Debug.LogError(
+                    $"[TryGameGameplayArchitectureValidator][{rule}] asmdef 不存在，" +
+                    $"本次平台依赖校验不完整：file={assetPath}");
+                return 1;
+            }
+
+            string source;
+            try
+            {
+                source = File.ReadAllText(absolutePath);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError(
+                    $"[TryGameGameplayArchitectureValidator][{rule}] 无法读取 asmdef：" +
+                    $"file={assetPath}\n{exception}");
+                return 1;
+            }
+
+            int violations = 0;
+            for (int index = 0; index < forbiddenReferences.Count; index++)
+            {
+                string forbidden = forbiddenReferences[index];
+                if (source.IndexOf(forbidden, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                Debug.LogError(
+                    $"[TryGameGameplayArchitectureValidator][{rule}] 程序集依赖方向错误：" +
+                    $"file={assetPath}, forbiddenReference={forbidden}。{remediation}");
+                violations++;
             }
 
             return violations;
