@@ -17,6 +17,8 @@ namespace TryGame.HomeDebugTools.Editor
         private string addItemCountText = HomeAreaDebugUnlocks.DefaultItemCountText;
         private string removeItemCountText = HomeAreaDebugUnlocks.DefaultItemCountText;
         private string shopInstanceIdText = HomeAreaDebugUnlocks.DefaultShopInstanceIdText;
+        private string petCommandStatus = "尚未执行宠物行为命令。";
+        private MessageType petCommandStatusType = MessageType.None;
         private Vector2 scrollPosition;
 
         [MenuItem("TryGame/Home/运行时 Home 作弊工具")]
@@ -43,6 +45,7 @@ namespace TryGame.HomeDebugTools.Editor
             DrawAreaSection();
             DrawItemSection();
             DrawShopSection();
+            DrawPetSection();
             EditorGUILayout.EndScrollView();
         }
 
@@ -127,6 +130,94 @@ namespace TryGame.HomeDebugTools.Editor
                     }
                 }
             }
+        }
+
+        private void DrawPetSection()
+        {
+            EditorGUILayout.Space(12f);
+            EditorGUILayout.LabelField("宠物自主行为验收", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "只跳过随机抽签，仍走正式资格、技能、家具目录、A*、预占和状态机。" +
+                "“睡桌子”会临时把 Energy 压到睡眠阈值，并且必须存在桌面 Slot；" +
+                "桌面上的其它家具不会禁用睡眠位置。",
+                MessageType.Info);
+
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            {
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("强制 Idle"))
+                {
+                    RunPetCommand(PetIntentType.Idle, false);
+                }
+
+                if (GUILayout.Button("强制 Walk"))
+                {
+                    RunPetCommand(PetIntentType.Walk, false);
+                }
+
+                if (GUILayout.Button("强制走楼梯"))
+                {
+                    RunPetCommand(PetIntentType.TraversePath, false);
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("强制 Rest"))
+                {
+                    RunPetCommand(PetIntentType.Rest, false);
+                }
+
+                if (GUILayout.Button("强制睡桌子"))
+                {
+                    RunPetCommand(PetIntentType.Sleep, true);
+                }
+
+                if (GUILayout.Button("强制 Play 电视"))
+                {
+                    RunPetCommand(PetIntentType.Play, true);
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.HelpBox(petCommandStatus, petCommandStatusType);
+        }
+
+        private void RunPetCommand(
+            PetIntentType intent,
+            bool requireFurnitureTarget)
+        {
+            if (!EditorApplication.isPlaying)
+            {
+                petCommandStatus = "请先进入 Play Mode。";
+                petCommandStatusType = MessageType.Warning;
+                return;
+            }
+
+            if (!HomePetSceneService.TryGetCurrentMainPetController(
+                    out HomePetController controller,
+                    out string controllerError))
+            {
+                petCommandStatus =
+                    $"当前没有可用宠物运行对象：{controllerError ?? "<none>"}";
+                petCommandStatusType = MessageType.Warning;
+                return;
+            }
+
+            if (!controller.TryDebugForceBehaviour(
+                    intent,
+                    requireFurnitureTarget,
+                    out string error))
+            {
+                petCommandStatus =
+                    $"命令未执行：intent={intent}, reason={error ?? "<none>"}";
+                petCommandStatusType = MessageType.Warning;
+                return;
+            }
+
+            petCommandStatus =
+                $"命令已提交：intent={intent}, state={controller.StateType}, " +
+                $"energy={controller.Energy:F3}";
+            petCommandStatusType = MessageType.Info;
         }
 
         private void DrawAreaPreview()
