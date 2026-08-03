@@ -19,6 +19,8 @@ namespace TryGame.HomeDebugTools.Editor
         private string shopInstanceIdText = HomeAreaDebugUnlocks.DefaultShopInstanceIdText;
         private string petCommandStatus = "尚未执行宠物行为命令。";
         private MessageType petCommandStatusType = MessageType.None;
+        private string foodDropCommandStatus = "尚未执行食物掉落命令。";
+        private MessageType foodDropCommandStatusType = MessageType.None;
         private Vector2 scrollPosition;
 
         [MenuItem("TryGame/Home/运行时 Home 作弊工具")]
@@ -44,6 +46,7 @@ namespace TryGame.HomeDebugTools.Editor
 
             DrawAreaSection();
             DrawItemSection();
+            DrawFoodDropSection();
             DrawShopSection();
             DrawPetSection();
             EditorGUILayout.EndScrollView();
@@ -130,6 +133,82 @@ namespace TryGame.HomeDebugTools.Editor
                     }
                 }
             }
+        }
+
+        private void DrawFoodDropSection()
+        {
+            EditorGUILayout.Space(12f);
+            EditorGUILayout.LabelField("可收取食物作弊", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "直接向当前存档的未收获池加入随机食物，不走输入概率和冷却。" +
+                "在 Full 家园中会立即按正式规则显示；不在 Full 时，返回家园后显示。",
+                MessageType.Info);
+
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            {
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("随机食物 ×1"))
+                {
+                    RunFoodDropCommand(1);
+                }
+
+                if (GUILayout.Button("随机食物 ×5"))
+                {
+                    RunFoodDropCommand(5);
+                }
+
+                if (GUILayout.Button("随机食物 ×10"))
+                {
+                    RunFoodDropCommand(10);
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("食物栏重复格 ×3"))
+                {
+                    RunFoodBarRepeatCommand(3);
+                }
+
+                if (GUILayout.Button("恢复真实食物格"))
+                {
+                    RunFoodBarRepeatCommand(1);
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.HelpBox(foodDropCommandStatus, foodDropCommandStatusType);
+        }
+
+        private void RunFoodDropCommand(int count)
+        {
+            if (!EditorApplication.isPlaying)
+            {
+                foodDropCommandStatus = "请先进入 Play Mode。";
+                foodDropCommandStatusType = MessageType.Warning;
+                return;
+            }
+
+            bool succeeded = HomeAreaDebugUnlocks.TryGenerateRandomPendingPetFood(
+                count,
+                out foodDropCommandStatus);
+            foodDropCommandStatusType = succeeded
+                ? MessageType.Info
+                : MessageType.Warning;
+        }
+
+        private void RunFoodBarRepeatCommand(int repeatCount)
+        {
+            bool succeeded = HomePetFoodPresentationRoot.TrySetDebugItemRepeatCount(
+                repeatCount,
+                out string error);
+            foodDropCommandStatus = succeeded
+                ? repeatCount == 1
+                    ? "已恢复真实食物格显示。"
+                    : $"每种已有食物临时显示 {repeatCount} 格；只用于滚动测试，不修改存档。"
+                : error ?? "<none>";
+            foodDropCommandStatusType = succeeded
+                ? MessageType.Info
+                : MessageType.Warning;
         }
 
         private void DrawPetSection()

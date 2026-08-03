@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using Game;
 using RefData;
@@ -96,6 +97,50 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log(
                 $"[HomeAreaDebugUnlocks] 已随机刷新商店实例商品：" +
                 $"shopInstanceId={shopInstanceId}, count={count}");
+            return true;
+        }
+
+        public static bool TryGenerateRandomPendingPetFood(
+            int count,
+            out string summary)
+        {
+            summary = string.Empty;
+            if (!PetFoodDropApplicationService.TryDebugGeneratePending(
+                    SaveRuntime.Instance,
+                    count,
+                    out PetFoodDropGenerationResult[] generated,
+                    out string error))
+            {
+                summary = error ?? "<none>";
+                Debug.LogError(
+                    $"[HomeAreaDebugUnlocks] 随机添加可收取食物失败：" +
+                    $"count={count}, reason={summary}");
+                return false;
+            }
+
+            Dictionary<int, int> countsByItemId = new Dictionary<int, int>();
+            for (int index = 0; index < generated.Length; index++)
+            {
+                int itemId = generated[index].ItemId;
+                countsByItemId.TryGetValue(itemId, out int oldCount);
+                countsByItemId[itemId] = oldCount + 1;
+            }
+
+            StringBuilder detail = new StringBuilder(64);
+            foreach (KeyValuePair<int, int> pair in countsByItemId)
+            {
+                if (detail.Length > 0)
+                {
+                    detail.Append(", ");
+                }
+
+                detail.Append(pair.Key);
+                detail.Append('x');
+                detail.Append(pair.Value);
+            }
+
+            summary = $"已加入未收获池：总数={generated.Length}，{detail}";
+            Debug.Log($"[HomeAreaDebugUnlocks] {summary}");
             return true;
         }
 
