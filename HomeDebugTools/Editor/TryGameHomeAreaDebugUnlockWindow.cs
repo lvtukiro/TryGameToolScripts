@@ -48,8 +48,77 @@ namespace TryGame.HomeDebugTools.Editor
             DrawItemSection();
             DrawFoodDropSection();
             DrawShopSection();
+            DrawBattleRobotSection();
             DrawPetSection();
             EditorGUILayout.EndScrollView();
+        }
+
+        private static void DrawBattleRobotSection()
+        {
+            EditorGUILayout.Space(12f);
+            EditorGUILayout.LabelField("备战机器人状态验收", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "仅用于 2.0b 验收：指定机器人可切换为损毁或恢复可战斗。" +
+                "修改会标记当前档 Dirty；正式包不存在这个入口。",
+                MessageType.Info);
+
+            SaveData save = SaveRuntime.Instance != null
+                ? SaveRuntime.Instance.Current
+                : null;
+            List<BattleRobotInstanceSaveData> robots = save?.robotRoster?.robots;
+            if (!EditorApplication.isPlaying || robots == null)
+            {
+                EditorGUILayout.LabelField("当前没有可读取的运行存档。", EditorStyles.miniLabel);
+                return;
+            }
+
+            if (robots.Count == 0)
+            {
+                EditorGUILayout.LabelField("当前档还没有机器人。", EditorStyles.miniLabel);
+                return;
+            }
+
+            for (int index = 0; index < robots.Count; index++)
+            {
+                BattleRobotInstanceSaveData robot = robots[index];
+                if (robot == null)
+                {
+                    continue;
+                }
+
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                string state = robot.repairWorkRemaining > 0d ? "损毁" : "可战斗";
+                EditorGUILayout.LabelField(
+                    $"{robot.customName}  [{state}]  slot={robot.rosterSlotId}");
+                EditorGUILayout.SelectableLabel(
+                    robot.uid ?? string.Empty,
+                    EditorStyles.miniLabel,
+                    GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                EditorGUILayout.BeginHorizontal();
+                using (new EditorGUI.DisabledScope(robot.repairWorkRemaining > 0d))
+                {
+                    if (GUILayout.Button("设为损毁"))
+                    {
+                        HomeAreaDebugUnlocks.TrySetBattleRobotDamaged(
+                            robot.uid,
+                            true,
+                            out _);
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(robot.repairWorkRemaining <= 0d))
+                {
+                    if (GUILayout.Button("恢复可战斗"))
+                    {
+                        HomeAreaDebugUnlocks.TrySetBattleRobotDamaged(
+                            robot.uid,
+                            false,
+                            out _);
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.EndVertical();
+            }
         }
 
         private void DrawAreaSection()

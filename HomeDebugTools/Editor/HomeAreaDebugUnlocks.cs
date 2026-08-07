@@ -144,6 +144,57 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
 
+        public static bool TrySetBattleRobotDamaged(
+            string robotUid,
+            bool damaged,
+            out string summary)
+        {
+            summary = string.Empty;
+            SaveRuntime runtime = SaveRuntime.Instance;
+            SaveData save = runtime != null ? runtime.Current : null;
+            if (save?.robotRoster?.robots == null
+                || string.IsNullOrEmpty(robotUid))
+            {
+                summary = "当前没有可用机器人存档，或 robotUid 为空。";
+                Debug.LogError($"[HomeAreaDebugUnlocks] {summary}");
+                return false;
+            }
+
+            BattleRobotInstanceSaveData target = null;
+            for (int index = 0; index < save.robotRoster.robots.Count; index++)
+            {
+                BattleRobotInstanceSaveData candidate = save.robotRoster.robots[index];
+                if (candidate != null && candidate.uid == robotUid)
+                {
+                    target = candidate;
+                    break;
+                }
+            }
+
+            if (target == null)
+            {
+                summary = $"目标机器人不存在：robotUid={robotUid}";
+                Debug.LogError($"[HomeAreaDebugUnlocks] {summary}");
+                return false;
+            }
+
+            double next = damaged ? 1d : 0d;
+            if (target.repairWorkRemaining == next)
+            {
+                summary = damaged ? "机器人已经是损毁状态。" : "机器人已经是可战斗状态。";
+                return true;
+            }
+
+            target.repairWorkRemaining = next;
+            runtime.MarkDirty();
+            GUIWndBattlePreparationMain.instance.RefreshAfterMutation();
+            summary = damaged
+                ? $"已将 {target.customName} 设为损毁。"
+                : $"已将 {target.customName} 恢复为可战斗。";
+            Debug.Log($"[HomeAreaDebugUnlocks] {summary} robotUid={robotUid}");
+            return true;
+        }
+
         private static bool TryChangeItemCount(int itemId, int count, bool add)
         {
             if (count <= 0)
