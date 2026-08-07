@@ -36,6 +36,10 @@ namespace Game.EditorTools
         private const string HomeCameraControllerType = "Game.HomeSceneCameraController";
         private const string BootstrapType = "Game.TryGameRuntimeBootstrap";
         private const string HomeMainMonoType = "Game.GUIMonoHomeMain";
+        private const string RobotDetailMonoType = "Game.GUIMonoBattleRobotDetail";
+        private const string ItemDetailMonoType = "Game.GUIMonoBattleRobotItemDetail";
+        private const string EquipmentSlotType = "Game.BattleRobotEquipmentSlotView";
+        private const string SkillSlotType = "Game.BattleRobotSkillSlotView";
 
         private static readonly int[] SpriteResourceIds =
         {
@@ -631,11 +635,22 @@ namespace Game.EditorTools
                 }
 
                 ValidateYamlHasNoMissingScript(path);
+                if (index < BattlePreparationUiPrefabBuilder.GeneratedPrefabPaths.Length
+                    && !BattlePreparationEditorUiFactory.ContainsBuilderMarker(
+                        prefab,
+                        BattlePreparationUiPrefabBuilder.BuilderMarker))
+                {
+                    throw new InvalidOperationException(
+                        $"Generated UI prefab does not carry the current builder marker: " +
+                        $"path={path}, marker={BattlePreparationUiPrefabBuilder.BuilderMarker}");
+                }
             }
 
             ValidateYamlHasNoMissingScript(HomeScenePath);
             ValidateScenePrefabBindings();
             ValidateMainOverlayBindings();
+            ValidateRobotDetailUiBindings();
+            ValidateItemDetailUiBindings();
             ValidateHomeMainBindings();
             ValidateHomeSceneBindings();
             ValidateSpriteImports();
@@ -732,6 +747,482 @@ namespace Game.EditorTools
                         $"slotId={index + 1}");
                 }
             }
+        }
+
+        private static void ValidateRobotDetailUiBindings()
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                BattlePreparationUiPrefabBuilder.RobotDetailPrefabPath);
+            Type monoType =
+                BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                    RobotDetailMonoType);
+            Type equipmentType =
+                BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                    EquipmentSlotType);
+            Type skillSlotType =
+                BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                    SkillSlotType);
+            Component mono = prefab != null ? prefab.GetComponent(monoType) : null;
+            if (mono == null)
+            {
+                throw new InvalidOperationException(
+                    "Battle robot detail prefab or GUIMono binding is missing.");
+            }
+
+            SerializedProperty equipmentSlots =
+                BattlePreparationEditorUiFactory.FindRequiredProperty(
+                    mono,
+                    "equipmentSlotViews");
+            if (!equipmentSlots.isArray || equipmentSlots.arraySize != 9)
+            {
+                throw new InvalidOperationException(
+                    $"Battle robot detail must contain nine fixed equipment slots: " +
+                    $"actual={(equipmentSlots.isArray ? equipmentSlots.arraySize : -1)}");
+            }
+
+            HashSet<int> fixedPositions = new HashSet<int>();
+            int brainCount = 0;
+            for (int index = 0; index < equipmentSlots.arraySize; index++)
+            {
+                Component equipment = equipmentSlots.GetArrayElementAtIndex(index)
+                    .objectReferenceValue as Component;
+                if (equipment == null || !equipmentType.IsInstanceOfType(equipment))
+                {
+                    throw new InvalidOperationException(
+                        $"Fixed equipment slot binding is invalid: index={index}");
+                }
+
+                SerializedProperty accepted =
+                    BattlePreparationEditorUiFactory.FindRequiredProperty(
+                        equipment,
+                        "acceptedPositionTypes");
+                if (!accepted.isArray || accepted.arraySize != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Fixed equipment slot must map exactly one position: " +
+                        $"slot={equipment.name}");
+                }
+
+                int position = accepted.GetArrayElementAtIndex(0).intValue;
+                if (!fixedPositions.Add(position))
+                {
+                    throw new InvalidOperationException(
+                        $"Fixed equipment position is duplicated: positionType={position}");
+                }
+
+                if (position == 9)
+                {
+                    brainCount++;
+                }
+
+                ValidateEquipmentSkillStrip(equipment, $"fixed equipment {position}");
+            }
+
+            for (int position = 1; position <= 9; position++)
+            {
+                if (!fixedPositions.Contains(position))
+                {
+                    throw new InvalidOperationException(
+                        $"Fixed equipment position is missing: positionType={position}");
+                }
+            }
+
+            if (brainCount != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Brain equipment slot must map positionType=9 exactly once: " +
+                    $"actual={brainCount}");
+            }
+
+            Component extensionTemplate = RequireReference(
+                mono,
+                "extensionEquipmentTemplate",
+                "battle robot detail") as Component;
+            if (extensionTemplate == null
+                || !equipmentType.IsInstanceOfType(extensionTemplate))
+            {
+                throw new InvalidOperationException(
+                    "Extension equipment template binding is invalid.");
+            }
+
+            ValidateEquipmentSkillStrip(extensionTemplate, "extension equipment template");
+
+            SerializedProperty skillSlots =
+                BattlePreparationEditorUiFactory.FindRequiredProperty(
+                    mono,
+                    "skillSlotViews");
+            if (!skillSlots.isArray || skillSlots.arraySize != 6)
+            {
+                throw new InvalidOperationException(
+                    $"Battle robot detail must prebuild six stable skill slots: " +
+                    $"actual={(skillSlots.isArray ? skillSlots.arraySize : -1)}");
+            }
+
+            HashSet<int> stableSlotIds = new HashSet<int>();
+            for (int index = 0; index < skillSlots.arraySize; index++)
+            {
+                Component skillSlot = skillSlots.GetArrayElementAtIndex(index)
+                    .objectReferenceValue as Component;
+                if (skillSlot == null || !skillSlotType.IsInstanceOfType(skillSlot))
+                {
+                    throw new InvalidOperationException(
+                        $"Skill slot binding is invalid: index={index}");
+                }
+
+                int slotId = BattlePreparationEditorUiFactory.FindRequiredProperty(
+                    skillSlot,
+                    "slotId").intValue;
+                if (slotId < 1 || slotId > 6 || !stableSlotIds.Add(slotId))
+                {
+                    throw new InvalidOperationException(
+                        $"Skill slot id must be unique and within 1..6: slotId={slotId}");
+                }
+
+                Image hitImage = RequireReference(
+                    skillSlot,
+                    "backgroundImage",
+                    $"skill slot {slotId}") as Image;
+                if (hitImage == null || !hitImage.raycastTarget)
+                {
+                    throw new InvalidOperationException(
+                        $"Empty skill slot must retain a raycast hit graphic: slotId={slotId}");
+                }
+
+                string[] skillSlotFields =
+                {
+                    "hotkeyText",
+                    "dropHighlightImage",
+                    "iconView",
+                    "emptyRoot",
+                    "readOnlyRoot",
+                };
+                ValidateRequiredReferences(
+                    skillSlot,
+                    skillSlotFields,
+                    $"skill slot {slotId}");
+                ValidateSkillIcon(
+                    RequireReference(
+                        skillSlot,
+                        "iconView",
+                        $"skill slot {slotId}") as Component,
+                    $"skill slot {slotId}");
+            }
+
+            string[] robotDetailFields =
+            {
+                "skillSlotsTitleText",
+                "skillDetailView",
+                "comparisonCurrentTitleText",
+                "comparisonCandidateTitleText",
+                "comparisonCurrentSkillList",
+                "comparisonCandidateSkillList",
+                "comparisonCurrentSlotCountText",
+                "comparisonCandidateSlotCountText",
+                "comparisonRoot",
+                "dragLayer",
+                "dragIcon",
+                "itemDetail",
+            };
+            ValidateRequiredReferences(mono, robotDetailFields, "battle robot detail");
+
+            Component currentSkills = RequireReference(
+                mono,
+                "comparisonCurrentSkillList",
+                "battle robot comparison") as Component;
+            Component candidateSkills = RequireReference(
+                mono,
+                "comparisonCandidateSkillList",
+                "battle robot comparison") as Component;
+            ValidateSkillList(currentSkills, "comparison current skills");
+            ValidateSkillList(candidateSkills, "comparison candidate skills");
+
+            GameObject comparison = RequireReference(
+                mono,
+                "comparisonRoot",
+                "battle robot detail") as GameObject;
+            CanvasGroup comparisonGroup = comparison != null
+                ? comparison.GetComponent<CanvasGroup>()
+                : null;
+            Image comparisonImage = comparison != null
+                ? comparison.GetComponent<Image>()
+                : null;
+            if (comparisonGroup == null
+                || comparisonGroup.blocksRaycasts
+                || comparisonImage == null
+                || !comparisonImage.raycastTarget)
+            {
+                throw new InvalidOperationException(
+                    "Equipment comparison must keep its background graphic while the " +
+                    "parent CanvasGroup remains raycast-transparent.");
+            }
+
+            Image dragIcon = RequireReference(
+                mono,
+                "dragIcon",
+                "battle robot detail") as Image;
+            if (dragIcon == null || dragIcon.raycastTarget)
+            {
+                throw new InvalidOperationException(
+                    "Battle robot detail drag icon must not block raycasts.");
+            }
+
+            Component skillDetail = RequireReference(
+                mono,
+                "skillDetailView",
+                "battle robot detail") as Component;
+            string[] skillDetailFields =
+            {
+                "closeButton",
+                "closeButtonText",
+                "titleText",
+                "iconImage",
+                "nameText",
+                "cooldownText",
+                "descriptionText",
+                "sourceText",
+            };
+            ValidateRequiredReferences(
+                skillDetail,
+                skillDetailFields,
+                "shared skill detail");
+
+            Transform itemDetailTransform = ReferenceTransform(RequireReference(
+                mono,
+                "itemDetail",
+                "battle robot detail"));
+            Transform skillDetailTransform = ReferenceTransform(skillDetail);
+            Transform comparisonTransform = ReferenceTransform(comparison);
+            Transform dragLayerTransform = ReferenceTransform(RequireReference(
+                mono,
+                "dragLayer",
+                "battle robot detail"));
+            if (itemDetailTransform == null
+                || skillDetailTransform == null
+                || comparisonTransform == null
+                || dragLayerTransform == null
+                || itemDetailTransform.GetSiblingIndex()
+                    >= skillDetailTransform.GetSiblingIndex()
+                || skillDetailTransform.GetSiblingIndex()
+                    >= comparisonTransform.GetSiblingIndex()
+                || comparisonTransform.GetSiblingIndex()
+                    >= dragLayerTransform.GetSiblingIndex()
+                || dragLayerTransform.GetSiblingIndex()
+                    != prefab.transform.childCount - 1)
+            {
+                throw new InvalidOperationException(
+                    "Robot detail overlay order must be ItemDetail, SkillDetail, " +
+                    "Comparison, then DragLayer last.");
+            }
+        }
+
+        private static void ValidateItemDetailUiBindings()
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                BattlePreparationUiPrefabBuilder.ItemDetailPrefabPath);
+            Type monoType =
+                BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                    ItemDetailMonoType);
+            Component mono = prefab != null ? prefab.GetComponent(monoType) : null;
+            if (mono == null)
+            {
+                throw new InvalidOperationException(
+                    "Battle robot item detail prefab or GUIMono binding is missing.");
+            }
+
+            string[] fields =
+            {
+                "descriptionText",
+                "skillSlotCountText",
+                "providedSkillsRoot",
+                "providedSkillsTitleText",
+                "providedSkillsList",
+            };
+            ValidateRequiredReferences(mono, fields, "battle robot item detail");
+            Component skillList = RequireReference(
+                mono,
+                "providedSkillsList",
+                "battle robot item detail") as Component;
+            ValidateSkillList(skillList, "item detail provided skills");
+
+            Transform description = ReferenceTransform(RequireReference(
+                mono,
+                "descriptionText",
+                "battle robot item detail"));
+            Transform skillSlotCount = ReferenceTransform(RequireReference(
+                mono,
+                "skillSlotCountText",
+                "battle robot item detail"));
+            Transform providedSkills = ReferenceTransform(RequireReference(
+                mono,
+                "providedSkillsRoot",
+                "battle robot item detail"));
+            if (description == null
+                || skillSlotCount == null
+                || providedSkills == null
+                || description.GetComponentInParent<ScrollRect>(true) == null
+                || skillSlotCount.GetComponentInParent<ScrollRect>(true) == null
+                || providedSkills.GetComponentInParent<ScrollRect>(true) == null)
+            {
+                throw new InvalidOperationException(
+                    "Item detail body, slot count, and provided skills must live " +
+                    "inside the scrollable content.");
+            }
+        }
+
+        private static void ValidateEquipmentSkillStrip(
+            Component equipment,
+            string context)
+        {
+            Component itemCell = RequireReference(
+                equipment,
+                "itemCell",
+                context) as Component;
+            Component strip = RequireReference(
+                equipment,
+                "providedSkillStrip",
+                context) as Component;
+            if (itemCell == null
+                || strip == null
+                || itemCell.transform.parent != equipment.transform
+                || strip.transform.parent != equipment.transform)
+            {
+                throw new InvalidOperationException(
+                    $"Provided skill strip must be an ItemCell sibling: context={context}");
+            }
+
+            SerializedProperty skillViews =
+                BattlePreparationEditorUiFactory.FindRequiredProperty(
+                    strip,
+                    "skillViews");
+            if (!skillViews.isArray || skillViews.arraySize != 3)
+            {
+                throw new InvalidOperationException(
+                    $"Equipment skill strip must prebuild three icons: context={context}");
+            }
+
+            for (int index = 0; index < skillViews.arraySize; index++)
+            {
+                Component icon = skillViews.GetArrayElementAtIndex(index)
+                    .objectReferenceValue as Component;
+                ValidateSkillIcon(icon, $"{context} provided skill {index + 1}");
+            }
+        }
+
+        private static void ValidateSkillIcon(Component icon, string context)
+        {
+            if (icon == null)
+            {
+                throw new InvalidOperationException(
+                    $"Skill icon component is missing: context={context}");
+            }
+
+            string[] fields =
+            {
+                "backgroundImage",
+                "iconImage",
+                "dragHighlightImage",
+            };
+            ValidateRequiredReferences(icon, fields, context);
+            Image background = RequireReference(
+                icon,
+                "backgroundImage",
+                context) as Image;
+            Image image = RequireReference(icon, "iconImage", context) as Image;
+            Image highlight = RequireReference(
+                icon,
+                "dragHighlightImage",
+                context) as Image;
+            if (background == null
+                || !background.raycastTarget
+                || image == null
+                || image.raycastTarget
+                || highlight == null
+                || highlight.raycastTarget)
+            {
+                throw new InvalidOperationException(
+                    $"Skill icon raycast configuration is invalid: context={context}");
+            }
+        }
+
+        private static void ValidateSkillList(Component list, string context)
+        {
+            if (list == null)
+            {
+                throw new InvalidOperationException(
+                    $"Skill list component is missing: context={context}");
+            }
+
+            Component template = RequireReference(
+                list,
+                "entryTemplate",
+                context) as Component;
+            if (RequireReference(list, "entriesRoot", context) == null
+                || template == null)
+            {
+                throw new InvalidOperationException(
+                    $"Skill list template binding is incomplete: context={context}");
+            }
+
+            string[] fields =
+            {
+                "iconImage",
+                "nameText",
+                "cooldownText",
+                "descriptionText",
+            };
+            ValidateRequiredReferences(template, fields, $"{context} entry template");
+        }
+
+        private static void ValidateRequiredReferences(
+            Component component,
+            IReadOnlyList<string> propertyNames,
+            string context)
+        {
+            if (component == null)
+            {
+                throw new InvalidOperationException(
+                    $"Component is missing while validating references: context={context}");
+            }
+
+            for (int index = 0; index < propertyNames.Count; index++)
+            {
+                RequireReference(component, propertyNames[index], context);
+            }
+        }
+
+        private static UnityEngine.Object RequireReference(
+            Component component,
+            string propertyName,
+            string context)
+        {
+            SerializedProperty property =
+                BattlePreparationEditorUiFactory.FindRequiredProperty(
+                    component,
+                    propertyName);
+            UnityEngine.Object value = property.objectReferenceValue;
+            if (value == null)
+            {
+                throw new InvalidOperationException(
+                    $"Required prefab reference is missing: context={context}, " +
+                    $"property={propertyName}");
+            }
+
+            return value;
+        }
+
+        private static Transform ReferenceTransform(UnityEngine.Object value)
+        {
+            if (value is Component component)
+            {
+                return component.transform;
+            }
+
+            if (value is GameObject gameObject)
+            {
+                return gameObject.transform;
+            }
+
+            return null;
         }
 
         private static void ValidateHomeMainBindings()

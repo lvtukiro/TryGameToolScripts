@@ -26,7 +26,7 @@ namespace Game.EditorTools
         internal const string WorkbenchPrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_workbench.prefab";
 
-        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v5";
+        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v6";
 
         private const string MainMono = "Game.GUIMonoBattlePreparationMain";
         private const string RosterSlotMono = "Game.BattleRobotRosterSlotView";
@@ -40,6 +40,13 @@ namespace Game.EditorTools
         private const string EquipmentSlotMono = "Game.BattleRobotEquipmentSlotView";
         private const string ContainerGridMono = "Game.BattleRobotContainerGridView";
         private const string ItemCellMono = "Game.BattleRobotItemCellView";
+        private const string EquipmentSkillStripMono =
+            "Game.BattleRobotEquipmentSkillStripView";
+        private const string SkillIconMono = "Game.BattleRobotSkillIconView";
+        private const string SkillSlotMono = "Game.BattleRobotSkillSlotView";
+        private const string SkillListMono = "Game.BattleRobotSkillListView";
+        private const string SkillListEntryMono = "Game.BattleRobotSkillListEntryView";
+        private const string SkillDetailMono = "Game.BattleRobotSkillDetailView";
         private const string WorkbenchMono = "Game.GUIMonoBattlePreparationWorkbench";
 
         internal static readonly string[] RequiredRuntimeTypes =
@@ -55,6 +62,12 @@ namespace Game.EditorTools
             EquipmentSlotMono,
             ContainerGridMono,
             ItemCellMono,
+            EquipmentSkillStripMono,
+            SkillIconMono,
+            SkillSlotMono,
+            SkillListMono,
+            SkillListEntryMono,
+            SkillDetailMono,
             WorkbenchMono,
         };
 
@@ -777,7 +790,7 @@ namespace Game.EditorTools
             }
         }
 
-        private static void BuildRobotDetailPrefab(IReadOnlyDictionary<int, Sprite> sprites)
+        private static void BuildRobotDetailPrefabV5(IReadOnlyDictionary<int, Sprite> sprites)
         {
             GameObject root = CreateWindowRoot(
                 "win_battle_robot_detail",
@@ -1163,6 +1176,340 @@ namespace Game.EditorTools
             }
         }
 
+        private static void BuildRobotDetailPrefab(IReadOnlyDictionary<int, Sprite> sprites)
+        {
+            GameObject root = CreateWindowRoot(
+                "win_battle_robot_detail",
+                BattlePreparationEditorUiFactory.OverlayColor,
+                true);
+            try
+            {
+                Component mono = Runtime(root, RobotDetailMono);
+                Text title = CreateText(
+                    "Title", root.transform, "Robot Details", 34,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.025f, 0.92f), new Vector2(0.55f, 0.985f),
+                    Vector2.zero, Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts close =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "CloseButton", root.transform, "Close",
+                        BattlePreparationEditorUiFactory.WarningColor, 22);
+                BattlePreparationEditorUiFactory.Place(
+                    close.Rect, new Vector2(0.955f, 0.955f),
+                    new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(125f, 46f));
+
+                GameObject left = CreatePanel(
+                    "RobotAndEquipment", root.transform,
+                    new Vector2(0.015f, 0.025f), new Vector2(0.365f, 0.91f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.PanelColor);
+                Image robotImage = CreateImage(
+                    "RobotImage", left.transform, SpriteAt(sprites, 4004),
+                    Color.white, true,
+                    new Vector2(0.34f, 0.75f), new Vector2(0.66f, 0.96f),
+                    Vector2.zero, Vector2.zero);
+                Text robotName = CreateText(
+                    "RobotName", left.transform, string.Empty, 27,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.04f, 0.68f), new Vector2(0.72f, 0.75f),
+                    Vector2.zero, Vector2.zero);
+                Text robotState = CreateText(
+                    "RobotState", left.transform, string.Empty, 21,
+                    TextAnchor.MiddleRight,
+                    new Vector2(0.72f, 0.68f), new Vector2(0.96f, 0.75f),
+                    Vector2.zero, Vector2.zero);
+                Text attributesTitle = CreateText(
+                    "AttributesTitle", left.transform, "Attributes", 22,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.04f, 0.61f), new Vector2(0.29f, 0.68f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                Text attributes = CreateText(
+                    "Attributes", left.transform, string.Empty, 17,
+                    TextAnchor.UpperLeft,
+                    new Vector2(0.27f, 0.58f), new Vector2(0.96f, 0.68f),
+                    Vector2.zero, Vector2.zero);
+                Text equipmentTitle = CreateText(
+                    "EquipmentTitle", left.transform, "Equipment", 22,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.04f, 0.525f), new Vector2(0.34f, 0.585f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.AccentColor);
+
+                RectTransform equipmentCanvas =
+                    BattlePreparationEditorUiFactory.NewRect(
+                        "EquipmentSlots", left.transform,
+                        new Vector2(0.03f, 0.105f), new Vector2(0.97f, 0.535f),
+                        Vector2.zero, Vector2.zero);
+                int[] positions = { 9, 1, 2, 3, 4, 5, 6, 7, 8 };
+                Vector2[] anchors =
+                {
+                    new Vector2(0.50f, 0.86f),
+                    new Vector2(0.50f, 0.57f),
+                    new Vector2(0.50f, 0.28f),
+                    new Vector2(0.25f, 0.31f),
+                    new Vector2(0.75f, 0.31f),
+                    new Vector2(0.34f, 0.08f),
+                    new Vector2(0.66f, 0.08f),
+                    new Vector2(0.15f, 0.72f),
+                    new Vector2(0.85f, 0.72f),
+                };
+                string[] labels =
+                {
+                    "Brain", "Head", "Upper Body", "Left Hand", "Right Hand",
+                    "Left Leg", "Right Leg", "Backpack", "Chest Rig",
+                };
+                List<UnityEngine.Object> equipmentSlots =
+                    new List<UnityEngine.Object>(positions.Length);
+                for (int index = 0; index < positions.Length; index++)
+                {
+                    Component slot = BuildEquipmentSlot(
+                        $"Equipment_{positions[index]}", equipmentCanvas,
+                        positions[index], labels[index], true);
+                    BattlePreparationEditorUiFactory.Place(
+                        slot.GetComponent<RectTransform>(), anchors[index],
+                        new Vector2(0.5f, 0.5f), Vector2.zero,
+                        new Vector2(82f, 116f));
+                    equipmentSlots.Add(slot);
+                }
+
+                RectTransform extensionRoot =
+                    BattlePreparationEditorUiFactory.NewRect(
+                        "ExtensionEquipment", equipmentCanvas,
+                        Vector2.zero, new Vector2(1f, 0.24f),
+                        Vector2.zero, Vector2.zero);
+                GridLayoutGroup extensionGrid =
+                    extensionRoot.gameObject.AddComponent<GridLayoutGroup>();
+                extensionGrid.cellSize = new Vector2(82f, 116f);
+                extensionGrid.spacing = new Vector2(6f, 4f);
+                extensionGrid.constraint = GridLayoutGroup.Constraint.FixedRowCount;
+                extensionGrid.constraintCount = 1;
+                extensionGrid.childAlignment = TextAnchor.MiddleCenter;
+                Component extensionTemplate = BuildEquipmentSlot(
+                    "ExtensionEquipmentTemplate", extensionRoot, 0, string.Empty, false);
+                extensionTemplate.gameObject.SetActive(false);
+
+                Text skillSlotsTitle = CreateText(
+                    "SkillSlotsTitle", left.transform, "Skills", 20,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.04f, 0.065f), new Vector2(0.32f, 0.105f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                RectTransform skillSlotsRoot =
+                    BattlePreparationEditorUiFactory.NewRect(
+                        "SkillSlots", left.transform,
+                        new Vector2(0.04f, 0.008f), new Vector2(0.96f, 0.067f),
+                        Vector2.zero, Vector2.zero);
+                HorizontalLayoutGroup skillSlotsLayout =
+                    skillSlotsRoot.gameObject.AddComponent<HorizontalLayoutGroup>();
+                skillSlotsLayout.spacing = 7f;
+                skillSlotsLayout.childAlignment = TextAnchor.MiddleCenter;
+                skillSlotsLayout.childControlWidth = false;
+                skillSlotsLayout.childControlHeight = false;
+                skillSlotsLayout.childForceExpandWidth = false;
+                skillSlotsLayout.childForceExpandHeight = false;
+                string[] hotkeys = { "S", "D", "Q", "W", "E", "R" };
+                List<UnityEngine.Object> skillSlots = new List<UnityEngine.Object>(6);
+                for (int index = 0; index < hotkeys.Length; index++)
+                {
+                    Component skillSlot = BuildSkillSlot(
+                        $"SkillSlot_{index + 1}", skillSlotsRoot,
+                        index + 1, hotkeys[index]);
+                    skillSlot.GetComponent<RectTransform>().sizeDelta =
+                        new Vector2(50f, 54f);
+                    skillSlots.Add(skillSlot);
+                }
+
+                GameObject center = CreatePanel(
+                    "RobotContainers", root.transform,
+                    new Vector2(0.375f, 0.025f), new Vector2(0.685f, 0.91f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.PanelColor);
+                Component backpack = BuildContainerGrid(
+                    "Backpack", center.transform,
+                    new Vector2(0.03f, 0.68f), new Vector2(0.97f, 0.98f),
+                    "Backpack", 5);
+                Component chestRig = BuildContainerGrid(
+                    "ChestRig", center.transform,
+                    new Vector2(0.03f, 0.36f), new Vector2(0.97f, 0.66f),
+                    "Chest Rig", 5);
+                Component insurance = BuildContainerGrid(
+                    "InsuranceBox", center.transform,
+                    new Vector2(0.03f, 0.03f), new Vector2(0.97f, 0.34f),
+                    "Insurance", 5);
+
+                GameObject right = CreatePanel(
+                    "WarehousePanel", root.transform,
+                    new Vector2(0.695f, 0.025f), new Vector2(0.985f, 0.91f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.PanelColor);
+                Component warehouse = BuildContainerGrid(
+                    "Warehouse", right.transform,
+                    new Vector2(0.03f, 0.02f), new Vector2(0.97f, 0.98f),
+                    "Warehouse", 5);
+                BattlePreparationEditorUiFactory.ButtonParts warehouseSort =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "WarehouseSort", right.transform, "Sort",
+                        BattlePreparationEditorUiFactory.AccentColor, 17);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseSort.Rect,
+                    new Vector2(0.70f, 0.91f), new Vector2(0.95f, 0.975f),
+                    Vector2.zero, Vector2.zero);
+
+                GameObject comparison = CreatePanel(
+                    "EquipmentComparison", root.transform,
+                    new Vector2(0.18f, 0.14f), new Vector2(0.82f, 0.83f),
+                    Vector2.zero, Vector2.zero,
+                    new Color(0.03f, 0.065f, 0.09f, 0.985f));
+                CanvasGroup comparisonGroup = comparison.AddComponent<CanvasGroup>();
+                comparisonGroup.interactable = false;
+                comparisonGroup.blocksRaycasts = false;
+                Text comparisonTitle = CreateText(
+                    "Title", comparison.transform, "Equipment Comparison", 24,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.04f, 0.90f), new Vector2(0.96f, 0.98f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                Text comparisonText = CreateText(
+                    "Values", comparison.transform, string.Empty, 18,
+                    TextAnchor.UpperLeft,
+                    new Vector2(0.05f, 0.76f), new Vector2(0.95f, 0.90f),
+                    Vector2.zero, Vector2.zero);
+                Text comparisonCurrentTitle = CreateText(
+                    "CurrentTitle", comparison.transform, "Current", 20,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.04f, 0.67f), new Vector2(0.49f, 0.76f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.SubtleTextColor);
+                Text comparisonCandidateTitle = CreateText(
+                    "CandidateTitle", comparison.transform, "Candidate", 20,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.51f, 0.67f), new Vector2(0.96f, 0.76f),
+                    Vector2.zero, Vector2.zero,
+                    BattlePreparationEditorUiFactory.SubtleTextColor);
+                Text comparisonCurrentSlotCount = CreateText(
+                    "CurrentSlotCount", comparison.transform, string.Empty, 17,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.04f, 0.60f), new Vector2(0.49f, 0.67f),
+                    Vector2.zero, Vector2.zero);
+                Text comparisonCandidateSlotCount = CreateText(
+                    "CandidateSlotCount", comparison.transform, string.Empty, 17,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.51f, 0.60f), new Vector2(0.96f, 0.67f),
+                    Vector2.zero, Vector2.zero);
+                Component comparisonCurrentSkills = BuildSkillList(
+                    "CurrentSkills", comparison.transform,
+                    new Vector2(0.04f, 0.06f), new Vector2(0.49f, 0.60f), 88f);
+                Component comparisonCandidateSkills = BuildSkillList(
+                    "CandidateSkills", comparison.transform,
+                    new Vector2(0.51f, 0.06f), new Vector2(0.96f, 0.60f), 88f);
+                comparison.SetActive(false);
+
+                GameObject itemDetailPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                    ItemDetailPrefabPath);
+                if (itemDetailPrefab == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Item detail prefab is unavailable: {ItemDetailPrefabPath}");
+                }
+
+                GameObject itemDetailObject = PrefabUtility.InstantiatePrefab(
+                    itemDetailPrefab, root.transform) as GameObject;
+                if (itemDetailObject == null)
+                {
+                    throw new InvalidOperationException(
+                        "Failed to instantiate item detail sub view.");
+                }
+
+                itemDetailObject.name = "ItemDetail";
+                itemDetailObject.SetActive(false);
+                Component itemDetail = itemDetailObject.GetComponent(
+                    BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                        ItemDetailMono));
+                Component skillDetail = BuildSkillDetailView(root.transform);
+
+                RectTransform dragLayer = BattlePreparationEditorUiFactory.NewRect(
+                    "DragLayer", root.transform, Vector2.zero, Vector2.one,
+                    Vector2.zero, Vector2.zero);
+                Image dragIcon = CreateImage(
+                    "DragIcon", dragLayer, null, Color.white, true,
+                    new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    Vector2.zero, Vector2.zero);
+                dragIcon.rectTransform.sizeDelta = new Vector2(78f, 78f);
+                dragIcon.raycastTarget = false;
+                dragIcon.gameObject.SetActive(false);
+
+                itemDetailObject.transform.SetAsLastSibling();
+                skillDetail.transform.SetAsLastSibling();
+                comparison.transform.SetAsLastSibling();
+                dragLayer.SetAsLastSibling();
+
+                BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
+                BattlePreparationEditorUiFactory.SetObject(mono, "closeButton", close.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "robotImage", robotImage);
+                BattlePreparationEditorUiFactory.SetObject(mono, "robotNameText", robotName);
+                BattlePreparationEditorUiFactory.SetObject(mono, "robotStateText", robotState);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "attributesTitleText", attributesTitle);
+                BattlePreparationEditorUiFactory.SetObject(mono, "attributesText", attributes);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "equipmentTitleText", equipmentTitle);
+                BattlePreparationEditorUiFactory.SetObjects(
+                    mono, "equipmentSlotViews", equipmentSlots);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "extensionEquipmentRoot", extensionRoot);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "extensionEquipmentTemplate", extensionTemplate);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "skillSlotsTitleText", skillSlotsTitle);
+                BattlePreparationEditorUiFactory.SetObjects(
+                    mono, "skillSlotViews", skillSlots);
+                BattlePreparationEditorUiFactory.SetObject(mono, "backpackGrid", backpack);
+                BattlePreparationEditorUiFactory.SetObject(mono, "chestRigGrid", chestRig);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "insuranceBoxGrid", insurance);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseGrid", warehouse);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "warehouseSortButton", warehouseSort.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "warehouseSortButtonText", warehouseSort.Text);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonRoot", comparison);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonTitleText", comparisonTitle);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonText", comparisonText);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonCurrentTitleText", comparisonCurrentTitle);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonCandidateTitleText", comparisonCandidateTitle);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonCurrentSkillList", comparisonCurrentSkills);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonCandidateSkillList", comparisonCandidateSkills);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonCurrentSlotCountText", comparisonCurrentSlotCount);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "comparisonCandidateSlotCountText", comparisonCandidateSlotCount);
+                BattlePreparationEditorUiFactory.SetObject(mono, "dragLayer", dragLayer);
+                BattlePreparationEditorUiFactory.SetObject(mono, "dragIcon", dragIcon);
+                BattlePreparationEditorUiFactory.SetObject(mono, "itemDetail", itemDetail);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "skillDetailView", skillDetail);
+
+                SaveAndDestroy(root, RobotDetailPrefabPath);
+                root = null;
+            }
+            finally
+            {
+                if (root != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(root);
+                }
+            }
+        }
+
         private static Component BuildEquipmentSlot(
             string name,
             Transform parent,
@@ -1183,7 +1530,7 @@ namespace Game.EditorTools
                 label,
                 14,
                 TextAnchor.MiddleCenter,
-                new Vector2(0f, 0.76f),
+                new Vector2(0f, 0.82f),
                 Vector2.one,
                 Vector2.zero,
                 Vector2.zero,
@@ -1191,14 +1538,19 @@ namespace Game.EditorTools
             Component itemCell = BuildItemCell(
                 "ItemCell",
                 root.transform,
-                new Vector2(0.08f, 0.05f),
-                new Vector2(0.92f, 0.76f),
+                new Vector2(0.08f, 0.28f),
+                new Vector2(0.92f, 0.82f),
                 true);
+            Component providedSkillStrip = BuildEquipmentSkillStrip(
+                "ProvidedSkillStrip",
+                root.transform,
+                new Vector2(0.06f, 0.04f),
+                new Vector2(0.94f, 0.27f));
             GameObject unavailable = CreatePanel(
                 "Unavailable",
                 root.transform,
-                new Vector2(0.08f, 0.05f),
-                new Vector2(0.92f, 0.76f),
+                new Vector2(0.08f, 0.04f),
+                new Vector2(0.92f, 0.82f),
                 Vector2.zero,
                 Vector2.zero,
                 new Color(0f, 0f, 0f, 0.72f));
@@ -1225,9 +1577,433 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.SetObject(view, "itemCell", itemCell);
             BattlePreparationEditorUiFactory.SetObject(
                 view,
+                "providedSkillStrip",
+                providedSkillStrip);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
                 "unavailableRoot",
                 unavailable);
             root.SetActive(active);
+            return view;
+        }
+
+        private static Component BuildEquipmentSkillStrip(
+            string name,
+            Transform parent,
+            Vector2 anchorMin,
+            Vector2 anchorMax)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            BattlePreparationEditorUiFactory.SetRect(
+                root.GetComponent<RectTransform>(),
+                anchorMin,
+                anchorMax,
+                Vector2.zero,
+                Vector2.zero);
+            BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(1f, 1f, 1f, 0.001f),
+                null,
+                true);
+            Component view = Runtime(root, EquipmentSkillStripMono);
+            HorizontalLayoutGroup layout = root.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 3f;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = false;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            List<UnityEngine.Object> skillViews = new List<UnityEngine.Object>(3);
+            for (int index = 0; index < 3; index++)
+            {
+                Component skill = BuildSkillIcon($"SkillIcon_{index + 1}", root.transform);
+                skill.GetComponent<RectTransform>().sizeDelta = new Vector2(22f, 22f);
+                skillViews.Add(skill);
+            }
+
+            BattlePreparationEditorUiFactory.SetObjects(
+                view,
+                "skillViews",
+                skillViews);
+            root.SetActive(false);
+            return view;
+        }
+
+        private static Component BuildSkillIcon(string name, Transform parent)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            Image background = BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(0.09f, 0.15f, 0.22f, 0.98f),
+                null,
+                true);
+            Component view = Runtime(root, SkillIconMono);
+            Image icon = CreateImage(
+                "Icon",
+                root.transform,
+                null,
+                Color.white,
+                true,
+                new Vector2(0.08f, 0.08f),
+                new Vector2(0.92f, 0.92f),
+                Vector2.zero,
+                Vector2.zero);
+            icon.raycastTarget = false;
+            Image highlight = CreateImage(
+                "DragHighlight",
+                root.transform,
+                null,
+                new Color(0.24f, 0.90f, 1f, 0.62f),
+                false,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero);
+            highlight.raycastTarget = false;
+            highlight.gameObject.SetActive(false);
+
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "backgroundImage",
+                background);
+            BattlePreparationEditorUiFactory.SetObject(view, "iconImage", icon);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "dragHighlightImage",
+                highlight);
+            return view;
+        }
+
+        private static Component BuildSkillSlot(
+            string name,
+            Transform parent,
+            int slotId,
+            string hotkey)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            Image background = BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(0.055f, 0.10f, 0.16f, 0.98f),
+                null,
+                true);
+            Component view = Runtime(root, SkillSlotMono);
+            Component icon = BuildSkillIcon("SkillIcon", root.transform);
+            BattlePreparationEditorUiFactory.SetRect(
+                icon.GetComponent<RectTransform>(),
+                new Vector2(0.08f, 0.10f),
+                new Vector2(0.92f, 0.88f),
+                Vector2.zero,
+                Vector2.zero);
+            icon.gameObject.SetActive(false);
+
+            Text empty = CreateText(
+                "Empty",
+                root.transform,
+                "+",
+                24,
+                TextAnchor.MiddleCenter,
+                new Vector2(0.08f, 0.10f),
+                new Vector2(0.92f, 0.88f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+            empty.raycastTarget = false;
+            Text hotkeyText = CreateText(
+                "Hotkey",
+                root.transform,
+                hotkey,
+                13,
+                TextAnchor.UpperLeft,
+                new Vector2(0.04f, 0.68f),
+                new Vector2(0.42f, 0.98f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.AccentColor);
+            hotkeyText.raycastTarget = false;
+            Image highlight = CreateImage(
+                "DropHighlight",
+                root.transform,
+                null,
+                new Color(0.22f, 0.92f, 0.42f, 0.72f),
+                false,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero);
+            highlight.raycastTarget = false;
+            highlight.gameObject.SetActive(false);
+            GameObject readOnly = BattlePreparationEditorUiFactory.NewUiObject(
+                "ReadOnly",
+                root.transform);
+            BattlePreparationEditorUiFactory.Stretch(
+                readOnly.GetComponent<RectTransform>());
+            BattlePreparationEditorUiFactory.AddImage(
+                readOnly,
+                new Color(0f, 0f, 0f, 0.42f),
+                null,
+                false);
+            Text readOnlyText = CreateText(
+                "Text",
+                readOnly.transform,
+                "x",
+                15,
+                TextAnchor.LowerRight,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                new Vector2(-3f, 2f),
+                BattlePreparationEditorUiFactory.WarningColor);
+            readOnlyText.raycastTarget = false;
+            readOnly.SetActive(false);
+
+            BattlePreparationEditorUiFactory.SetInt(view, "slotId", slotId);
+            BattlePreparationEditorUiFactory.SetObject(view, "hotkeyText", hotkeyText);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "backgroundImage",
+                background);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "dropHighlightImage",
+                highlight);
+            BattlePreparationEditorUiFactory.SetObject(view, "iconView", icon);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "emptyRoot",
+                empty.gameObject);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "readOnlyRoot",
+                readOnly);
+            root.SetActive(false);
+            return view;
+        }
+
+        private static Component BuildSkillList(
+            string name,
+            Transform parent,
+            Vector2 anchorMin,
+            Vector2 anchorMax,
+            float entryHeight)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            BattlePreparationEditorUiFactory.SetRect(
+                root.GetComponent<RectTransform>(),
+                anchorMin,
+                anchorMax,
+                Vector2.zero,
+                Vector2.zero);
+            Component view = Runtime(root, SkillListMono);
+            RectTransform entries = BattlePreparationEditorUiFactory.NewRect(
+                "Entries",
+                root.transform,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero);
+            VerticalLayoutGroup layout = entries.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.spacing = 5f;
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            Component template = BuildSkillListEntry(
+                "SkillEntryTemplate",
+                entries,
+                entryHeight);
+            template.gameObject.SetActive(false);
+
+            BattlePreparationEditorUiFactory.SetObject(view, "entriesRoot", entries);
+            BattlePreparationEditorUiFactory.SetObject(view, "entryTemplate", template);
+            return view;
+        }
+
+        private static Component BuildSkillListEntry(
+            string name,
+            Transform parent,
+            float height)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            root.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, height);
+            LayoutElement layoutElement = root.AddComponent<LayoutElement>();
+            layoutElement.minHeight = height;
+            layoutElement.preferredHeight = height;
+            BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(0.045f, 0.075f, 0.11f, 0.92f),
+                null,
+                false);
+            Component view = Runtime(root, SkillListEntryMono);
+            Image icon = CreateImage(
+                "Icon",
+                root.transform,
+                null,
+                Color.white,
+                true,
+                new Vector2(0.02f, 0.24f),
+                new Vector2(0.18f, 0.88f),
+                Vector2.zero,
+                Vector2.zero);
+            icon.raycastTarget = false;
+            Text skillName = CreateText(
+                "Name",
+                root.transform,
+                string.Empty,
+                18,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.21f, 0.68f),
+                new Vector2(0.98f, 0.96f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.AccentColor);
+            Text cooldown = CreateText(
+                "Cooldown",
+                root.transform,
+                string.Empty,
+                15,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.21f, 0.45f),
+                new Vector2(0.98f, 0.69f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+            Text description = CreateText(
+                "Description",
+                root.transform,
+                string.Empty,
+                14,
+                TextAnchor.UpperLeft,
+                new Vector2(0.21f, 0.04f),
+                new Vector2(0.98f, 0.45f),
+                Vector2.zero,
+                Vector2.zero);
+            skillName.raycastTarget = false;
+            cooldown.raycastTarget = false;
+            description.raycastTarget = false;
+
+            BattlePreparationEditorUiFactory.SetObject(view, "iconImage", icon);
+            BattlePreparationEditorUiFactory.SetObject(view, "nameText", skillName);
+            BattlePreparationEditorUiFactory.SetObject(view, "cooldownText", cooldown);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "descriptionText",
+                description);
+            return view;
+        }
+
+        private static Component BuildSkillDetailView(Transform parent)
+        {
+            GameObject root = CreatePanel(
+                "SkillDetail",
+                parent,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero,
+                new Color(0f, 0f, 0f, 0.78f));
+            Component view = Runtime(root, SkillDetailMono);
+            GameObject panel = CreatePanel(
+                "Panel",
+                root.transform,
+                new Vector2(0.34f, 0.24f),
+                new Vector2(0.66f, 0.76f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.PanelColor);
+            Text title = CreateText(
+                "Title",
+                panel.transform,
+                "Skill Details",
+                28,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.06f, 0.86f),
+                new Vector2(0.68f, 0.97f),
+                Vector2.zero,
+                Vector2.zero);
+            BattlePreparationEditorUiFactory.ButtonParts close =
+                BattlePreparationEditorUiFactory.AddButton(
+                    "CloseButton",
+                    panel.transform,
+                    "Close",
+                    BattlePreparationEditorUiFactory.WarningColor,
+                    18);
+            BattlePreparationEditorUiFactory.SetRect(
+                close.Rect,
+                new Vector2(0.73f, 0.88f),
+                new Vector2(0.94f, 0.96f),
+                Vector2.zero,
+                Vector2.zero);
+            Image icon = CreateImage(
+                "Icon",
+                panel.transform,
+                null,
+                Color.white,
+                true,
+                new Vector2(0.06f, 0.61f),
+                new Vector2(0.27f, 0.84f),
+                Vector2.zero,
+                Vector2.zero);
+            icon.raycastTarget = false;
+            Text skillName = CreateText(
+                "Name",
+                panel.transform,
+                string.Empty,
+                25,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.31f, 0.73f),
+                new Vector2(0.94f, 0.84f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.AccentColor);
+            Text cooldown = CreateText(
+                "Cooldown",
+                panel.transform,
+                string.Empty,
+                18,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.31f, 0.63f),
+                new Vector2(0.94f, 0.73f),
+                Vector2.zero,
+                Vector2.zero);
+            Text source = CreateText(
+                "Source",
+                panel.transform,
+                string.Empty,
+                17,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.06f, 0.51f),
+                new Vector2(0.94f, 0.60f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+            Text description = CreateText(
+                "Description",
+                panel.transform,
+                string.Empty,
+                18,
+                TextAnchor.UpperLeft,
+                new Vector2(0.06f, 0.08f),
+                new Vector2(0.94f, 0.49f),
+                Vector2.zero,
+                Vector2.zero);
+
+            BattlePreparationEditorUiFactory.SetObject(view, "closeButton", close.Button);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "closeButtonText",
+                close.Text);
+            BattlePreparationEditorUiFactory.SetObject(view, "titleText", title);
+            BattlePreparationEditorUiFactory.SetObject(view, "iconImage", icon);
+            BattlePreparationEditorUiFactory.SetObject(view, "nameText", skillName);
+            BattlePreparationEditorUiFactory.SetObject(view, "cooldownText", cooldown);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "descriptionText",
+                description);
+            BattlePreparationEditorUiFactory.SetObject(view, "sourceText", source);
+            root.SetActive(false);
             return view;
         }
 
@@ -1415,6 +2191,153 @@ namespace Game.EditorTools
         }
 
         private static void BuildItemDetailPrefab()
+        {
+            GameObject root = CreateWindowRoot(
+                "sub_robot_item_detail",
+                new Color(0f, 0f, 0f, 0.76f),
+                true);
+            try
+            {
+                Component mono = Runtime(root, ItemDetailMono);
+                GameObject panel = CreatePanel(
+                    "ItemDetailPanel",
+                    root.transform,
+                    new Vector2(0.28f, 0.08f),
+                    new Vector2(0.72f, 0.92f),
+                    Vector2.zero,
+                    Vector2.zero,
+                    BattlePreparationEditorUiFactory.PanelColor);
+                Text title = CreateText(
+                    "Title", panel.transform, "Item Details", 30,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.05f, 0.89f), new Vector2(0.70f, 0.98f),
+                    Vector2.zero, Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts close =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "CloseButton", panel.transform, "Close",
+                        BattlePreparationEditorUiFactory.WarningColor, 20);
+                BattlePreparationEditorUiFactory.SetRect(
+                    close.Rect,
+                    new Vector2(0.75f, 0.90f), new Vector2(0.95f, 0.97f),
+                    Vector2.zero, Vector2.zero);
+                Image icon = CreateImage(
+                    "Icon", panel.transform, null, Color.white, true,
+                    new Vector2(0.05f, 0.65f), new Vector2(0.30f, 0.87f),
+                    Vector2.zero, Vector2.zero);
+                icon.raycastTarget = false;
+                Text itemName = CreateText(
+                    "Name", panel.transform, string.Empty, 27,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.34f, 0.78f), new Vector2(0.95f, 0.87f),
+                    Vector2.zero, Vector2.zero);
+                Text quality = CreateText(
+                    "Quality", panel.transform, string.Empty, 19,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.34f, 0.71f), new Vector2(0.95f, 0.78f),
+                    Vector2.zero, Vector2.zero);
+                Text value = CreateText(
+                    "Value", panel.transform, string.Empty, 19,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.34f, 0.64f), new Vector2(0.95f, 0.71f),
+                    Vector2.zero, Vector2.zero);
+
+                BattlePreparationEditorUiFactory.ScrollParts body =
+                    BattlePreparationEditorUiFactory.AddVerticalScroll(
+                        "BodyScroll",
+                        panel.transform,
+                        7f,
+                        new Vector4(8f, 8f, 8f, 8f),
+                        false,
+                        Vector2.zero,
+                        1);
+                BattlePreparationEditorUiFactory.SetRect(
+                    body.ScrollRect.GetComponent<RectTransform>(),
+                    new Vector2(0.045f, 0.045f),
+                    new Vector2(0.955f, 0.62f),
+                    Vector2.zero,
+                    Vector2.zero);
+
+                Text equipmentType = CreateLayoutText(
+                    "EquipmentType", body.Content, 19, 36f,
+                    BattlePreparationEditorUiFactory.TextColor);
+                Text location = CreateLayoutText(
+                    "Location", body.Content, 19, 36f,
+                    BattlePreparationEditorUiFactory.TextColor);
+                Text mainAttributes = CreateLayoutText(
+                    "MainAttributes", body.Content, 20, 56f,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                Text skillSlotCount = CreateLayoutText(
+                    "SkillSlotCount", body.Content, 19, 38f,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                Text description = CreateLayoutText(
+                    "Description", body.Content, 18, 112f,
+                    BattlePreparationEditorUiFactory.SubtleTextColor);
+
+                GameObject providedSkillsRoot =
+                    BattlePreparationEditorUiFactory.NewUiObject(
+                        "ProvidedSkills",
+                        body.Content);
+                LayoutElement skillsLayout = providedSkillsRoot.AddComponent<LayoutElement>();
+                skillsLayout.minHeight = 300f;
+                skillsLayout.preferredHeight = 300f;
+                Text providedSkillsTitle = CreateText(
+                    "Title",
+                    providedSkillsRoot.transform,
+                    "Provided Skills",
+                    20,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0f, 0.86f),
+                    Vector2.one,
+                    new Vector2(4f, 0f),
+                    new Vector2(-4f, 0f),
+                    BattlePreparationEditorUiFactory.AccentColor);
+                providedSkillsTitle.raycastTarget = false;
+                Component providedSkillsList = BuildSkillList(
+                    "List",
+                    providedSkillsRoot.transform,
+                    new Vector2(0f, 0f),
+                    new Vector2(1f, 0.86f),
+                    82f);
+                providedSkillsRoot.SetActive(false);
+
+                BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
+                BattlePreparationEditorUiFactory.SetObject(mono, "closeButton", close.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "closeButtonText", close.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "iconImage", icon);
+                BattlePreparationEditorUiFactory.SetObject(mono, "nameText", itemName);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "descriptionText", description);
+                BattlePreparationEditorUiFactory.SetObject(mono, "qualityText", quality);
+                BattlePreparationEditorUiFactory.SetObject(mono, "valueText", value);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "equipmentTypeText", equipmentType);
+                BattlePreparationEditorUiFactory.SetObject(mono, "locationText", location);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "mainAttributeText", mainAttributes);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "skillSlotCountText", skillSlotCount);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "providedSkillsRoot", providedSkillsRoot);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "providedSkillsTitleText", providedSkillsTitle);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "providedSkillsList", providedSkillsList);
+
+                root.SetActive(false);
+                SaveAndDestroy(root, ItemDetailPrefabPath);
+                root = null;
+            }
+            finally
+            {
+                if (root != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(root);
+                }
+            }
+        }
+
+        private static void BuildItemDetailPrefabV5()
         {
             GameObject root = CreateWindowRoot(
                 "sub_robot_item_detail",
@@ -2034,6 +2957,29 @@ namespace Game.EditorTools
                 new Vector2(normalizedRect.xMax, normalizedRect.yMax),
                 Vector2.zero,
                 Vector2.zero);
+        }
+
+        private static Text CreateLayoutText(
+            string name,
+            Transform parent,
+            int fontSize,
+            float preferredHeight,
+            Color color)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            Text text = BattlePreparationEditorUiFactory.AddText(
+                root,
+                string.Empty,
+                fontSize,
+                TextAnchor.UpperLeft,
+                color);
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.raycastTarget = false;
+            LayoutElement layout = root.AddComponent<LayoutElement>();
+            layout.minHeight = preferredHeight;
+            layout.preferredHeight = preferredHeight;
+            return text;
         }
 
         private static Text CreateText(
