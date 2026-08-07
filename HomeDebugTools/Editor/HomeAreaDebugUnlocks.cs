@@ -262,19 +262,15 @@ namespace TryGame.HomeDebugTools.Editor
 
         private static bool TryChangeFurniture(SaveData save, Item itemConfig, int count, bool add)
         {
-            if (save.furniture == null)
+            if (save.furniture?.placed == null
+                || save.itemInstances?.standardItems == null
+                || save.itemRecovery?.quarantinedItemUids == null
+                || save.robotRoster?.robots == null
+                || save.warehouse?.occupiedSlots == null)
             {
-                save.furniture = new FurnitureSaveData
-                {
-                    inventory = new List<FurnitureStackData>(),
-                    placed = new List<PlacedFurnitureData>(),
-                    quarantine = new List<QuarantinedFurnitureData>(),
-                };
-            }
-
-            if (save.furniture.inventory == null)
-            {
-                save.furniture.inventory = new List<FurnitureStackData>();
+                Debug.LogError(
+                    "[HomeAreaDebugUnlocks] 唯一家具作弊失败，存档家具、Registry 或共享仓库分块不完整。");
+                return false;
             }
 
             int furnitureId = itemConfig.TargetId;
@@ -284,27 +280,189 @@ namespace TryGame.HomeDebugTools.Editor
                 return false;
             }
 
-            bool changed;
+            if (!BattleRobotConfigCatalog.TryLoad(
+                    out BattleRobotConfigCatalog catalog,
+                    out string catalogError))
+            {
+                Debug.LogError(
+                    $"[HomeAreaDebugUnlocks] 机器人配置目录不可用：{catalogError}");
+                return false;
+            }
+
+            if (!BattlePreparationStorageCapacityResolver.TryGetWarehouseCapacity(
+                    save,
+                    catalog,
+                    out int warehouseCapacity,
+                    out string capacityError))
+            {
+                Debug.LogError(
+                    $"[HomeAreaDebugUnlocks] 无法解析共享仓库容量：" +
+                    $"error={capacityError}");
+                return false;
+            }
+
+            SaveRuntime runtime = SaveRuntime.Instance;
+            long sessionGeneration = runtime.SessionGeneration;
+            List<ItemLocationReference> sourceReferences =
+                BattleRobotItemLocationProjection.CreateAllReferences(save);
+            if (!ItemMutationState.TryCreate(
+                    save.itemInstances,
+                    sourceReferences,
+                    TryGameItemInstanceDefinitionResolver.Instance,
+                    out ItemMutationState itemState,
+                    out string stateError))
+            {
+                Debug.LogError(
+                    $"[HomeAreaDebugUnlocks] 无法建立唯一家具作弊事务：{stateError}");
+                return false;
+            }
+
             if (add)
             {
-                FurnitureInventory.Add(save.furniture.inventory, furnitureId, count);
-                changed = true;
+                List<ItemCellReferenceSaveData> plannedCells =
+                    FurnitureInventory.CloneCells(save.warehouse.occupiedSlots);
+                for (int index = 0; index < count; index++)
+                {
+                    if (!FurnitureInventory.TryFindSmallestFreeCell(
+                            plannedCells,
+                            warehouseCapacity,
+                            out int cellIndex))
+                    {
+                        Debug.LogError(
+                            $"[HomeAreaDebugUnlocks] 共享仓库空间不足，家具作弊事务未提交：" +
+                            $"itemId={itemConfig.Id}, requested={count}, accepted={index}");
+                        return false;
+                    }
+
+                    if (!ItemInstanceCreationService.TryCreateAndPlace(
+                            itemState,
+                            sessionGeneration,
+                            TryGameItemInstanceDefinitionResolver.Instance,
+                            ItemInstanceKind.Standard,
+                            itemConfig.Id,
+                            BattleRobotItemLocationProjection.CreateWarehouseToken(cellIndex),
+                            null,
+                            out ItemCommandToken token,
+                            out string creationError))
+                    {
+                        Debug.LogError(
+                            $"[HomeAreaDebugUnlocks] 家具实例与首个仓库位置创建失败，" +
+                            $"作弊事务未提交：itemId={itemConfig.Id}, index={index}, " +
+                            $"error={creationError}");
+                        return false;
+                    }
+
+                    plannedCells.Add(new ItemCellReferenceSaveData
+                    {
+                        cellIndex = cellIndex,
+                        itemUid = token.ItemUid,
+                    });
+                }
             }
             else
             {
-                changed = FurnitureInventory.TryConsume(save.furniture.inventory, furnitureId, count);
-                if (!changed)
+                List<ItemCellReferenceSaveData> candidates = new List<ItemCellReferenceSaveData>();
+                for (int index = 0; index < save.warehouse.occupiedSlots.Count; index++)
                 {
-                    Debug.LogError($"[HomeAreaDebugUnlocks] 当前背包内家具数量不足，无法减少：itemId={itemConfig.Id}, furnitureId={furnitureId}, count={count}");
+                    ItemCellReferenceSaveData cell = save.warehouse.occupiedSlots[index];
+                    StandardItemInstanceSaveData instance =
+                        save.itemInstances.standardItems.Find(value =>
+                        value != null && value.uid == cell?.itemUid);
+                    if (instance != null && instance.itemId == itemConfig.Id)
+                    {
+                        candidates.Add(cell);
+                    }
+                }
+
+                candidates.Sort((left, right) => left.cellIndex.CompareTo(right.cellIndex));
+                if (candidates.Count < count)
+                {
+                    Debug.LogError(
+                        $"[HomeAreaDebugUnlocks] 共享仓库内家具数量不足，无法减少：" +
+                        $"itemId={itemConfig.Id}, furnitureId={furnitureId}, " +
+                        $"requested={count}, available={candidates.Count}");
+                    return false;
+                }
+
+                ItemMutationBatch destroyBatch =
+                    new ItemMutationBatch(itemState, sessionGeneration);
+                for (int index = 0; index < count; index++)
+                {
+                    ItemCellReferenceSaveData cell = candidates[index];
+                    ItemCommandToken token =
+                        new ItemCommandToken(sessionGeneration, cell.itemUid);
+                    if (!destroyBatch.TryDestroy(
+                            token,
+                            BattleRobotItemLocationProjection.CreateWarehouseToken(
+                                cell.cellIndex),
+                            out string destroyError))
+                    {
+                        Debug.LogError(
+                            $"[HomeAreaDebugUnlocks] 家具实例销毁事务失败，" +
+                            $"作弊事务未提交：uid={cell.itemUid}, " +
+                            $"cell={cell.cellIndex}, error={destroyError}");
+                        return false;
+                    }
+                }
+
+                if (!destroyBatch.TryCommit(sessionGeneration, out string commitError))
+                {
+                    Debug.LogError(
+                        $"[HomeAreaDebugUnlocks] 家具实例销毁事务提交失败：{commitError}");
                     return false;
                 }
             }
 
-            SaveRuntime.Instance.MarkDirty();
+            SaveData ownershipCandidate = CreateOwnershipCandidate(save, itemState);
+            if (!BattleRobotItemLocationProjection.TryApplyReferences(
+                    ownershipCandidate,
+                    itemState.CreateLocationSnapshot(),
+                    out string applyError))
+            {
+                Debug.LogError(
+                    $"[HomeAreaDebugUnlocks] 家具作弊事务无法投影回正式容器：" +
+                    $"itemId={itemConfig.Id}, error={applyError}");
+                return false;
+            }
+
+            if (!runtime.IsSessionGenerationCurrent(sessionGeneration)
+                || !ReferenceEquals(runtime.Current, save))
+            {
+                Debug.LogError(
+                    "[HomeAreaDebugUnlocks] 家具作弊事务提交前存档会话已变化，已放弃提交。");
+                return false;
+            }
+
+            save.itemInstances = ownershipCandidate.itemInstances;
+            save.warehouse = ownershipCandidate.warehouse;
+            runtime.MarkDirty();
             MsgSend.SendMsg(MsgType.FurnitureInventoryChanged, null);
             MsgSend.SendMsg(MsgType.OnItemChange, null);
             Debug.Log($"[HomeAreaDebugUnlocks] 已{(add ? "增加" : "减少")}家具物品：itemId={itemConfig.Id}, furnitureId={furnitureId}, count={count}");
-            return changed;
+            return true;
+        }
+
+        private static SaveData CreateOwnershipCandidate(
+            SaveData save,
+            ItemMutationState itemState)
+        {
+            FurnitureSaveData furniture = new FurnitureSaveData
+            {
+                placed = new List<PlacedFurnitureData>(),
+            };
+            for (int index = 0; index < save.furniture.placed.Count; index++)
+            {
+                furniture.placed.Add(save.furniture.placed[index]?.Clone());
+            }
+
+            return new SaveData
+            {
+                itemInstances = itemState.CreateRegistrySnapshot(),
+                itemRecovery = save.itemRecovery.Clone(),
+                warehouse = save.warehouse.Clone(),
+                furniture = furniture,
+                robotRoster = save.robotRoster.Clone(),
+            };
         }
     }
 }

@@ -26,7 +26,7 @@ namespace Game.EditorTools
         internal const string WorkbenchPrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_workbench.prefab";
 
-        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v3";
+        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v5";
 
         private const string MainMono = "Game.GUIMonoBattlePreparationMain";
         private const string RosterSlotMono = "Game.BattleRobotRosterSlotView";
@@ -1027,6 +1027,20 @@ namespace Game.EditorTools
                     "仓库",
                     5);
 
+                BattlePreparationEditorUiFactory.ButtonParts warehouseSort =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "WarehouseSort",
+                        right.transform,
+                        "整理",
+                        BattlePreparationEditorUiFactory.AccentColor,
+                        17);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseSort.Rect,
+                    new Vector2(0.70f, 0.91f),
+                    new Vector2(0.95f, 0.975f),
+                    Vector2.zero,
+                    Vector2.zero);
+
                 RectTransform dragLayer = BattlePreparationEditorUiFactory.NewRect(
                     "DragLayer",
                     root.transform,
@@ -1113,6 +1127,14 @@ namespace Game.EditorTools
                     "insuranceBoxGrid",
                     insurance);
                 BattlePreparationEditorUiFactory.SetObject(mono, "warehouseGrid", warehouse);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "warehouseSortButton",
+                    warehouseSort.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "warehouseSortButtonText",
+                    warehouseSort.Text);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono,
                     "comparisonRoot",
@@ -1567,8 +1589,8 @@ namespace Game.EditorTools
                 GameObject panel = CreatePanel(
                     "WorkbenchPanel",
                     root.transform,
-                    new Vector2(0.18f, 0.12f),
-                    new Vector2(0.82f, 0.88f),
+                    new Vector2(0.12f, 0.08f),
+                    new Vector2(0.88f, 0.92f),
                     Vector2.zero,
                     Vector2.zero,
                     BattlePreparationEditorUiFactory.PanelColor);
@@ -1578,8 +1600,8 @@ namespace Game.EditorTools
                     "工作台",
                     34,
                     TextAnchor.MiddleLeft,
-                    new Vector2(0.05f, 0.87f),
-                    new Vector2(0.65f, 0.97f),
+                    new Vector2(0.05f, 0.88f),
+                    new Vector2(0.65f, 0.98f),
                     Vector2.zero,
                     Vector2.zero);
                 BattlePreparationEditorUiFactory.ButtonParts close =
@@ -1591,39 +1613,336 @@ namespace Game.EditorTools
                         22);
                 BattlePreparationEditorUiFactory.SetRect(
                     close.Rect,
-                    new Vector2(0.78f, 0.89f),
-                    new Vector2(0.95f, 0.96f),
+                    new Vector2(0.80f, 0.90f),
+                    new Vector2(0.95f, 0.97f),
                     Vector2.zero,
                     Vector2.zero);
-                RectTransform content = BattlePreparationEditorUiFactory.NewRect(
-                    "FutureContent",
-                    panel.transform,
+
+                GameObject menuRoot = CreateStateRoot("MenuRoot", panel.transform);
+                BattlePreparationEditorUiFactory.SetRect(
+                    menuRoot.GetComponent<RectTransform>(),
                     new Vector2(0.05f, 0.08f),
                     new Vector2(0.95f, 0.84f),
                     Vector2.zero,
                     Vector2.zero);
-                Text empty = CreateText(
-                    "EmptyState",
-                    content,
-                    "仓库升级与锻造功能将在后续版本开放。",
-                    25,
-                    TextAnchor.MiddleCenter,
+                BattlePreparationEditorUiFactory.ButtonParts equipmentEntry =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "EquipmentEntry",
+                        menuRoot.transform,
+                        "强化装备",
+                        new Color(0.22f, 0.31f, 0.40f, 1f),
+                        34);
+                BattlePreparationEditorUiFactory.SetRect(
+                    equipmentEntry.Rect,
+                    new Vector2(0.02f, 0.14f),
+                    new Vector2(0.32f, 0.86f),
                     Vector2.zero,
-                    Vector2.one,
+                    Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts infrastructureEntry =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "InfrastructureEntry",
+                        menuRoot.transform,
+                        "强化基建",
+                        new Color(0.32f, 0.36f, 0.28f, 1f),
+                        34);
+                BattlePreparationEditorUiFactory.SetRect(
+                    infrastructureEntry.Rect,
+                    new Vector2(0.35f, 0.14f),
+                    new Vector2(0.65f, 0.86f),
+                    Vector2.zero,
+                    Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts warehouseEntry =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "WarehouseEntry",
+                        menuRoot.transform,
+                        "仓库",
+                        new Color(0.29f, 0.25f, 0.38f, 1f),
+                        34);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseEntry.Rect,
+                    new Vector2(0.68f, 0.14f),
+                    new Vector2(0.98f, 0.86f),
+                    Vector2.zero,
+                    Vector2.zero);
+
+                GameObject infrastructureRoot = CreateStateRoot(
+                    "InfrastructureRoot",
+                    panel.transform);
+                BattlePreparationEditorUiFactory.SetRect(
+                    infrastructureRoot.GetComponent<RectTransform>(),
+                    new Vector2(0.04f, 0.06f),
+                    new Vector2(0.96f, 0.85f),
+                    Vector2.zero,
+                    Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts back =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "BackToMenu",
+                        infrastructureRoot.transform,
+                        "返回",
+                        BattlePreparationEditorUiFactory.WarningColor,
+                        20);
+                BattlePreparationEditorUiFactory.SetRect(
+                    back.Rect,
+                    new Vector2(0.00f, 0.90f),
+                    new Vector2(0.16f, 1.00f),
+                    Vector2.zero,
+                    Vector2.zero);
+
+                GameObject tabs = CreatePanel(
+                    "FacilityTabs",
+                    infrastructureRoot.transform,
+                    new Vector2(0.00f, 0.00f),
+                    new Vector2(0.28f, 0.87f),
+                    Vector2.zero,
+                    Vector2.zero,
+                    BattlePreparationEditorUiFactory.PanelLightColor);
+                BattlePreparationEditorUiFactory.ButtonParts warehouseTab =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "WarehouseTab",
+                        tabs.transform,
+                        "仓库",
+                        new Color(0.88f, 0.67f, 0.22f, 1f),
+                        26);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseTab.Rect,
+                    new Vector2(0.08f, 0.66f),
+                    new Vector2(0.92f, 0.89f),
+                    Vector2.zero,
+                    Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts insuranceTab =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "InsuranceBoxTab",
+                        tabs.transform,
+                        "安全箱",
+                        new Color(0.22f, 0.28f, 0.34f, 1f),
+                        26);
+                BattlePreparationEditorUiFactory.SetRect(
+                    insuranceTab.Rect,
+                    new Vector2(0.08f, 0.39f),
+                    new Vector2(0.92f, 0.62f),
+                    Vector2.zero,
+                    Vector2.zero);
+
+                GameObject detail = CreatePanel(
+                    "FacilityDetail",
+                    infrastructureRoot.transform,
+                    new Vector2(0.30f, 0.00f),
+                    new Vector2(1.00f, 0.87f),
+                    Vector2.zero,
+                    Vector2.zero,
+                    BattlePreparationEditorUiFactory.PanelLightColor);
+                Text currentLevel = CreateText(
+                    "CurrentLevel",
+                    detail.transform,
+                    "Lv.1",
+                    36,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.06f, 0.76f),
+                    new Vector2(0.36f, 0.94f),
+                    Vector2.zero,
+                    Vector2.zero,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                CreateText(
+                    "Arrow",
+                    detail.transform,
+                    "→",
+                    38,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.40f, 0.76f),
+                    new Vector2(0.60f, 0.94f),
+                    Vector2.zero,
+                    Vector2.zero);
+                Text nextLevel = CreateText(
+                    "NextLevel",
+                    detail.transform,
+                    "Lv.2",
+                    36,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.64f, 0.76f),
+                    new Vector2(0.94f, 0.94f),
+                    Vector2.zero,
+                    Vector2.zero,
+                    BattlePreparationEditorUiFactory.AccentColor);
+                Text capacity = CreateText(
+                    "Capacity",
+                    detail.transform,
+                    string.Empty,
+                    27,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.10f, 0.57f),
+                    new Vector2(0.90f, 0.70f),
+                    Vector2.zero,
+                    Vector2.zero);
+                Text addedCapacity = CreateText(
+                    "AddedCapacity",
+                    detail.transform,
+                    string.Empty,
+                    22,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.10f, 0.45f),
+                    new Vector2(0.90f, 0.57f),
                     Vector2.zero,
                     Vector2.zero,
                     BattlePreparationEditorUiFactory.SubtleTextColor);
+                Text cost = CreateText(
+                    "Cost",
+                    detail.transform,
+                    string.Empty,
+                    25,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.10f, 0.30f),
+                    new Vector2(0.90f, 0.43f),
+                    Vector2.zero,
+                    Vector2.zero);
+                Text gold = CreateText(
+                    "Gold",
+                    detail.transform,
+                    string.Empty,
+                    21,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0.10f, 0.21f),
+                    new Vector2(0.90f, 0.30f),
+                    Vector2.zero,
+                    Vector2.zero,
+                    BattlePreparationEditorUiFactory.SubtleTextColor);
+                BattlePreparationEditorUiFactory.ButtonParts upgrade =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "Upgrade",
+                        detail.transform,
+                        "升级",
+                        BattlePreparationEditorUiFactory.AccentColor,
+                        27);
+                BattlePreparationEditorUiFactory.SetRect(
+                    upgrade.Rect,
+                    new Vector2(0.30f, 0.06f),
+                    new Vector2(0.70f, 0.18f),
+                    Vector2.zero,
+                    Vector2.zero);
+                infrastructureRoot.SetActive(false);
+
+                GameObject warehouseRoot = CreateStateRoot(
+                    "WarehouseRoot",
+                    panel.transform);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseRoot.GetComponent<RectTransform>(),
+                    new Vector2(0.04f, 0.06f),
+                    new Vector2(0.96f, 0.85f),
+                    Vector2.zero,
+                    Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts warehouseBack =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "WarehouseBack",
+                        warehouseRoot.transform,
+                        "返回",
+                        BattlePreparationEditorUiFactory.WarningColor,
+                        20);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseBack.Rect,
+                    new Vector2(0.00f, 0.90f),
+                    new Vector2(0.16f, 1.00f),
+                    Vector2.zero,
+                    Vector2.zero);
+                BattlePreparationEditorUiFactory.ButtonParts warehouseSort =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "WarehouseSort",
+                        warehouseRoot.transform,
+                        "整理",
+                        BattlePreparationEditorUiFactory.AccentColor,
+                        20);
+                BattlePreparationEditorUiFactory.SetRect(
+                    warehouseSort.Rect,
+                    new Vector2(0.82f, 0.90f),
+                    new Vector2(1.00f, 1.00f),
+                    Vector2.zero,
+                    Vector2.zero);
+                Component warehouseGrid = BuildContainerGrid(
+                    "SharedWarehouse",
+                    warehouseRoot.transform,
+                    new Vector2(0.00f, 0.00f),
+                    new Vector2(1.00f, 0.87f),
+                    "仓库",
+                    10);
+                warehouseRoot.SetActive(false);
+
+                GameObject itemDetailPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                    ItemDetailPrefabPath);
+                if (itemDetailPrefab == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Item detail prefab is unavailable: {ItemDetailPrefabPath}");
+                }
+
+                GameObject warehouseItemDetailObject = PrefabUtility.InstantiatePrefab(
+                    itemDetailPrefab,
+                    root.transform) as GameObject;
+                if (warehouseItemDetailObject == null)
+                {
+                    throw new InvalidOperationException(
+                        "Failed to instantiate workbench warehouse item detail sub view.");
+                }
+
+                warehouseItemDetailObject.name = "WarehouseItemDetail";
+                warehouseItemDetailObject.SetActive(false);
+                Component warehouseItemDetail = warehouseItemDetailObject.GetComponent(
+                    BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                        ItemDetailMono));
+
+                RectTransform warehouseDragLayer = BattlePreparationEditorUiFactory.NewRect(
+                    "WarehouseDragLayer",
+                    root.transform,
+                    Vector2.zero,
+                    Vector2.one,
+                    Vector2.zero,
+                    Vector2.zero);
+                Image warehouseDragIcon = CreateImage(
+                    "WarehouseDragIcon",
+                    warehouseDragLayer,
+                    null,
+                    Color.white,
+                    true,
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    Vector2.zero);
+                warehouseDragIcon.rectTransform.sizeDelta = new Vector2(78f, 78f);
+                warehouseDragIcon.raycastTarget = false;
+                warehouseDragIcon.gameObject.SetActive(false);
+                warehouseItemDetailObject.transform.SetAsLastSibling();
+                warehouseDragLayer.SetAsLastSibling();
 
                 BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
-                BattlePreparationEditorUiFactory.SetObject(mono, "emptyStateText", empty);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
-                    "futureContentRoot",
-                    content);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
-                    "closeButton",
-                    close.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "closeButton", close.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "menuRoot", menuRoot);
+                BattlePreparationEditorUiFactory.SetObject(mono, "equipmentEntryButton", equipmentEntry.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "equipmentEntryText", equipmentEntry.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "infrastructureEntryButton", infrastructureEntry.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "infrastructureEntryText", infrastructureEntry.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseEntryButton", warehouseEntry.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseEntryText", warehouseEntry.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "infrastructureRoot", infrastructureRoot);
+                BattlePreparationEditorUiFactory.SetObject(mono, "backToMenuButton", back.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "backToMenuText", back.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseTabButton", warehouseTab.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseTabText", warehouseTab.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "insuranceBoxTabButton", insuranceTab.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "insuranceBoxTabText", insuranceTab.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "currentLevelText", currentLevel);
+                BattlePreparationEditorUiFactory.SetObject(mono, "nextLevelText", nextLevel);
+                BattlePreparationEditorUiFactory.SetObject(mono, "capacityText", capacity);
+                BattlePreparationEditorUiFactory.SetObject(mono, "addedCapacityText", addedCapacity);
+                BattlePreparationEditorUiFactory.SetObject(mono, "costText", cost);
+                BattlePreparationEditorUiFactory.SetObject(mono, "goldText", gold);
+                BattlePreparationEditorUiFactory.SetObject(mono, "upgradeButton", upgrade.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "upgradeButtonText", upgrade.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseRoot", warehouseRoot);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseBackButton", warehouseBack.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseBackText", warehouseBack.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseGrid", warehouseGrid);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseSortButton", warehouseSort.Button);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseSortButtonText", warehouseSort.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseDragLayer", warehouseDragLayer);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseDragIcon", warehouseDragIcon);
+                BattlePreparationEditorUiFactory.SetObject(mono, "warehouseItemDetail", warehouseItemDetail);
 
                 SaveAndDestroy(root, WorkbenchPrefabPath);
                 root = null;
