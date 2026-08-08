@@ -26,7 +26,9 @@ namespace Game.EditorTools
         internal const string WorkbenchPrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_workbench.prefab";
 
-        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v7_2_0e";
+        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v8_2_0f";
+        internal const string BattleDevelopmentEntryMarker =
+            "__BattleRobotDetailBattleEntry_v2";
 
         private const string MainMono = "Game.GUIMonoBattlePreparationMain";
         private const string RosterSlotMono = "Game.BattleRobotRosterSlotView";
@@ -182,6 +184,21 @@ namespace Game.EditorTools
                     Vector2.zero,
                     new Vector2(156f, 48f));
 
+                BattlePreparationEditorUiFactory.ButtonParts battleDevelopment =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "BattleDevelopmentButton",
+                        topBar.transform,
+                        "进入战斗区域",
+                        new Color(0.16f, 0.36f, 0.58f, 0.96f),
+                        21);
+                BattlePreparationEditorUiFactory.Place(
+                    battleDevelopment.Rect,
+                    new Vector2(0.9f, 0f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, -34f),
+                    new Vector2(190f, 48f));
+                battleDevelopment.Button.gameObject.SetActive(false);
+
                 BattlePreparationEditorUiFactory.ButtonParts workbench =
                     CreateTransparentHotspot(
                         "WorkbenchButton",
@@ -225,6 +242,14 @@ namespace Game.EditorTools
                     mono,
                     "workbenchButton",
                     workbench.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "battleDevelopmentButton",
+                    battleDevelopment.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "battleDevelopmentButtonText",
+                    battleDevelopment.Text);
                 BattlePreparationEditorUiFactory.SetObjects(
                     mono,
                     "rosterSlotViews",
@@ -241,7 +266,6 @@ namespace Game.EditorTools
                     sceneOverlayFollower,
                     "rosterSlotRects",
                     slotRects);
-
                 SaveAndDestroy(root, MainPrefabPath);
                 root = null;
             }
@@ -1205,6 +1229,15 @@ namespace Game.EditorTools
                     close.Rect, new Vector2(0.955f, 0.955f),
                     new Vector2(0.5f, 0.5f), Vector2.zero,
                     new Vector2(125f, 46f));
+                BattlePreparationEditorUiFactory.ButtonParts enterBattle =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "EnterBattleButton", root.transform, "Enter Battle",
+                        new Color(0.16f, 0.36f, 0.58f, 0.96f), 21);
+                BattlePreparationEditorUiFactory.Place(
+                    enterBattle.Rect, new Vector2(0.84f, 0.955f),
+                    new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(190f, 46f));
+                enterBattle.Button.interactable = false;
 
                 GameObject left = CreatePanel(
                     "RobotAndEquipment", root.transform,
@@ -1431,6 +1464,10 @@ namespace Game.EditorTools
 
                 BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
                 BattlePreparationEditorUiFactory.SetObject(mono, "closeButton", close.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "enterBattleButton", enterBattle.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "enterBattleButtonText", enterBattle.Text);
                 BattlePreparationEditorUiFactory.SetObject(mono, "robotImage", robotImage);
                 BattlePreparationEditorUiFactory.SetObject(mono, "robotNameText", robotName);
                 BattlePreparationEditorUiFactory.SetObject(mono, "robotStateText", robotState);
@@ -1471,6 +1508,9 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(mono, "itemDetail", itemDetail);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono, "skillDetailView", skillDetail);
+                BattlePreparationEditorUiFactory.AddBuilderMarker(
+                    root,
+                    BattleDevelopmentEntryMarker);
 
                 SaveAndDestroy(root, RobotDetailPrefabPath);
                 root = null;
