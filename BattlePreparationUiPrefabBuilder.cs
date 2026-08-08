@@ -26,7 +26,7 @@ namespace Game.EditorTools
         internal const string WorkbenchPrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_workbench.prefab";
 
-        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v6";
+        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v7_2_0e";
 
         private const string MainMono = "Game.GUIMonoBattlePreparationMain";
         private const string RosterSlotMono = "Game.BattleRobotRosterSlotView";
@@ -46,6 +46,10 @@ namespace Game.EditorTools
         private const string SkillSlotMono = "Game.BattleRobotSkillSlotView";
         private const string SkillListMono = "Game.BattleRobotSkillListView";
         private const string SkillListEntryMono = "Game.BattleRobotSkillListEntryView";
+        private const string EquipmentEffectListMono =
+            "Game.BattleRobotEquipmentEffectListView";
+        private const string MajorAffixMono = "Game.BattleRobotMajorAffixView";
+        private const string ComparisonSideMono = "Game.BattleRobotComparisonSideView";
         private const string SkillDetailMono = "Game.BattleRobotSkillDetailView";
         private const string WorkbenchMono = "Game.GUIMonoBattlePreparationWorkbench";
 
@@ -67,6 +71,9 @@ namespace Game.EditorTools
             SkillSlotMono,
             SkillListMono,
             SkillListEntryMono,
+            EquipmentEffectListMono,
+            MajorAffixMono,
+            ComparisonSideMono,
             SkillDetailMono,
             WorkbenchMono,
         };
@@ -1371,39 +1378,16 @@ namespace Game.EditorTools
                     new Vector2(0.04f, 0.90f), new Vector2(0.96f, 0.98f),
                     Vector2.zero, Vector2.zero,
                     BattlePreparationEditorUiFactory.AccentColor);
-                Text comparisonText = CreateText(
-                    "Values", comparison.transform, string.Empty, 18,
-                    TextAnchor.UpperLeft,
-                    new Vector2(0.05f, 0.76f), new Vector2(0.95f, 0.90f),
-                    Vector2.zero, Vector2.zero);
-                Text comparisonCurrentTitle = CreateText(
-                    "CurrentTitle", comparison.transform, "Current", 20,
-                    TextAnchor.MiddleCenter,
-                    new Vector2(0.04f, 0.67f), new Vector2(0.49f, 0.76f),
-                    Vector2.zero, Vector2.zero,
-                    BattlePreparationEditorUiFactory.SubtleTextColor);
-                Text comparisonCandidateTitle = CreateText(
-                    "CandidateTitle", comparison.transform, "Candidate", 20,
-                    TextAnchor.MiddleCenter,
-                    new Vector2(0.51f, 0.67f), new Vector2(0.96f, 0.76f),
-                    Vector2.zero, Vector2.zero,
-                    BattlePreparationEditorUiFactory.SubtleTextColor);
-                Text comparisonCurrentSlotCount = CreateText(
-                    "CurrentSlotCount", comparison.transform, string.Empty, 17,
-                    TextAnchor.MiddleCenter,
-                    new Vector2(0.04f, 0.60f), new Vector2(0.49f, 0.67f),
-                    Vector2.zero, Vector2.zero);
-                Text comparisonCandidateSlotCount = CreateText(
-                    "CandidateSlotCount", comparison.transform, string.Empty, 17,
-                    TextAnchor.MiddleCenter,
-                    new Vector2(0.51f, 0.60f), new Vector2(0.96f, 0.67f),
-                    Vector2.zero, Vector2.zero);
-                Component comparisonCurrentSkills = BuildSkillList(
-                    "CurrentSkills", comparison.transform,
-                    new Vector2(0.04f, 0.06f), new Vector2(0.49f, 0.60f), 88f);
-                Component comparisonCandidateSkills = BuildSkillList(
-                    "CandidateSkills", comparison.transform,
-                    new Vector2(0.51f, 0.06f), new Vector2(0.96f, 0.60f), 88f);
+                Component comparisonCurrentSide = BuildComparisonSide(
+                    "CurrentSide",
+                    comparison.transform,
+                    new Vector2(0.025f, 0.035f),
+                    new Vector2(0.493f, 0.90f));
+                Component comparisonCandidateSide = BuildComparisonSide(
+                    "CandidateSide",
+                    comparison.transform,
+                    new Vector2(0.507f, 0.035f),
+                    new Vector2(0.975f, 0.90f));
                 comparison.SetActive(false);
 
                 GameObject itemDetailPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
@@ -1479,19 +1463,9 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(
                     mono, "comparisonTitleText", comparisonTitle);
                 BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonText", comparisonText);
+                    mono, "comparisonCurrentSideView", comparisonCurrentSide);
                 BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonCurrentTitleText", comparisonCurrentTitle);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonCandidateTitleText", comparisonCandidateTitle);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonCurrentSkillList", comparisonCurrentSkills);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonCandidateSkillList", comparisonCandidateSkills);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonCurrentSlotCountText", comparisonCurrentSlotCount);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono, "comparisonCandidateSlotCountText", comparisonCandidateSlotCount);
+                    mono, "comparisonCandidateSideView", comparisonCandidateSide);
                 BattlePreparationEditorUiFactory.SetObject(mono, "dragLayer", dragLayer);
                 BattlePreparationEditorUiFactory.SetObject(mono, "dragIcon", dragIcon);
                 BattlePreparationEditorUiFactory.SetObject(mono, "itemDetail", itemDetail);
@@ -1893,6 +1867,454 @@ namespace Game.EditorTools
             return view;
         }
 
+        private static Component BuildEquipmentEffectList(
+            string name,
+            Transform parent,
+            float entryHeight)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(0.035f, 0.065f, 0.095f, 0.86f),
+                null,
+                false);
+            LayoutElement sectionLayout = root.AddComponent<LayoutElement>();
+            sectionLayout.minHeight = 46f + entryHeight;
+            sectionLayout.preferredHeight = 46f + entryHeight * 2f;
+            Component view = Runtime(root, EquipmentEffectListMono);
+            Text title = CreateText(
+                "Title",
+                root.transform,
+                "Direct Effects",
+                20,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 0.80f),
+                Vector2.one,
+                new Vector2(8f, 0f),
+                new Vector2(-8f, 0f),
+                BattlePreparationEditorUiFactory.AccentColor);
+            title.raycastTarget = false;
+            RectTransform entries = BattlePreparationEditorUiFactory.NewRect(
+                "Entries",
+                root.transform,
+                Vector2.zero,
+                new Vector2(1f, 0.80f),
+                new Vector2(8f, 6f),
+                new Vector2(-8f, -2f));
+            VerticalLayoutGroup entriesLayout =
+                entries.gameObject.AddComponent<VerticalLayoutGroup>();
+            entriesLayout.spacing = 5f;
+            entriesLayout.childAlignment = TextAnchor.UpperLeft;
+            entriesLayout.childControlWidth = true;
+            entriesLayout.childControlHeight = false;
+            entriesLayout.childForceExpandWidth = true;
+            entriesLayout.childForceExpandHeight = false;
+            Text template = CreateLayoutText(
+                "EffectEntryTemplate",
+                entries,
+                16,
+                entryHeight,
+                BattlePreparationEditorUiFactory.TextColor);
+            template.supportRichText = true;
+            template.gameObject.SetActive(false);
+
+            BattlePreparationEditorUiFactory.SetObject(view, "sectionRoot", root);
+            BattlePreparationEditorUiFactory.SetObject(view, "titleText", title);
+            BattlePreparationEditorUiFactory.SetObject(view, "entriesRoot", entries);
+            BattlePreparationEditorUiFactory.SetObject(view, "entryTemplate", template);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "sectionLayout",
+                sectionLayout);
+            return view;
+        }
+
+        private static Component BuildMajorAffixView(
+            string name,
+            Transform parent,
+            float stageHeight)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(0.025f, 0.08f, 0.095f, 0.90f),
+                null,
+                false);
+            LayoutElement sectionLayout = root.AddComponent<LayoutElement>();
+            sectionLayout.minHeight = 112f + stageHeight;
+            sectionLayout.preferredHeight = 112f + stageHeight * 2f;
+            Component view = Runtime(root, MajorAffixMono);
+            Text title = CreateText(
+                "Title",
+                root.transform,
+                "Major Affix",
+                20,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 0.89f),
+                Vector2.one,
+                new Vector2(8f, 0f),
+                new Vector2(-8f, 0f),
+                new Color(0.19f, 0.92f, 0.94f, 1f));
+            title.raycastTarget = false;
+            GameObject header = BattlePreparationEditorUiFactory.NewUiObject(
+                "Header",
+                root.transform);
+            BattlePreparationEditorUiFactory.SetRect(
+                header.GetComponent<RectTransform>(),
+                new Vector2(0f, 0.63f),
+                new Vector2(1f, 0.89f),
+                new Vector2(8f, 0f),
+                new Vector2(-8f, 0f));
+            Text affixName = CreateText(
+                "Name",
+                header.transform,
+                string.Empty,
+                19,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 0.62f),
+                new Vector2(0.70f, 1f),
+                Vector2.zero,
+                Vector2.zero,
+                new Color(0.19f, 0.92f, 0.94f, 1f));
+            Text equippedCount = CreateText(
+                "EquippedCount",
+                header.transform,
+                string.Empty,
+                15,
+                TextAnchor.MiddleRight,
+                new Vector2(0.70f, 0.62f),
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+            Text description = CreateText(
+                "Description",
+                header.transform,
+                string.Empty,
+                15,
+                TextAnchor.UpperLeft,
+                Vector2.zero,
+                new Vector2(1f, 0.62f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+            GameObject stagesSection = BattlePreparationEditorUiFactory.NewUiObject(
+                "Stages",
+                root.transform);
+            BattlePreparationEditorUiFactory.SetRect(
+                stagesSection.GetComponent<RectTransform>(),
+                Vector2.zero,
+                new Vector2(1f, 0.63f),
+                new Vector2(8f, 6f),
+                new Vector2(-8f, -2f));
+            RectTransform stages = BattlePreparationEditorUiFactory.NewRect(
+                "Entries",
+                stagesSection.transform,
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero);
+            VerticalLayoutGroup stagesLayout =
+                stages.gameObject.AddComponent<VerticalLayoutGroup>();
+            stagesLayout.spacing = 5f;
+            stagesLayout.childAlignment = TextAnchor.UpperLeft;
+            stagesLayout.childControlWidth = true;
+            stagesLayout.childControlHeight = false;
+            stagesLayout.childForceExpandWidth = true;
+            stagesLayout.childForceExpandHeight = false;
+            Text stageTemplate = CreateLayoutText(
+                "StageTemplate",
+                stages,
+                15,
+                stageHeight,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+            stageTemplate.supportRichText = true;
+            stageTemplate.gameObject.SetActive(false);
+
+            BattlePreparationEditorUiFactory.SetObject(view, "sectionRoot", root);
+            BattlePreparationEditorUiFactory.SetObject(view, "titleText", title);
+            BattlePreparationEditorUiFactory.SetObject(view, "headerRoot", header);
+            BattlePreparationEditorUiFactory.SetObject(view, "nameText", affixName);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "descriptionText",
+                description);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "equippedCountText",
+                equippedCount);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "stagesSectionRoot",
+                stagesSection);
+            BattlePreparationEditorUiFactory.SetObject(view, "stagesRoot", stages);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "stageTemplate",
+                stageTemplate);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "sectionLayout",
+                sectionLayout);
+            return view;
+        }
+
+        private static Component BuildComparisonSide(
+            string name,
+            Transform parent,
+            Vector2 anchorMin,
+            Vector2 anchorMax)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            BattlePreparationEditorUiFactory.SetRect(
+                root.GetComponent<RectTransform>(),
+                anchorMin,
+                anchorMax,
+                Vector2.zero,
+                Vector2.zero);
+            BattlePreparationEditorUiFactory.AddImage(
+                root,
+                new Color(0.025f, 0.05f, 0.075f, 0.94f),
+                null,
+                false);
+            Component view = Runtime(root, ComparisonSideMono);
+            BattlePreparationEditorUiFactory.ScrollParts scroll =
+                BattlePreparationEditorUiFactory.AddVerticalScroll(
+                    "Scroll",
+                    root.transform,
+                    7f,
+                    new Vector4(7f, 7f, 7f, 7f),
+                    false,
+                    Vector2.zero,
+                    1);
+            BattlePreparationEditorUiFactory.SetRect(
+                scroll.ScrollRect.GetComponent<RectTransform>(),
+                Vector2.zero,
+                Vector2.one,
+                new Vector2(3f, 3f),
+                new Vector2(-3f, -3f));
+
+            Text sideTitle = CreateLayoutText(
+                "SideTitle",
+                scroll.Content,
+                21,
+                42f,
+                BattlePreparationEditorUiFactory.AccentColor);
+            sideTitle.alignment = TextAnchor.MiddleCenter;
+
+            GameObject itemHeader = BattlePreparationEditorUiFactory.NewUiObject(
+                "ItemHeader",
+                scroll.Content);
+            BattlePreparationEditorUiFactory.AddImage(
+                itemHeader,
+                new Color(0.055f, 0.09f, 0.125f, 0.94f),
+                null,
+                false);
+            LayoutElement itemHeaderLayout = itemHeader.AddComponent<LayoutElement>();
+            itemHeaderLayout.minHeight = 76f;
+            itemHeaderLayout.preferredHeight = 76f;
+            Text itemName = CreateText(
+                "ItemName",
+                itemHeader.transform,
+                string.Empty,
+                20,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.03f, 0.42f),
+                new Vector2(0.97f, 0.96f),
+                Vector2.zero,
+                Vector2.zero);
+            Text quality = CreateText(
+                "Quality",
+                itemHeader.transform,
+                string.Empty,
+                16,
+                TextAnchor.MiddleLeft,
+                new Vector2(0.03f, 0.04f),
+                new Vector2(0.97f, 0.43f),
+                Vector2.zero,
+                Vector2.zero,
+                BattlePreparationEditorUiFactory.SubtleTextColor);
+
+            GameObject emptyItem = BattlePreparationEditorUiFactory.NewUiObject(
+                "EmptyItem",
+                scroll.Content);
+            LayoutElement emptyLayout = emptyItem.AddComponent<LayoutElement>();
+            emptyLayout.minHeight = 64f;
+            emptyLayout.preferredHeight = 64f;
+            Text emptyText = BattlePreparationEditorUiFactory.AddTextChild(
+                "Text",
+                emptyItem.transform,
+                "Empty equipment slot",
+                18,
+                TextAnchor.MiddleCenter,
+                BattlePreparationEditorUiFactory.SubtleTextColor,
+                6f);
+            emptyItem.SetActive(false);
+
+            GameObject attributes = BattlePreparationEditorUiFactory.NewUiObject(
+                "FinalAttributes",
+                scroll.Content);
+            BattlePreparationEditorUiFactory.AddImage(
+                attributes,
+                new Color(0.04f, 0.07f, 0.10f, 0.90f),
+                null,
+                false);
+            LayoutElement attributeLayout = attributes.AddComponent<LayoutElement>();
+            attributeLayout.minHeight = 120f;
+            attributeLayout.preferredHeight = 300f;
+            Text attributesTitle = CreateText(
+                "Title",
+                attributes.transform,
+                "Final Attributes",
+                18,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 0.84f),
+                Vector2.one,
+                new Vector2(8f, 0f),
+                new Vector2(-8f, 0f),
+                BattlePreparationEditorUiFactory.AccentColor);
+            Text attributesText = CreateText(
+                "Values",
+                attributes.transform,
+                string.Empty,
+                16,
+                TextAnchor.UpperLeft,
+                Vector2.zero,
+                new Vector2(1f, 0.84f),
+                new Vector2(8f, 5f),
+                new Vector2(-8f, -2f));
+            attributesText.supportRichText = true;
+
+            GameObject capacity = BattlePreparationEditorUiFactory.NewUiObject(
+                "CapacityAndBrainSlots",
+                scroll.Content);
+            BattlePreparationEditorUiFactory.AddImage(
+                capacity,
+                new Color(0.04f, 0.07f, 0.10f, 0.90f),
+                null,
+                false);
+            LayoutElement capacityLayout = capacity.AddComponent<LayoutElement>();
+            capacityLayout.minHeight = 96f;
+            capacityLayout.preferredHeight = 96f;
+            Text capacityTitle = CreateText(
+                "Title",
+                capacity.transform,
+                "Capacity / Brain Slots",
+                18,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 0.60f),
+                Vector2.one,
+                new Vector2(8f, 0f),
+                new Vector2(-8f, 0f),
+                BattlePreparationEditorUiFactory.AccentColor);
+            Text capacityText = CreateText(
+                "Values",
+                capacity.transform,
+                string.Empty,
+                16,
+                TextAnchor.UpperLeft,
+                Vector2.zero,
+                new Vector2(1f, 0.60f),
+                new Vector2(8f, 4f),
+                new Vector2(-8f, 0f));
+            capacity.SetActive(false);
+
+            GameObject skills = BattlePreparationEditorUiFactory.NewUiObject(
+                "ProvidedSkills",
+                scroll.Content);
+            LayoutElement skillsLayout = skills.AddComponent<LayoutElement>();
+            skillsLayout.minHeight = 134f;
+            skillsLayout.preferredHeight = 310f;
+            Text skillsTitle = CreateText(
+                "Title",
+                skills.transform,
+                "Provided Skills",
+                18,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 0.86f),
+                Vector2.one,
+                new Vector2(8f, 0f),
+                new Vector2(-8f, 0f),
+                BattlePreparationEditorUiFactory.AccentColor);
+            Component skillList = BuildSkillList(
+                "List",
+                skills.transform,
+                Vector2.zero,
+                new Vector2(1f, 0.86f),
+                82f);
+            skills.SetActive(false);
+
+            Component effects = BuildEquipmentEffectList(
+                "DirectEffects",
+                scroll.Content,
+                82f);
+            effects.gameObject.SetActive(false);
+            Component majorAffix = BuildMajorAffixView(
+                "MajorAffix",
+                scroll.Content,
+                116f);
+            majorAffix.gameObject.SetActive(false);
+
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "scrollRect",
+                scroll.ScrollRect);
+            BattlePreparationEditorUiFactory.SetObject(view, "sideTitleText", sideTitle);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "itemHeaderRoot",
+                itemHeader);
+            BattlePreparationEditorUiFactory.SetObject(view, "itemNameText", itemName);
+            BattlePreparationEditorUiFactory.SetObject(view, "qualityText", quality);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "emptyItemRoot",
+                emptyItem);
+            BattlePreparationEditorUiFactory.SetObject(view, "emptyItemText", emptyText);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "attributesRoot",
+                attributes);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "attributesTitleText",
+                attributesTitle);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "attributesText",
+                attributesText);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "capacityRoot",
+                capacity);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "capacityTitleText",
+                capacityTitle);
+            BattlePreparationEditorUiFactory.SetObject(view, "capacityText", capacityText);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "providedSkillsRoot",
+                skills);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "providedSkillsTitleText",
+                skillsTitle);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "providedSkillsList",
+                skillList);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "equipmentEffectList",
+                effects);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "majorAffixView",
+                majorAffix);
+            return view;
+        }
+
         private static Component BuildSkillDetailView(Transform parent)
         {
             GameObject root = CreatePanel(
@@ -2171,6 +2593,21 @@ namespace Game.EditorTools
                 Vector2.one,
                 Vector2.zero,
                 new Vector2(-3f, 2f));
+            RectTransform badgeRect = BattlePreparationEditorUiFactory.NewRect(
+                "MajorAffixBadge",
+                root.transform,
+                new Vector2(1f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(-22f, 7f),
+                new Vector2(-8f, 21f));
+            badgeRect.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            Image majorAffixBadge = BattlePreparationEditorUiFactory.AddImage(
+                badgeRect.gameObject,
+                new Color(0.19f, 0.92f, 0.94f, 0.96f),
+                null,
+                false);
+            majorAffixBadge.raycastTarget = false;
+            majorAffixBadge.gameObject.SetActive(false);
 
             BattlePreparationEditorUiFactory.SetObject(
                 view,
@@ -2181,6 +2618,10 @@ namespace Game.EditorTools
                 view,
                 "qualityFrameImage",
                 quality);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "majorAffixBadgeImage",
+                majorAffixBadge);
             BattlePreparationEditorUiFactory.SetObject(
                 view,
                 "dropHighlightImage",
@@ -2266,12 +2707,32 @@ namespace Game.EditorTools
                 Text mainAttributes = CreateLayoutText(
                     "MainAttributes", body.Content, 20, 56f,
                     BattlePreparationEditorUiFactory.AccentColor);
-                Text skillSlotCount = CreateLayoutText(
-                    "SkillSlotCount", body.Content, 19, 38f,
-                    BattlePreparationEditorUiFactory.AccentColor);
                 Text description = CreateLayoutText(
                     "Description", body.Content, 18, 112f,
                     BattlePreparationEditorUiFactory.SubtleTextColor);
+
+                GameObject capacityRoot =
+                    BattlePreparationEditorUiFactory.NewUiObject(
+                        "CapacityAndBrainSlots",
+                        body.Content);
+                BattlePreparationEditorUiFactory.AddImage(
+                    capacityRoot,
+                    new Color(0.045f, 0.075f, 0.11f, 0.82f),
+                    null,
+                    false);
+                LayoutElement capacityLayout = capacityRoot.AddComponent<LayoutElement>();
+                capacityLayout.minHeight = 70f;
+                capacityLayout.preferredHeight = 70f;
+                Text capacityText =
+                    BattlePreparationEditorUiFactory.AddTextChild(
+                        "Values",
+                        capacityRoot.transform,
+                        string.Empty,
+                        19,
+                        TextAnchor.MiddleLeft,
+                        BattlePreparationEditorUiFactory.AccentColor,
+                        10f);
+                capacityRoot.SetActive(false);
 
                 GameObject providedSkillsRoot =
                     BattlePreparationEditorUiFactory.NewUiObject(
@@ -2299,6 +2760,16 @@ namespace Game.EditorTools
                     new Vector2(1f, 0.86f),
                     82f);
                 providedSkillsRoot.SetActive(false);
+                Component effectList = BuildEquipmentEffectList(
+                    "DirectEffects",
+                    body.Content,
+                    82f);
+                effectList.gameObject.SetActive(false);
+                Component majorAffix = BuildMajorAffixView(
+                    "MajorAffix",
+                    body.Content,
+                    116f);
+                majorAffix.gameObject.SetActive(false);
 
                 BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
                 BattlePreparationEditorUiFactory.SetObject(mono, "closeButton", close.Button);
@@ -2316,13 +2787,21 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(
                     mono, "mainAttributeText", mainAttributes);
                 BattlePreparationEditorUiFactory.SetObject(
-                    mono, "skillSlotCountText", skillSlotCount);
+                    mono, "skillSlotCountText", null);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "capacityRoot", capacityRoot);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "capacityText", capacityText);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono, "providedSkillsRoot", providedSkillsRoot);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono, "providedSkillsTitleText", providedSkillsTitle);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono, "providedSkillsList", providedSkillsList);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "equipmentEffectList", effectList);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono, "majorAffixView", majorAffix);
 
                 root.SetActive(false);
                 SaveAndDestroy(root, ItemDetailPrefabPath);

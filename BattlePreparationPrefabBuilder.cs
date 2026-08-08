@@ -17,7 +17,7 @@ namespace Game.EditorTools
     public static class BattlePreparationPrefabBuilder
     {
         private const string MenuPath =
-            "TryGame/Battle Preparation/Rebuild 2.0b Assets";
+            "TryGame/Battle Preparation/Rebuild 2.0e Assets";
         private const string ScenePrefabPath =
             "Assets/Resources/TryGameBuildRes/battle/preparation/battle_preparation_scene.prefab";
         private const string HomeMainPrefabPath =
@@ -109,7 +109,7 @@ namespace Game.EditorTools
             catch (Exception exception)
             {
                 Debug.LogError(
-                    $"[BattlePreparationPrefabBuilder] 自动生成 2.0b 资源失败。" +
+                    $"[BattlePreparationPrefabBuilder] 自动生成 2.0e 资源失败。" +
                     $"可在修复编译问题后手动执行 {MenuPath}。\n{exception}");
             }
         }
@@ -134,7 +134,7 @@ namespace Game.EditorTools
             if (logSuccess)
             {
                 Debug.Log(
-                    "[BattlePreparationPrefabBuilder] 2.0b 备战间资源已完成：" +
+                    "[BattlePreparationPrefabBuilder] 2.0e 备战间资源已完成：" +
                     "Sprite、6 个 UI Prefab、场景 Prefab、HomeMain 和 Home_01 引用均已更新。");
             }
         }
@@ -912,12 +912,8 @@ namespace Game.EditorTools
             {
                 "skillSlotsTitleText",
                 "skillDetailView",
-                "comparisonCurrentTitleText",
-                "comparisonCandidateTitleText",
-                "comparisonCurrentSkillList",
-                "comparisonCandidateSkillList",
-                "comparisonCurrentSlotCountText",
-                "comparisonCandidateSlotCountText",
+                "comparisonCurrentSideView",
+                "comparisonCandidateSideView",
                 "comparisonRoot",
                 "dragLayer",
                 "dragIcon",
@@ -925,16 +921,16 @@ namespace Game.EditorTools
             };
             ValidateRequiredReferences(mono, robotDetailFields, "battle robot detail");
 
-            Component currentSkills = RequireReference(
+            Component currentSide = RequireReference(
                 mono,
-                "comparisonCurrentSkillList",
+                "comparisonCurrentSideView",
                 "battle robot comparison") as Component;
-            Component candidateSkills = RequireReference(
+            Component candidateSide = RequireReference(
                 mono,
-                "comparisonCandidateSkillList",
+                "comparisonCandidateSideView",
                 "battle robot comparison") as Component;
-            ValidateSkillList(currentSkills, "comparison current skills");
-            ValidateSkillList(candidateSkills, "comparison candidate skills");
+            ValidateComparisonSide(currentSide, "comparison current side");
+            ValidateComparisonSide(candidateSide, "comparison candidate side");
 
             GameObject comparison = RequireReference(
                 mono,
@@ -1032,10 +1028,13 @@ namespace Game.EditorTools
             string[] fields =
             {
                 "descriptionText",
-                "skillSlotCountText",
+                "capacityRoot",
+                "capacityText",
                 "providedSkillsRoot",
                 "providedSkillsTitleText",
                 "providedSkillsList",
+                "equipmentEffectList",
+                "majorAffixView",
             };
             ValidateRequiredReferences(mono, fields, "battle robot item detail");
             Component skillList = RequireReference(
@@ -1048,25 +1047,130 @@ namespace Game.EditorTools
                 mono,
                 "descriptionText",
                 "battle robot item detail"));
-            Transform skillSlotCount = ReferenceTransform(RequireReference(
+            Transform capacity = ReferenceTransform(RequireReference(
                 mono,
-                "skillSlotCountText",
+                "capacityRoot",
                 "battle robot item detail"));
             Transform providedSkills = ReferenceTransform(RequireReference(
                 mono,
                 "providedSkillsRoot",
                 "battle robot item detail"));
+            Component effects = RequireReference(
+                mono,
+                "equipmentEffectList",
+                "battle robot item detail") as Component;
+            Component majorAffix = RequireReference(
+                mono,
+                "majorAffixView",
+                "battle robot item detail") as Component;
+            ValidateEffectList(effects, "item detail direct effects");
+            ValidateMajorAffix(majorAffix, "item detail major affix");
+            Transform effectsTransform = ReferenceTransform(effects);
+            Transform majorAffixTransform = ReferenceTransform(majorAffix);
             if (description == null
-                || skillSlotCount == null
+                || capacity == null
                 || providedSkills == null
+                || effectsTransform == null
+                || majorAffixTransform == null
                 || description.GetComponentInParent<ScrollRect>(true) == null
-                || skillSlotCount.GetComponentInParent<ScrollRect>(true) == null
-                || providedSkills.GetComponentInParent<ScrollRect>(true) == null)
+                || capacity.GetComponentInParent<ScrollRect>(true) == null
+                || providedSkills.GetComponentInParent<ScrollRect>(true) == null
+                || effectsTransform.GetComponentInParent<ScrollRect>(true) == null
+                || majorAffixTransform.GetComponentInParent<ScrollRect>(true) == null
+                || capacity.GetSiblingIndex() >= providedSkills.GetSiblingIndex()
+                || providedSkills.GetSiblingIndex() >= effectsTransform.GetSiblingIndex()
+                || effectsTransform.GetSiblingIndex()
+                    >= majorAffixTransform.GetSiblingIndex())
             {
                 throw new InvalidOperationException(
-                    "Item detail body, slot count, and provided skills must live " +
-                    "inside the scrollable content.");
+                    "Item detail capacity, skills, effects, and major affix must " +
+                    "appear in that order inside the scrollable content.");
             }
+        }
+
+        private static void ValidateComparisonSide(Component side, string context)
+        {
+            string[] fields =
+            {
+                "scrollRect",
+                "sideTitleText",
+                "itemHeaderRoot",
+                "itemNameText",
+                "qualityText",
+                "emptyItemRoot",
+                "emptyItemText",
+                "attributesRoot",
+                "attributesTitleText",
+                "attributesText",
+                "capacityRoot",
+                "capacityTitleText",
+                "capacityText",
+                "providedSkillsRoot",
+                "providedSkillsTitleText",
+                "providedSkillsList",
+                "equipmentEffectList",
+                "majorAffixView",
+            };
+            ValidateRequiredReferences(side, fields, context);
+            ScrollRect scroll = RequireReference(side, "scrollRect", context) as ScrollRect;
+            Component skillList = RequireReference(
+                side,
+                "providedSkillsList",
+                context) as Component;
+            Component effects = RequireReference(
+                side,
+                "equipmentEffectList",
+                context) as Component;
+            Component majorAffix = RequireReference(
+                side,
+                "majorAffixView",
+                context) as Component;
+            ValidateSkillList(skillList, context + " skills");
+            ValidateEffectList(effects, context + " direct effects");
+            ValidateMajorAffix(majorAffix, context + " major affix");
+            if (scroll == null
+                || scroll.content == null
+                || ReferenceTransform(skillList)?.GetComponentInParent<ScrollRect>(true)
+                    != scroll
+                || ReferenceTransform(effects)?.GetComponentInParent<ScrollRect>(true)
+                    != scroll
+                || ReferenceTransform(majorAffix)?.GetComponentInParent<ScrollRect>(true)
+                    != scroll)
+            {
+                throw new InvalidOperationException(
+                    $"Comparison side sections must share one scroll content: {context}");
+            }
+        }
+
+        private static void ValidateEffectList(Component view, string context)
+        {
+            string[] fields =
+            {
+                "sectionRoot",
+                "titleText",
+                "entriesRoot",
+                "entryTemplate",
+                "sectionLayout",
+            };
+            ValidateRequiredReferences(view, fields, context);
+        }
+
+        private static void ValidateMajorAffix(Component view, string context)
+        {
+            string[] fields =
+            {
+                "sectionRoot",
+                "titleText",
+                "headerRoot",
+                "nameText",
+                "descriptionText",
+                "equippedCountText",
+                "stagesSectionRoot",
+                "stagesRoot",
+                "stageTemplate",
+                "sectionLayout",
+            };
+            ValidateRequiredReferences(view, fields, context);
         }
 
         private static void ValidateEquipmentSkillStrip(
@@ -1088,6 +1192,24 @@ namespace Game.EditorTools
             {
                 throw new InvalidOperationException(
                     $"Provided skill strip must be an ItemCell sibling: context={context}");
+            }
+
+            Image qualityFrame = RequireReference(
+                itemCell,
+                "qualityFrameImage",
+                context + " item cell") as Image;
+            Image majorAffixBadge = RequireReference(
+                itemCell,
+                "majorAffixBadgeImage",
+                context + " item cell") as Image;
+            if (qualityFrame == null
+                || majorAffixBadge == null
+                || majorAffixBadge.raycastTarget
+                || majorAffixBadge.sprite != null)
+            {
+                throw new InvalidOperationException(
+                    $"Item cells must retain the quality frame and use a sprite-free, " +
+                    $"raycast-transparent major-affix badge: context={context}");
             }
 
             SerializedProperty skillViews =
