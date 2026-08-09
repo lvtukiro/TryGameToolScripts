@@ -17,7 +17,7 @@ namespace Game.EditorTools
     public static class BattlePreparationPrefabBuilder
     {
         private const string MenuPath =
-            "TryGame/Battle Preparation/Rebuild 2.0f Assets";
+            "TryGame/Battle Preparation/Rebuild 2.0g Assets";
         private const string ScenePrefabPath =
             "Assets/Resources/TryGameBuildRes/battle/preparation/battle_preparation_scene.prefab";
         private const string HomeMainPrefabPath =
@@ -122,7 +122,7 @@ namespace Game.EditorTools
             catch (Exception exception)
             {
                 Debug.LogError(
-                    $"[BattlePreparationPrefabBuilder] 自动生成 2.0f 资源失败。" +
+                    $"[BattlePreparationPrefabBuilder] 自动生成 2.0g 资源失败。" +
                     $"可在修复编译问题后手动执行 {MenuPath}。\n{exception}");
             }
         }
@@ -147,8 +147,8 @@ namespace Game.EditorTools
             if (logSuccess)
             {
                 Debug.Log(
-                    "[BattlePreparationPrefabBuilder] 2.0f 备战间资源已完成：" +
-                    "Sprite、6 个 UI Prefab、场景 Prefab、HomeMain 和 Home_01 引用均已更新。");
+                    "[BattlePreparationPrefabBuilder] 2.0g 备战与选择资源已完成：" +
+                    "Sprite、10 个 UI Prefab、场景 Prefab、HomeMain 和 Home_01 引用均已更新。");
             }
         }
 

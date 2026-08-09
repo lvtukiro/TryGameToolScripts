@@ -25,8 +25,16 @@ namespace Game.EditorTools
             "Assets/Resources/TryGameBuildRes/gui/ui_game/sub_robot_item_detail.prefab";
         internal const string WorkbenchPrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_workbench.prefab";
+        internal const string StageMapPrefabPath =
+            "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_stage_map.prefab";
+        internal const string StageDetailPrefabPath =
+            "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_stage_detail.prefab";
+        internal const string ChallengeSelectionPrefabPath =
+            "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_challenge_selection.prefab";
+        internal const string TargetSelectionPrefabPath =
+            "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_target_selection.prefab";
 
-        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v8_2_0f";
+        internal const string BuilderMarker = "__BattlePreparationUiBuilder_v10_2_0g";
         internal const string BattleDevelopmentEntryMarker =
             "__BattleRobotDetailBattleEntry_v2";
 
@@ -54,6 +62,17 @@ namespace Game.EditorTools
         private const string ComparisonSideMono = "Game.BattleRobotComparisonSideView";
         private const string SkillDetailMono = "Game.BattleRobotSkillDetailView";
         private const string WorkbenchMono = "Game.GUIMonoBattlePreparationWorkbench";
+        private const string StageMapMono = "Game.GUIMonoBattleStageMap";
+        private const string StageMapPointMono = "Game.BattleStageMapPointView";
+        private const string StageDetailMono = "Game.GUIMonoBattleStageDetail";
+        private const string DeploymentRobotSlotMono = "Game.BattleDeploymentRobotSlotView";
+        private const string RestrictionEntryMono = "Game.BattleRestrictionEntryView";
+        private const string ChallengeSelectionMono = "Game.GUIMonoBattleChallengeSelection";
+        private const string ChallengeColumnMono = "Game.BattleChallengeColumnView";
+        private const string ChallengeLevelCellMono = "Game.BattleChallengeLevelCellView";
+        private const string SelectedChallengeEntryMono = "Game.BattleSelectedChallengeEntryView";
+        private const string TargetSelectionMono = "Game.GUIMonoBattleTargetSelection";
+        private const string TargetToggleOptionMono = "Game.BattleTargetToggleOptionView";
 
         internal static readonly string[] RequiredRuntimeTypes =
         {
@@ -78,6 +97,17 @@ namespace Game.EditorTools
             ComparisonSideMono,
             SkillDetailMono,
             WorkbenchMono,
+            StageMapMono,
+            StageMapPointMono,
+            StageDetailMono,
+            DeploymentRobotSlotMono,
+            RestrictionEntryMono,
+            ChallengeSelectionMono,
+            ChallengeColumnMono,
+            ChallengeLevelCellMono,
+            SelectedChallengeEntryMono,
+            TargetSelectionMono,
+            TargetToggleOptionMono,
         };
 
         internal static readonly string[] GeneratedPrefabPaths =
@@ -88,6 +118,10 @@ namespace Game.EditorTools
             RobotDetailPrefabPath,
             ItemDetailPrefabPath,
             WorkbenchPrefabPath,
+            StageMapPrefabPath,
+            StageDetailPrefabPath,
+            ChallengeSelectionPrefabPath,
+            TargetSelectionPrefabPath,
         };
 
         // 以背景图片左下角为 (0, 0)、右上角为 (1, 1)。这些区域对应产品图上
@@ -111,6 +145,7 @@ namespace Game.EditorTools
             BuildProductionPrefab(sprites);
             BuildRobotDetailPrefab(sprites);
             BuildWorkbenchPrefab();
+            BattleStageSelectionUiPrefabBuilder.BuildAll();
         }
 
         private static void BuildMainPrefab(IReadOnlyDictionary<int, Sprite> sprites)
@@ -199,6 +234,20 @@ namespace Game.EditorTools
                     new Vector2(190f, 48f));
                 battleDevelopment.Button.gameObject.SetActive(false);
 
+                BattlePreparationEditorUiFactory.ButtonParts battle =
+                    BattlePreparationEditorUiFactory.AddButton(
+                        "BattleButton",
+                        topBar.transform,
+                        "出战",
+                        new Color(0.17f, 0.58f, 0.35f, 0.98f),
+                        22);
+                BattlePreparationEditorUiFactory.Place(
+                    battle.Rect,
+                    new Vector2(0.735f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(130f, 48f));
+
                 BattlePreparationEditorUiFactory.ButtonParts workbench =
                     CreateTransparentHotspot(
                         "WorkbenchButton",
@@ -242,6 +291,14 @@ namespace Game.EditorTools
                     mono,
                     "workbenchButton",
                     workbench.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "battleButton",
+                    battle.Button);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "battleButtonText",
+                    battle.Text);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono,
                     "battleDevelopmentButton",
@@ -1457,11 +1514,6 @@ namespace Game.EditorTools
                 dragIcon.raycastTarget = false;
                 dragIcon.gameObject.SetActive(false);
 
-                itemDetailObject.transform.SetAsLastSibling();
-                skillDetail.transform.SetAsLastSibling();
-                comparison.transform.SetAsLastSibling();
-                dragLayer.SetAsLastSibling();
-
                 BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
                 BattlePreparationEditorUiFactory.SetObject(mono, "closeButton", close.Button);
                 BattlePreparationEditorUiFactory.SetObject(
@@ -1511,6 +1563,13 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.AddBuilderMarker(
                     root,
                     BattleDevelopmentEntryMarker);
+
+                // Builder markers are hidden implementation details. Keep the four
+                // runtime overlays above every marker and in their real render order.
+                itemDetailObject.transform.SetAsLastSibling();
+                skillDetail.transform.SetAsLastSibling();
+                comparison.transform.SetAsLastSibling();
+                dragLayer.SetAsLastSibling();
 
                 SaveAndDestroy(root, RobotDetailPrefabPath);
                 root = null;
