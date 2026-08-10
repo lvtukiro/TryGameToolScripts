@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -12,11 +13,13 @@ using TryGame.RefDataTools.Editor;
 using UnityEditor;
 using UnityEngine;
 
+[assembly: InternalsVisibleTo("TryGame.Gameplay.EditorTests")]
+
 namespace Game.EditorTools
 {
     /// <summary>
-    /// SmallArea 编辑器专用的最小 OpenXML 桥。只改源工作簿的八个 SmallArea Sheet，
-    /// 保留其它 Sheet/样式/关系；不触碰 Output、GeneratedTables、bytes 或 Manifest。
+    /// SmallArea 编辑器专用的 OpenXML 桥。源表写回只改八个 SmallArea Sheet 并保留其它
+    /// Sheet/样式/关系；写回并导表时会为源表及四个正式发布目录建立完整恢复快照。
     /// </summary>
     internal static class BattleSmallAreaWorkbookBridge
     {
@@ -27,6 +30,16 @@ namespace Game.EditorTools
             public SortedDictionary<int, string> Templates =
                 new SortedDictionary<int, string>();
             public int[] SmallAreaIds = Array.Empty<int>();
+        }
+
+        internal sealed class ExportContext
+        {
+            public Func<IReadOnlyList<string>, bool> ValidatePreflight;
+            public Func<IReadOnlyList<string>, bool> ExportIncremental;
+            public Action RefreshAssets;
+            public string TextOutputDirectory;
+            public string TransactionParentDirectory;
+            public string[] PublishedDirectories = Array.Empty<string>();
         }
 
         private sealed class SheetData
@@ -89,10 +102,17 @@ namespace Game.EditorTools
 
         internal static bool TryLoad(out Snapshot snapshot, out string error)
         {
+            return TryLoad(DefaultWorkbookPath, out snapshot, out error);
+        }
+
+        internal static bool TryLoad(
+            string path,
+            out Snapshot snapshot,
+            out string error)
+        {
             snapshot = null;
             error = string.Empty;
-            string path = DefaultWorkbookPath;
-            if (!File.Exists(path))
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
                 error = $"正式战斗源工作簿不存在：{path}";
                 return false;
@@ -102,6 +122,7 @@ namespace Game.EditorTools
             {
                 WorkbookData workbook = ReadWorkbook(path);
                 ValidateRequiredSheets(workbook);
+                ValidateWorkbookRowIdsUnique(workbook, null);
                 SortedDictionary<int, string> templates = BuildTemplateSourceRows(workbook);
                 if (templates.Count == 0)
                 {
@@ -148,12 +169,47 @@ namespace Game.EditorTools
             out string backupPath,
             out string error)
         {
+            bool success = TryWriteTemplatesCore(
+                snapshot,
+                sourceRowsBySmallAreaId,
+                () => AssetDatabase.Refresh(
+                    ImportAssetOptions.ForceSynchronousImport),
+                out bool workbookMayHaveChanged,
+                out backupPath,
+                out error);
+            if (success || !workbookMayHaveChanged)
+            {
+                return success;
+            }
+
+            string writeError = error;
+            bool restored = TryRestoreWorkbookFromBackup(
+                snapshot?.WorkbookPath,
+                backupPath,
+                out string restoreError);
+            error = restored
+                ? $"{writeError} 源 Excel 已从写前备份恢复。"
+                : $"SourceWorkbookMayBeChanged：{writeError} " +
+                  $"源 Excel 自动恢复失败，restoreError={restoreError}";
+            return false;
+        }
+
+        private static bool TryWriteTemplatesCore(
+            Snapshot snapshot,
+            IReadOnlyDictionary<int, string> sourceRowsBySmallAreaId,
+            Action refreshAssets,
+            out bool workbookMayHaveChanged,
+            out string backupPath,
+            out string error)
+        {
+            workbookMayHaveChanged = false;
             backupPath = string.Empty;
             error = string.Empty;
             if (snapshot == null
                 || string.IsNullOrWhiteSpace(snapshot.WorkbookPath)
                 || sourceRowsBySmallAreaId == null
-                || sourceRowsBySmallAreaId.Count == 0)
+                || sourceRowsBySmallAreaId.Count == 0
+                || refreshAssets == null)
             {
                 error = "写回请求缺少工作簿快照或模板源行。";
                 return false;
@@ -215,6 +271,7 @@ namespace Game.EditorTools
                         ValidateReplacementSchema(workbook, pair.Value);
                         ValidateCrossReferences(workbook, pair.Value.Rows);
                     }
+                    ValidateWorkbookRowIdsUnique(workbook, replacements);
 
                     for (int index = 0; index < EditableSheets.Length; index++)
                     {
@@ -229,6 +286,7 @@ namespace Game.EditorTools
                 // 在临时副本上重新完整读取，任何 XML/关系/行断裂都在替换原文件前失败。
                 WorkbookData validationWorkbook = ReadWorkbook(temporaryPath);
                 ValidateRequiredSheets(validationWorkbook);
+                ValidateWorkbookRowIdsUnique(validationWorkbook, null);
                 SortedDictionary<int, string> validationTemplates =
                     BuildTemplateSourceRows(validationWorkbook);
                 foreach (KeyValuePair<int, string> original in snapshot.Templates)
@@ -267,14 +325,19 @@ namespace Game.EditorTools
                     $"{Path.GetFileNameWithoutExtension(workbookPath)}_" +
                     $"{DateTime.Now:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}.xlsx");
                 File.Copy(workbookPath, backupPath, false);
+                // 从调用 File.Replace 起，异常语义必须按“正式文件可能已经改变”处理；
+                // 操作系统可能在完成替换后才向托管层报告后续错误。
+                workbookMayHaveChanged = true;
                 File.Replace(temporaryPath, workbookPath, null, true);
                 temporaryPath = string.Empty;
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                refreshAssets();
                 return true;
             }
             catch (Exception exception)
             {
-                error = $"事务性写回失败，正式源表未被半套修改：{exception.Message}";
+                error = workbookMayHaveChanged
+                    ? $"事务性写回在正式源表可能已替换后失败：{exception.Message}"
+                    : $"事务性写回失败，正式源表未被修改：{exception.Message}";
                 return false;
             }
             finally
@@ -300,6 +363,23 @@ namespace Game.EditorTools
             out bool sourceSavedOutputStale,
             out string error)
         {
+            return TryWriteTemplatesAndExport(
+                snapshot,
+                sourceRowsBySmallAreaId,
+                CreateDefaultExportContext(),
+                out backupPath,
+                out sourceSavedOutputStale,
+                out error);
+        }
+
+        internal static bool TryWriteTemplatesAndExport(
+            Snapshot snapshot,
+            IReadOnlyDictionary<int, string> sourceRowsBySmallAreaId,
+            ExportContext context,
+            out string backupPath,
+            out bool sourceSavedOutputStale,
+            out string error)
+        {
             backupPath = string.Empty;
             sourceSavedOutputStale = false;
             error = string.Empty;
@@ -310,56 +390,704 @@ namespace Game.EditorTools
                 return false;
             }
 
+            if (!TryValidateExportContext(context, out error))
+            {
+                return false;
+            }
+
             List<string> exportInputs = new List<string>
             {
                 snapshot.WorkbookPath,
             };
-            if (!TryGameRefDataExportTransaction.ValidateIncrementalPreflight(
-                    exportInputs))
+            bool preflightSucceeded;
+            try
+            {
+                preflightSucceeded = context.ValidatePreflight(exportInputs);
+            }
+            catch (Exception exception)
+            {
+                error = $"BattleSmallArea 增量导表预检异常，未修改任何正式状态：{exception.Message}";
+                return false;
+            }
+
+            if (!preflightSucceeded)
             {
                 error =
                     "BattleSmallArea 增量导表预检失败，源 Excel 与正式 Output 均未修改。";
                 return false;
             }
 
-            if (!TryWriteTemplates(
-                    snapshot,
-                    sourceRowsBySmallAreaId,
-                    out backupPath,
-                    out error))
-            {
-                return false;
-            }
-
-            sourceSavedOutputStale = true;
-            if (!TryGameRefDataExportWindow.ExportFiles(
-                    exportInputs,
-                    TryGameRefDataExportMode.Incremental))
-            {
-                bool restored = TryRestoreWorkbookFromBackup(
+            // RefData 内层事务会在自身发布后门禁通过时清理 backup；SmallArea 的逐模板
+            // txt 回读发生在它返回之后，因此必须在外层保留同一批正式目录的写前快照。
+            if (!PublishedStateSnapshot.TryCapture(
                     snapshot.WorkbookPath,
-                    backupPath,
-                    out string restoreError);
-                sourceSavedOutputStale = !restored;
-                error = restored
-                    ? "正式增量导表失败；源 Excel 已从写前备份恢复，Output 事务应保持旧版本。"
-                    : "SourceSavedOutputStale：正式增量导表失败，且源 Excel 自动恢复失败。" +
-                      $" restoreError={restoreError}";
-                return false;
-            }
-
-            if (!TryValidateExportedTemplates(
-                    sourceRowsBySmallAreaId,
-                    out string validationError))
+                    context.PublishedDirectories,
+                    context.TransactionParentDirectory,
+                    out PublishedStateSnapshot stateSnapshot,
+                    out string captureError))
             {
                 error =
-                    "SourceSavedOutputStale：导表事务返回成功，但 Output 逐模板回读不一致。" +
-                    $" {validationError}";
+                    "无法在写盘前完整备份源 Excel 与四个 RefData 发布目录；" +
+                    $"本次操作未修改正式状态。 {captureError}";
                 return false;
             }
 
-            sourceSavedOutputStale = false;
+            bool sourceWasWritten = false;
+            using (stateSnapshot)
+            {
+                try
+                {
+                    if (!TryWriteTemplatesCore(
+                            snapshot,
+                            sourceRowsBySmallAreaId,
+                            context.RefreshAssets,
+                            out bool workbookMayHaveChanged,
+                            out backupPath,
+                            out error))
+                    {
+                        if (workbookMayHaveChanged)
+                        {
+                            sourceWasWritten = true;
+                            sourceSavedOutputStale = true;
+                            return TryFailAndRestorePublishedState(
+                                stateSnapshot,
+                                error,
+                                context.RefreshAssets,
+                                ref sourceSavedOutputStale,
+                                out error);
+                        }
+
+                        return false;
+                    }
+
+                    sourceWasWritten = workbookMayHaveChanged;
+                    sourceSavedOutputStale = true;
+                    if (!context.ExportIncremental(exportInputs))
+                    {
+                        return TryFailAndRestorePublishedState(
+                            stateSnapshot,
+                            "正式增量导表失败",
+                            context.RefreshAssets,
+                            ref sourceSavedOutputStale,
+                            out error);
+                    }
+
+                    if (!TryValidateExportedTemplates(
+                            sourceRowsBySmallAreaId,
+                            context.TextOutputDirectory,
+                            out string validationError))
+                    {
+                        return TryFailAndRestorePublishedState(
+                            stateSnapshot,
+                            "导表事务返回成功，但 Output 逐模板回读不一致。 " +
+                            validationError,
+                            context.RefreshAssets,
+                            ref sourceSavedOutputStale,
+                            out error);
+                    }
+
+                    stateSnapshot.Commit();
+                    sourceSavedOutputStale = false;
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    if (!sourceWasWritten)
+                    {
+                        error = $"写回并导表发生异常，正式状态未修改：{exception.Message}";
+                        return false;
+                    }
+
+                    return TryFailAndRestorePublishedState(
+                        stateSnapshot,
+                        $"写回并导表发生异常：{exception.Message}",
+                        context.RefreshAssets,
+                        ref sourceSavedOutputStale,
+                        out error);
+                }
+            }
+        }
+
+        private static ExportContext CreateDefaultExportContext()
+        {
+            string sourceOutput = TryGameRefDataPaths.ToFullPath(
+                TryGameRefDataPaths.DefaultOutputAssetPath);
+            return new ExportContext
+            {
+                ValidatePreflight = inputs =>
+                    TryGameRefDataExportTransaction.ValidateIncrementalPreflight(inputs),
+                ExportIncremental = inputs =>
+                    TryGameRefDataExportWindow.ExportFiles(
+                        inputs.ToList(),
+                        TryGameRefDataExportMode.Incremental),
+                RefreshAssets = () => AssetDatabase.Refresh(
+                    ImportAssetOptions.ForceSynchronousImport),
+                TextOutputDirectory = Path.Combine(sourceOutput, "txt_data"),
+                TransactionParentDirectory = Path.Combine(
+                    TryGameRefDataPaths.ProjectRoot,
+                    "Temp",
+                    "BattleSmallAreaWorkbookTransactions"),
+                PublishedDirectories = new[]
+                {
+                    sourceOutput,
+                    TryGameRefDataPaths.ToFullPath(
+                        TryGameRefDataPaths.RuntimeOutputAssetPath),
+                    TryGameRefDataPaths.ToFullPath(
+                        TryGameRefDataPaths.DefaultGeneratedTableAssetPath),
+                    TryGameRefDataPaths.ToFullPath(
+                        TryGameRefDataPaths.DefaultGeneratedConfigAssetPath),
+                },
+            };
+        }
+
+        private static bool TryValidateExportContext(
+            ExportContext context,
+            out string error)
+        {
+            error = string.Empty;
+            if (context == null
+                || context.ValidatePreflight == null
+                || context.ExportIncremental == null
+                || context.RefreshAssets == null
+                || string.IsNullOrWhiteSpace(context.TextOutputDirectory)
+                || string.IsNullOrWhiteSpace(context.TransactionParentDirectory)
+                || context.PublishedDirectories == null
+                || context.PublishedDirectories.Length != 4
+                || context.PublishedDirectories.Any(string.IsNullOrWhiteSpace))
+            {
+                error = "写回并导表的事务环境不完整；必须提供预检、导出、txt Output 与四个发布目录。";
+                return false;
+            }
+
             return true;
+        }
+
+        private static bool TryFailAndRestorePublishedState(
+            PublishedStateSnapshot stateSnapshot,
+            string failure,
+            Action refreshAssets,
+            ref bool sourceSavedOutputStale,
+            out string error)
+        {
+            bool restored = stateSnapshot.TryRestore(out string restoreError);
+            sourceSavedOutputStale = !restored;
+            if (restored)
+            {
+                string refreshWarning = TryRefreshAssetsAfterRecovery(refreshAssets);
+                error =
+                    $"{failure}；源 Excel、源仓 Output、运行时 Output、GeneratedTables " +
+                    "与 GeneratedConfig 已从同一写前快照完整恢复。" +
+                    refreshWarning;
+            }
+            else
+            {
+                error =
+                    $"SourceSavedOutputStale：{failure}；完整状态自动恢复失败。 " +
+                    $"restoreError={restoreError}";
+            }
+
+            return false;
+        }
+
+        private static string TryRefreshAssetsAfterRecovery(Action refreshAssets)
+        {
+            try
+            {
+                refreshAssets?.Invoke();
+                return string.Empty;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "[BattleSmallAreaWorkbookBridge] 文件状态已完整恢复，但 AssetDatabase.Refresh 失败；" +
+                    $"请回到 Unity 后手动 Refresh。\n{exception}");
+                return $" 文件状态已恢复，但 Unity 资源刷新失败：{exception.Message}";
+            }
+        }
+
+        private static bool TryRestoreWorkbookFromBackup(
+            string workbookPath,
+            string backupPath,
+            out string error)
+        {
+            error = string.Empty;
+            string restorePath = string.IsNullOrWhiteSpace(workbookPath)
+                ? string.Empty
+                : workbookPath + $".{Guid.NewGuid():N}.restore.tmp";
+            try
+            {
+                if (string.IsNullOrWhiteSpace(workbookPath)
+                    || string.IsNullOrWhiteSpace(backupPath)
+                    || !File.Exists(backupPath))
+                {
+                    error = "源 Excel 写前备份不存在。";
+                    return false;
+                }
+
+                File.Copy(backupPath, restorePath, true);
+                if (File.Exists(workbookPath))
+                {
+                    File.Replace(restorePath, workbookPath, null, true);
+                }
+                else
+                {
+                    File.Move(restorePath, workbookPath);
+                }
+
+                restorePath = string.Empty;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = exception.Message;
+                return false;
+            }
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(restorePath)
+                    && File.Exists(restorePath))
+                {
+                    try
+                    {
+                        File.Delete(restorePath);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        private sealed class PublishedStateSnapshot : IDisposable
+        {
+            private sealed class Entry
+            {
+                public string Label;
+                public string TargetPath;
+                public string SnapshotPath;
+                public string FailedNewPath;
+                public bool IsDirectory;
+                public bool HadOriginal;
+                public bool CurrentMoved;
+                public bool OriginalMoved;
+            }
+
+            private readonly string transactionParent;
+            private readonly string transactionRoot;
+            private readonly List<Entry> entries = new List<Entry>();
+            private bool preserveForRecovery;
+            private bool cleaned;
+
+            private PublishedStateSnapshot(
+                string transactionParent,
+                string transactionRoot)
+            {
+                this.transactionParent = transactionParent;
+                this.transactionRoot = transactionRoot;
+            }
+
+            public static bool TryCapture(
+                string workbookPath,
+                IReadOnlyList<string> publishedDirectories,
+                string transactionParent,
+                out PublishedStateSnapshot snapshot,
+                out string error)
+            {
+                snapshot = null;
+                error = string.Empty;
+                string root = string.Empty;
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(workbookPath)
+                        || !File.Exists(workbookPath))
+                    {
+                        throw new FileNotFoundException(
+                            "写前状态快照找不到源 Excel。",
+                            workbookPath);
+                    }
+
+                    if (publishedDirectories == null
+                        || publishedDirectories.Count != 4)
+                    {
+                        throw new InvalidDataException(
+                            "写前状态快照必须覆盖四个 RefData 发布目录。");
+                    }
+
+                    string fullParent = Path.GetFullPath(transactionParent);
+                    Directory.CreateDirectory(fullParent);
+                    root = Path.Combine(
+                        fullParent,
+                        DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_" +
+                        Guid.NewGuid().ToString("N"));
+                    Directory.CreateDirectory(root);
+
+                    PublishedStateSnapshot candidate =
+                        new PublishedStateSnapshot(fullParent, root);
+                    candidate.AddEntry("SourceWorkbook", workbookPath, false, 0);
+                    HashSet<string> uniqueTargets = new HashSet<string>(
+                        StringComparer.OrdinalIgnoreCase)
+                    {
+                        Path.GetFullPath(workbookPath),
+                    };
+                    for (int index = 0; index < publishedDirectories.Count; index++)
+                    {
+                        string target = publishedDirectories[index];
+                        if (string.IsNullOrWhiteSpace(target))
+                        {
+                            throw new InvalidDataException(
+                                $"RefData 发布目录路径为空：index={index}。");
+                        }
+
+                        string fullTarget = Path.GetFullPath(target);
+                        if (!uniqueTargets.Add(fullTarget))
+                        {
+                            throw new InvalidDataException(
+                                $"写前状态快照包含重复目标：{fullTarget}。");
+                        }
+
+                        if (IsSameOrChild(fullParent, fullTarget)
+                            || IsSameOrChild(fullTarget, fullParent))
+                        {
+                            throw new InvalidDataException(
+                                "事务备份目录与正式发布目录不能互相包含：" +
+                                $"transactionParent={fullParent}, published={fullTarget}。");
+                        }
+
+                        candidate.AddEntry(
+                            "PublishedDirectory" + (index + 1),
+                            fullTarget,
+                            true,
+                            index + 1);
+                    }
+
+                    snapshot = candidate;
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    error = exception.Message;
+                    TryDeleteTransactionDirectory(root, transactionParent);
+                    return false;
+                }
+            }
+
+            public void Commit()
+            {
+                Cleanup();
+            }
+
+            public bool TryRestore(out string error)
+            {
+                error = string.Empty;
+                try
+                {
+                    ValidateSnapshotsBeforeRestore();
+                    for (int index = 0; index < entries.Count; index++)
+                    {
+                        Entry entry = entries[index];
+                        MoveCurrentToFailedNew(entry);
+                        MoveOriginalToTarget(entry);
+                    }
+
+                    Cleanup();
+                    return true;
+                }
+                catch (Exception restoreException)
+                {
+                    preserveForRecovery = true;
+                    bool undoSucceeded = TryUndoRestore(out string undoError);
+                    error =
+                        $"restore={restoreException.Message}; " +
+                        $"undoToPublishedState={undoSucceeded}; " +
+                        $"undoError={undoError}; transaction={transactionRoot}";
+                    return false;
+                }
+            }
+
+            public void Dispose()
+            {
+                if (!preserveForRecovery)
+                {
+                    Cleanup();
+                }
+            }
+
+            private void AddEntry(
+                string label,
+                string targetPath,
+                bool isDirectory,
+                int index)
+            {
+                string fullTarget = Path.GetFullPath(targetPath);
+                string snapshotPath = Path.Combine(
+                    transactionRoot,
+                    "original",
+                    index.ToString("00", CultureInfo.InvariantCulture));
+                string failedNewPath = Path.Combine(
+                    transactionRoot,
+                    "failed-new",
+                    index.ToString("00", CultureInfo.InvariantCulture));
+                bool fileExists = File.Exists(fullTarget);
+                bool directoryExists = Directory.Exists(fullTarget);
+                if (isDirectory && fileExists)
+                {
+                    throw new IOException(
+                        $"发布目录路径被同名文件占用：{fullTarget}。");
+                }
+
+                if (!isDirectory && directoryExists)
+                {
+                    throw new IOException(
+                        $"源 Excel 路径被同名目录占用：{fullTarget}。");
+                }
+
+                bool hadOriginal = isDirectory ? directoryExists : fileExists;
+                if (hadOriginal)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(snapshotPath));
+                    if (isDirectory)
+                    {
+                        CopyDirectorySnapshot(fullTarget, snapshotPath);
+                    }
+                    else
+                    {
+                        File.Copy(fullTarget, snapshotPath, false);
+                    }
+                }
+
+                entries.Add(new Entry
+                {
+                    Label = label,
+                    TargetPath = fullTarget,
+                    SnapshotPath = snapshotPath,
+                    FailedNewPath = failedNewPath,
+                    IsDirectory = isDirectory,
+                    HadOriginal = hadOriginal,
+                });
+            }
+
+            private void ValidateSnapshotsBeforeRestore()
+            {
+                for (int index = 0; index < entries.Count; index++)
+                {
+                    Entry entry = entries[index];
+                    bool exists = entry.IsDirectory
+                        ? Directory.Exists(entry.SnapshotPath)
+                        : File.Exists(entry.SnapshotPath);
+                    if (entry.HadOriginal && !exists)
+                    {
+                        throw new IOException(
+                            $"恢复所需写前快照不存在：label={entry.Label}, " +
+                            $"snapshot={entry.SnapshotPath}。");
+                    }
+                }
+            }
+
+            private static void MoveCurrentToFailedNew(Entry entry)
+            {
+                bool currentExists = entry.IsDirectory
+                    ? Directory.Exists(entry.TargetPath)
+                    : File.Exists(entry.TargetPath);
+                bool wrongKindExists = entry.IsDirectory
+                    ? File.Exists(entry.TargetPath)
+                    : Directory.Exists(entry.TargetPath);
+                if (wrongKindExists)
+                {
+                    throw new IOException(
+                        $"恢复目标类型发生变化：label={entry.Label}, target={entry.TargetPath}。");
+                }
+
+                if (!currentExists)
+                {
+                    return;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(entry.FailedNewPath));
+                MovePath(entry.TargetPath, entry.FailedNewPath, entry.IsDirectory);
+                entry.CurrentMoved = true;
+            }
+
+            private static void MoveOriginalToTarget(Entry entry)
+            {
+                if (!entry.HadOriginal)
+                {
+                    return;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(entry.TargetPath));
+                MovePath(entry.SnapshotPath, entry.TargetPath, entry.IsDirectory);
+                entry.OriginalMoved = true;
+            }
+
+            private bool TryUndoRestore(out string error)
+            {
+                List<string> failures = new List<string>();
+                for (int index = entries.Count - 1; index >= 0; index--)
+                {
+                    Entry entry = entries[index];
+                    try
+                    {
+                        if (entry.OriginalMoved)
+                        {
+                            Directory.CreateDirectory(
+                                Path.GetDirectoryName(entry.SnapshotPath));
+                            MovePath(
+                                entry.TargetPath,
+                                entry.SnapshotPath,
+                                entry.IsDirectory);
+                            entry.OriginalMoved = false;
+                        }
+
+                        if (entry.CurrentMoved)
+                        {
+                            Directory.CreateDirectory(
+                                Path.GetDirectoryName(entry.TargetPath));
+                            MovePath(
+                                entry.FailedNewPath,
+                                entry.TargetPath,
+                                entry.IsDirectory);
+                            entry.CurrentMoved = false;
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        failures.Add($"{entry.Label}: {exception.Message}");
+                    }
+                }
+
+                error = string.Join(" | ", failures);
+                return failures.Count == 0;
+            }
+
+            private void Cleanup()
+            {
+                if (cleaned)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (Directory.Exists(transactionRoot))
+                    {
+                        if (!IsStrictChild(transactionRoot, transactionParent))
+                        {
+                            throw new InvalidOperationException(
+                                "拒绝清理越界的 WorkbookBridge 事务目录：" +
+                                transactionRoot);
+                        }
+
+                        Directory.Delete(transactionRoot, true);
+                    }
+
+                    cleaned = true;
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogWarning(
+                        "[BattleSmallAreaWorkbookBridge] 状态事务已经结束，但临时目录清理失败：" +
+                        $"path={transactionRoot}\n{exception}");
+                }
+            }
+
+            private static void MovePath(
+                string source,
+                string destination,
+                bool isDirectory)
+            {
+                if (File.Exists(destination) || Directory.Exists(destination))
+                {
+                    throw new IOException($"事务移动目标已存在：{destination}。");
+                }
+
+                if (isDirectory)
+                {
+                    Directory.Move(source, destination);
+                }
+                else
+                {
+                    File.Move(source, destination);
+                }
+            }
+
+            private static void CopyDirectorySnapshot(
+                string source,
+                string destination)
+            {
+                DirectoryInfo sourceInfo = new DirectoryInfo(source);
+                if ((sourceInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new IOException(
+                        $"拒绝快照符号链接或目录联接：{source}。");
+                }
+
+                Directory.CreateDirectory(destination);
+                FileInfo[] files = sourceInfo.GetFiles();
+                for (int index = 0; index < files.Length; index++)
+                {
+                    FileInfo file = files[index];
+                    if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        throw new IOException(
+                            $"拒绝快照符号链接文件：{file.FullName}。");
+                    }
+
+                    file.CopyTo(Path.Combine(destination, file.Name), false);
+                }
+
+                DirectoryInfo[] directories = sourceInfo.GetDirectories();
+                for (int index = 0; index < directories.Length; index++)
+                {
+                    DirectoryInfo directory = directories[index];
+                    CopyDirectorySnapshot(
+                        directory.FullName,
+                        Path.Combine(destination, directory.Name));
+                }
+            }
+
+            private static bool IsSameOrChild(string path, string parent)
+            {
+                string fullPath = Path.GetFullPath(path)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string fullParent = Path.GetFullPath(parent)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return string.Equals(
+                        fullPath,
+                        fullParent,
+                        StringComparison.OrdinalIgnoreCase)
+                    || fullPath.StartsWith(
+                        fullParent + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase);
+            }
+
+            private static bool IsStrictChild(string path, string parent)
+            {
+                string fullPath = Path.GetFullPath(path)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string fullParent = Path.GetFullPath(parent)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return fullPath.StartsWith(
+                    fullParent + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            private static void TryDeleteTransactionDirectory(
+                string path,
+                string parent)
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(path)
+                        && Directory.Exists(path)
+                        && IsStrictChild(path, parent))
+                    {
+                        Directory.Delete(path, true);
+                    }
+                }
+                catch
+                {
+                }
+            }
         }
 
         private static WorkbookData ReadWorkbook(string path)
@@ -606,6 +1334,96 @@ namespace Game.EditorTools
             }
         }
 
+        private static void ValidateWorkbookRowIdsUnique(
+            WorkbookData workbook,
+            IReadOnlyDictionary<int, ParsedTemplateRows> replacements)
+        {
+            HashSet<int> replacedAreaIds = replacements == null
+                ? new HashSet<int>()
+                : new HashSet<int>(replacements.Keys);
+            for (int sheetIndex = 0; sheetIndex < EditableSheets.Length; sheetIndex++)
+            {
+                string sheetName = EditableSheets[sheetIndex];
+                SheetData sheet = workbook.Sheets[sheetName];
+                int ownerColumn = sheetName == "BattleSmallArea" ? 0 : 1;
+                Dictionary<int, int> ownersByRowId = new Dictionary<int, int>();
+
+                for (int rowIndex = 4; rowIndex < sheet.Rows.Count; rowIndex++)
+                {
+                    string[] row = sheet.Rows[rowIndex];
+                    if (string.IsNullOrWhiteSpace(Cell(row, 0))
+                        && string.IsNullOrWhiteSpace(Cell(row, ownerColumn)))
+                    {
+                        continue;
+                    }
+
+                    if (!TryParseInt(Cell(row, ownerColumn), out int ownerId))
+                    {
+                        throw new InvalidDataException(
+                            $"全工作簿 rowId 校验发现非法 owner：sheet={sheetName}, " +
+                            $"row={rowIndex + 1}, value={Cell(row, ownerColumn)}。");
+                    }
+
+                    if (replacedAreaIds.Contains(ownerId))
+                    {
+                        continue;
+                    }
+
+                    AddWorkbookRowId(
+                        sheetName,
+                        rowIndex + 1,
+                        row,
+                        ownerId,
+                        ownersByRowId);
+                }
+
+                if (replacements == null)
+                {
+                    continue;
+                }
+
+                foreach (KeyValuePair<int, ParsedTemplateRows> replacement
+                    in replacements.OrderBy(value => value.Key))
+                {
+                    List<string[]> rows = replacement.Value.Rows[sheetName];
+                    for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+                    {
+                        AddWorkbookRowId(
+                            sheetName,
+                            rowIndex + 1,
+                            rows[rowIndex],
+                            replacement.Key,
+                            ownersByRowId);
+                    }
+                }
+            }
+        }
+
+        private static void AddWorkbookRowId(
+            string sheetName,
+            int rowNumber,
+            IReadOnlyList<string> row,
+            int ownerId,
+            IDictionary<int, int> ownersByRowId)
+        {
+            if (!TryParseInt(Cell(row, 0), out int rowId) || rowId <= 0)
+            {
+                throw new InvalidDataException(
+                    $"全工作簿 rowId 校验发现非法 ID：sheet={sheetName}, " +
+                    $"row={rowNumber}, owner={ownerId}, value={Cell(row, 0)}。");
+            }
+
+            if (ownersByRowId.TryGetValue(rowId, out int firstOwnerId))
+            {
+                throw new InvalidDataException(
+                    $"全工作簿 rowId 冲突：sheet={sheetName}, rowId={rowId}, " +
+                    $"firstArea={firstOwnerId}, secondArea={ownerId}。" +
+                    "rowId 必须在同一正式 Sheet 的全部 SmallArea 模板间唯一。");
+            }
+
+            ownersByRowId.Add(rowId, ownerId);
+        }
+
         private static void ValidateCrossReferences(
             WorkbookData workbook,
             IReadOnlyDictionary<string, List<string[]>> replacement)
@@ -795,15 +1613,22 @@ namespace Game.EditorTools
             return trimmed;
         }
 
-        private static bool TryValidateExportedTemplates(
+        internal static bool TryValidateExportedTemplates(
             IReadOnlyDictionary<int, string> expectedTemplates,
+            string txtDirectory,
             out string error)
         {
             error = string.Empty;
-            string txtDirectory = Path.Combine(
-                TryGameRefDataPaths.ToFullPath(
-                    TryGameRefDataPaths.DefaultOutputAssetPath),
-                "txt_data");
+            if (expectedTemplates == null
+                || expectedTemplates.Count == 0
+                || string.IsNullOrWhiteSpace(txtDirectory))
+            {
+                error = "Output 回读校验缺少预期模板或 txt_data 目录。";
+                return false;
+            }
+
+            Dictionary<string, string[]> exportedHeaders =
+                new Dictionary<string, string[]>(StringComparer.Ordinal);
             Dictionary<string, List<string[]>> exported =
                 new Dictionary<string, List<string[]>>(StringComparer.Ordinal);
             for (int sheetIndex = 0; sheetIndex < EditableSheets.Length; sheetIndex++)
@@ -816,11 +1641,46 @@ namespace Game.EditorTools
                     return false;
                 }
 
-                string[] lines = File.ReadAllLines(path, Encoding.UTF8);
+                string[] lines;
+                try
+                {
+                    lines = File.ReadAllLines(path, Encoding.UTF8);
+                }
+                catch (Exception exception)
+                {
+                    error = $"读取导出结果 {sheetName}.txt 失败：{exception.Message}";
+                    return false;
+                }
+
                 if (lines.Length < 4)
                 {
                     error = $"导出结果 {sheetName}.txt 少于四行表头。";
                     return false;
+                }
+
+                string[] fieldHeader = SplitCltabtoyHeader(lines[0]);
+                if (fieldHeader.Length == 0
+                    || fieldHeader.Any(string.IsNullOrWhiteSpace)
+                    || fieldHeader.Distinct(StringComparer.Ordinal).Count()
+                        != fieldHeader.Length)
+                {
+                    error = $"导出结果 {sheetName}.txt 的字段名表头为空、重名或含空字段。";
+                    return false;
+                }
+
+                for (int headerLine = 0; headerLine < 4; headerLine++)
+                {
+                    if (!TrySplitCltabtoyLine(
+                            lines[headerLine],
+                            fieldHeader.Length,
+                            out _,
+                            out int actualColumns))
+                    {
+                        error =
+                            $"导出结果 {sheetName}.txt 第 {headerLine + 1} 行表头列数错误：" +
+                            $"expected={fieldHeader.Length}, actual={actualColumns}。";
+                        return false;
+                    }
                 }
 
                 List<string[]> rows = new List<string[]>();
@@ -828,20 +1688,52 @@ namespace Game.EditorTools
                 {
                     if (!string.IsNullOrWhiteSpace(lines[lineIndex]))
                     {
-                        rows.Add(lines[lineIndex].Split('\t'));
+                        if (!TrySplitCltabtoyLine(
+                                lines[lineIndex],
+                                fieldHeader.Length,
+                                out string[] row,
+                                out int actualColumns))
+                        {
+                            error =
+                                $"导出结果 {sheetName}.txt 第 {lineIndex + 1} 行数据列数错误：" +
+                                $"expected={fieldHeader.Length}, actual={actualColumns}。";
+                            return false;
+                        }
+
+                        rows.Add(row);
                     }
                 }
+                exportedHeaders.Add(sheetName, fieldHeader);
                 exported.Add(sheetName, rows);
             }
 
             foreach (KeyValuePair<int, string> expectedTemplate in expectedTemplates)
             {
+                ParsedTemplateRows expectedRows = ParseSectionRows(
+                    expectedTemplate.Value);
                 StringBuilder actualText = new StringBuilder(4096);
                 for (int sheetIndex = 0; sheetIndex < EditableSheets.Length; sheetIndex++)
                 {
                     string sheetName = EditableSheets[sheetIndex];
+                    if (!expectedRows.Headers.TryGetValue(
+                            sheetName,
+                            out string[] expectedHeader)
+                        || !RowsExactlyEqual(
+                            expectedHeader,
+                            exportedHeaders[sheetName]))
+                    {
+                        error =
+                            $"导出结果字段头与源模板不一致：smallAreaId={expectedTemplate.Key}, " +
+                            $"sheet={sheetName}, " +
+                            $"expected=[{string.Join(", ", expectedHeader ?? Array.Empty<string>())}], " +
+                            $"actual=[{string.Join(", ", exportedHeaders[sheetName])}]。";
+                        return false;
+                    }
+
                     actualText.Append('[').Append(sheetName).AppendLine("]");
-                    actualText.AppendLine("header");
+                    actualText.AppendLine(string.Join(
+                        "\t",
+                        exportedHeaders[sheetName]));
                     int ownerColumn = sheetName == "BattleSmallArea" ? 0 : 1;
                     List<string[]> rows = exported[sheetName];
                     for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -868,46 +1760,56 @@ namespace Game.EditorTools
             return true;
         }
 
-        private static bool TryRestoreWorkbookFromBackup(
-            string workbookPath,
-            string backupPath,
-            out string error)
+        private static string[] SplitCltabtoyHeader(string line)
         {
-            error = string.Empty;
-            string restorePath = workbookPath + $".{Guid.NewGuid():N}.restore.tmp";
-            try
+            string[] values = (line ?? string.Empty).Split(
+                new[] { '\t' },
+                StringSplitOptions.None);
+            int length = values.Length;
+            // cltabtoy 的每一行固定以一个制表符收尾；最后一个 Split 空项是
+            // 行终止符，不是业务列。只移除这一个，避免把“缺少末列”的坏行
+            // 误当成末列为空的合法行。
+            if (length > 0 && values[length - 1].Length == 0)
             {
-                if (!File.Exists(workbookPath) || !File.Exists(backupPath))
-                {
-                    error = "正式工作簿或写前备份不存在。";
-                    return false;
-                }
-
-                File.Copy(backupPath, restorePath, true);
-                File.Replace(restorePath, workbookPath, null, true);
-                restorePath = string.Empty;
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                return true;
+                length--;
             }
-            catch (Exception exception)
+
+            if (length == values.Length)
             {
-                error = exception.Message;
+                return values;
+            }
+
+            Array.Resize(ref values, length);
+            return values;
+        }
+
+        private static bool TrySplitCltabtoyLine(
+            string line,
+            int expectedColumns,
+            out string[] values,
+            out int actualColumns)
+        {
+            values = (line ?? string.Empty).Split(
+                new[] { '\t' },
+                StringSplitOptions.None);
+            int length = values.Length;
+            if (length > 0 && values[length - 1].Length == 0)
+            {
+                length--;
+            }
+
+            actualColumns = length;
+            if (length != expectedColumns)
+            {
                 return false;
             }
-            finally
+
+            if (values.Length != length)
             {
-                if (!string.IsNullOrWhiteSpace(restorePath)
-                    && File.Exists(restorePath))
-                {
-                    try
-                    {
-                        File.Delete(restorePath);
-                    }
-                    catch
-                    {
-                    }
-                }
+                Array.Resize(ref values, length);
             }
+
+            return true;
         }
 
         private static int LastMeaningfulColumn(IReadOnlyList<string> row)
