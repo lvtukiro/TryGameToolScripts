@@ -55,7 +55,7 @@ namespace Game.EditorTools
             6011, 6012, 6013,
             6021, 6022, 6023,
             6101, 6102, 6103, 6104, 6105, 6106, 6107,
-            6201, 6202, 6203,
+            6201, 6202, 6203, 6204,
             6301, 6302, 6303,
             6401, 6402,
             6501, 6502,
@@ -238,7 +238,7 @@ namespace Game.EditorTools
             Color accent = Palette(resourceId, 1);
             Color dark = Color.Lerp(baseColor, Color.black, 0.62f);
             bool transparent = resourceId >= 6011 && resourceId < 6100
-                || resourceId >= 6202;
+                || resourceId >= 6202 && resourceId != 6204;
             Fill(pixels, transparent ? new Color(0f, 0f, 0f, 0f) : dark);
 
             if (resourceId >= 6101 && resourceId <= 6107)
@@ -256,6 +256,10 @@ namespace Game.EditorTools
             else if (resourceId == 6203)
             {
                 DrawDoor(pixels, width, height, baseColor, accent);
+            }
+            else if (resourceId == 6204)
+            {
+                DrawFloorFillTile(pixels, width, height, baseColor, accent);
             }
             else if (resourceId >= 6301 && resourceId <= 6303)
             {
@@ -314,6 +318,27 @@ namespace Game.EditorTools
             DrawRect(p, w, h, 0, 0, w, 5, Color.Lerp(baseColor, Color.black, 0.72f));
             for (int x = 12; x < w; x += 28) DrawCircle(p, w, h, x, h / 2, 3, accent);
             DrawRect(p, w, h, w / 2 - 2, 0, 4, h, Color.Lerp(baseColor, Color.black, 0.55f));
+        }
+
+        private static void DrawFloorFillTile(
+            Color32[] p,
+            int w,
+            int h,
+            Color baseColor,
+            Color accent)
+        {
+            Color soil = Color.Lerp(baseColor, Color.black, 0.46f);
+            Color darkSoil = Color.Lerp(baseColor, Color.black, 0.64f);
+            Fill(p, soil);
+            for (int y = 14; y < h; y += 31)
+            {
+                int offset = (y / 31 & 1) == 0 ? 13 : 29;
+                for (int x = offset; x < w; x += 37)
+                {
+                    DrawCircle(p, w, h, x, y, 3, darkSoil);
+                    DrawRect(p, w, h, x + 5, y - 1, 8, 2, accent);
+                }
+            }
         }
 
         private static void DrawLadder(Color32[] p, int w, int h, Color baseColor, Color accent)
@@ -426,9 +451,10 @@ namespace Game.EditorTools
 
         private static void ResolveTextureSize(int id, out int width, out int height)
         {
-            if (id >= 6101 && id <= 6107) { width = 960; height = 540; }
+            if (id >= 6101 && id <= 6107) { width = 1920; height = 1080; }
             else if (id == 6201) { width = 128; height = 64; }
-            else if (id == 6202) { width = 64; height = 128; }
+            else if (id == 6202) { width = 128; height = 128; }
+            else if (id == 6204) { width = 128; height = 128; }
             else if (id == 6203 || id == 6401 || id == 6402) { width = 128; height = 192; }
             else if (id == 6502) { width = 192; height = 192; }
             else if (id == 6001 || id == 6002) { width = 512; height = 288; }
@@ -439,7 +465,7 @@ namespace Game.EditorTools
         {
             TextureImporter importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
             if (importer == null) throw new InvalidOperationException($"Sprite importer missing: {assetPath}");
-            bool tiled = resourceId == 6201 || resourceId == 6202;
+            bool tiled = resourceId == 6201 || resourceId == 6202 || resourceId == 6204;
             importer.textureType = TextureImporterType.Sprite;
             importer.spriteImportMode = SpriteImportMode.Single;
             importer.alphaIsTransparency = true;
