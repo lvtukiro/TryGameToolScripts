@@ -29,7 +29,7 @@ namespace Game.EditorTools
         private const string SpriteRoot =
             "Assets/Resources/TryGameBuildRes/gui/sprite";
         private const string SceneMarker = "__BattleWorldZoneShell_v2_0g";
-        private const string UiMarker = "__BattleWorldZoneUi_v2_0g_6";
+        private const string UiMarker = "__BattleWorldZoneUi_v2_0h_skill_bar_2";
         private const string AreaMapUiMarker = "__BattleWorldZoneAreaMapUi_v2_0g_1";
 
         private const string ScenePresentationType =
@@ -37,6 +37,8 @@ namespace Game.EditorTools
         private const string SceneRuntimeType =
             "Game.BattleWorldZoneSceneRuntime";
         private const string UiMonoType = "Game.GUIMonoBattleWorldZone";
+        private const string SkillHudSlotType =
+            "Game.BattleWorldZoneSkillHudSlot";
         private const string MinimapViewType =
             "Game.BattleWorldZoneMinimapView";
         private const string AreaMapUiMonoType =
@@ -66,6 +68,7 @@ namespace Game.EditorTools
             ScenePresentationType,
             SceneRuntimeType,
             UiMonoType,
+            SkillHudSlotType,
             MinimapViewType,
             AreaMapUiMonoType,
             AreaMapViewType,
@@ -763,11 +766,146 @@ namespace Game.EditorTools
                     "legendText",
                     minimapLegend);
 
-                GameObject hintPanel = BattlePreparationEditorUiFactory.AddPanel(
-                    "InteractionHintPanel", root.transform, new Color(0.025f, 0.05f, 0.08f, 0.88f), false);
-                BattlePreparationEditorUiFactory.Place(hintPanel.GetComponent<RectTransform>(), new Vector2(0.5f, 0.035f), new Vector2(0.5f, 0f), Vector2.zero, new Vector2(760f, 54f));
+                GameObject combatStatusPanel = BattlePreparationEditorUiFactory.AddPanel(
+                    "CombatStatusPanel",
+                    root.transform,
+                    new Color(0.015f, 0.025f, 0.045f, 0.94f),
+                    false);
+                BattlePreparationEditorUiFactory.Place(
+                    combatStatusPanel.GetComponent<RectTransform>(),
+                    new Vector2(0.5f, 0.034f),
+                    new Vector2(0.5f, 0f),
+                    Vector2.zero,
+                    new Vector2(760f, 70f));
+                CombatStatusBarParts healthBar = AddCombatStatusBar(
+                    "HealthBar",
+                    combatStatusPanel.transform,
+                    new Vector2(0.25f, 0.5f),
+                    new Color(0.88f, 0.12f, 0.14f, 1f),
+                    "HP  100 / 100");
+                CombatStatusBarParts manaBar = AddCombatStatusBar(
+                    "ManaBar",
+                    combatStatusPanel.transform,
+                    new Vector2(0.75f, 0.5f),
+                    new Color(0.08f, 0.38f, 0.94f, 1f),
+                    "MP  100 / 100");
+
+                GameObject skillBar = BattlePreparationEditorUiFactory.AddPanel(
+                    "SkillBar",
+                    root.transform,
+                    new Color(0.025f, 0.05f, 0.08f, 0.94f),
+                    false);
+                BattlePreparationEditorUiFactory.Place(
+                    skillBar.GetComponent<RectTransform>(),
+                    new Vector2(0.5f, 0.115f),
+                    new Vector2(0.5f, 0f),
+                    Vector2.zero,
+                    new Vector2(760f, 72f));
+                GameObject hintPanel = skillBar;
                 Text hint = BattlePreparationEditorUiFactory.AddTextChild(
                     "InteractionHint", hintPanel.transform, "靠近传送门按 E / ↑", 20, TextAnchor.MiddleCenter, new Color(0.66f, 0.95f, 1f, 1f), 12f);
+
+                if (hint != null)
+                {
+                    hint.gameObject.SetActive(false);
+                }
+                GameObject skillGridObject =
+                    BattlePreparationEditorUiFactory.NewUiObject(
+                        "Slots",
+                        skillBar.transform);
+                BattlePreparationEditorUiFactory.Stretch(
+                    skillGridObject.GetComponent<RectTransform>(),
+                    8f);
+                GridLayoutGroup skillGrid = skillGridObject.AddComponent<GridLayoutGroup>();
+                skillGrid.cellSize = new Vector2(116f, 56f);
+                skillGrid.spacing = new Vector2(6f, 0f);
+                skillGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                skillGrid.constraintCount = 6;
+                skillGrid.childAlignment = TextAnchor.MiddleCenter;
+                string[] skillKeys = { "S", "D", "Q", "W", "E", "R" };
+                for (int slotIndex = 1; slotIndex <= skillKeys.Length; slotIndex++)
+                {
+                    GameObject slot = BattlePreparationEditorUiFactory.NewUiObject(
+                        $"SkillSlot{slotIndex}",
+                        skillGridObject.transform);
+                    BattlePreparationEditorUiFactory.AddImage(
+                        slot,
+                        new Color(0.055f, 0.08f, 0.12f, 1f),
+                        null,
+                        false);
+
+                    GameObject selection = BattlePreparationEditorUiFactory.NewUiObject(
+                        "Selected",
+                        slot.transform);
+                    BattlePreparationEditorUiFactory.Stretch(
+                        selection.GetComponent<RectTransform>(),
+                        2f);
+                    BattlePreparationEditorUiFactory.AddImage(
+                        selection,
+                        new Color(0.18f, 0.82f, 1f, 0.28f),
+                        null,
+                        false);
+                    selection.SetActive(false);
+
+                    GameObject iconObject = BattlePreparationEditorUiFactory.NewUiObject(
+                        "Icon",
+                        slot.transform);
+                    BattlePreparationEditorUiFactory.SetRect(
+                        iconObject.GetComponent<RectTransform>(),
+                        new Vector2(0.2f, 0.12f),
+                        new Vector2(0.8f, 0.88f),
+                        Vector2.zero,
+                        Vector2.zero);
+                    Image icon = BattlePreparationEditorUiFactory.AddImage(
+                        iconObject,
+                        Color.white,
+                        null,
+                        false,
+                        true);
+                    icon.enabled = false;
+
+                    Text key = BattlePreparationEditorUiFactory.AddTextChild(
+                        "Key",
+                        slot.transform,
+                        skillKeys[slotIndex - 1],
+                        14,
+                        TextAnchor.UpperLeft,
+                        new Color(0.72f, 0.84f, 0.92f, 1f),
+                        5f);
+                    Text cooldown = BattlePreparationEditorUiFactory.AddTextChild(
+                        "Cooldown",
+                        slot.transform,
+                        string.Empty,
+                        23,
+                        TextAnchor.MiddleCenter,
+                        Color.white,
+                        0f);
+                    cooldown.gameObject.SetActive(false);
+
+                    Component slotView = BattlePreparationEditorUiFactory.AddRuntimeComponent(
+                        slot,
+                        SkillHudSlotType);
+                    BattlePreparationEditorUiFactory.SetInt(
+                        slotView,
+                        "SlotIndex",
+                        slotIndex);
+                    BattlePreparationEditorUiFactory.SetObject(
+                        slotView,
+                        "selectionRoot",
+                        selection);
+                    BattlePreparationEditorUiFactory.SetObject(
+                        slotView,
+                        "iconImage",
+                        icon);
+                    BattlePreparationEditorUiFactory.SetObject(
+                        slotView,
+                        "keyText",
+                        key);
+                    BattlePreparationEditorUiFactory.SetObject(
+                        slotView,
+                        "cooldownText",
+                        cooldown);
+                }
 
                 BattlePreparationEditorUiFactory.SetObject(mono, "titleText", title);
                 BattlePreparationEditorUiFactory.SetObject(mono, "currentAreaText", area);
@@ -775,12 +913,19 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(mono, "minimapView", minimapView);
                 BattlePreparationEditorUiFactory.SetObject(mono, "mapStatisticsPanelRoot", statsPanel);
                 BattlePreparationEditorUiFactory.SetObject(mono, "mapStatisticsText", stats);
-                BattlePreparationEditorUiFactory.SetObject(mono, "interactionHintPanelRoot", hintPanel);
-                BattlePreparationEditorUiFactory.SetObject(mono, "interactionHintText", hint);
+                BattlePreparationEditorUiFactory.SetObject(mono, "interactionHintPanelRoot", null);
+                BattlePreparationEditorUiFactory.SetObject(mono, "interactionHintText", null);
+                BattlePreparationEditorUiFactory.SetObject(mono, "skillBarRoot", skillBar);
                 BattlePreparationEditorUiFactory.SetObject(mono, "settingsButton", settings.Button);
                 BattlePreparationEditorUiFactory.SetObject(mono, "settingsButtonText", settings.Text);
                 BattlePreparationEditorUiFactory.SetObject(mono, "manualSaveButton", manualSave.Button);
                 BattlePreparationEditorUiFactory.SetObject(mono, "manualSaveButtonText", manualSave.Text);
+                BattlePreparationEditorUiFactory.SetObject(mono, "combatStatusPanelRoot", combatStatusPanel);
+                BattlePreparationEditorUiFactory.SetObject(mono, "healthBarFillImage", healthBar.Fill);
+                BattlePreparationEditorUiFactory.SetObject(mono, "healthValueText", healthBar.ValueText);
+                BattlePreparationEditorUiFactory.SetObject(mono, "manaBarFillImage", manaBar.Fill);
+                BattlePreparationEditorUiFactory.SetObject(mono, "manaValueText", manaBar.ValueText);
+                combatStatusPanel.SetActive(false);
                 BattlePreparationEditorUiFactory.AddBuilderMarker(root, UiMarker);
                 BattlePreparationEditorUiFactory.SavePrefab(root, UiPrefabPath);
             }
@@ -1134,6 +1279,71 @@ namespace Game.EditorTools
             return BattlePreparationEditorUiFactory.AddText(objectValue, value, fontSize, TextAnchor.MiddleLeft);
         }
 
+        private static CombatStatusBarParts AddCombatStatusBar(
+            string name,
+            Transform parent,
+            Vector2 anchor,
+            Color fillColor,
+            string previewValue)
+        {
+            GameObject track = BattlePreparationEditorUiFactory.NewUiObject(name, parent);
+            BattlePreparationEditorUiFactory.Place(
+                track.GetComponent<RectTransform>(),
+                anchor,
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(350f, 38f));
+            Sprite sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>(
+                "UI/Skin/UISprite.psd");
+            BattlePreparationEditorUiFactory.AddImage(
+                track,
+                new Color(0.075f, 0.085f, 0.105f, 1f),
+                sprite,
+                false);
+
+            GameObject fillObject = BattlePreparationEditorUiFactory.NewUiObject(
+                "Fill",
+                track.transform);
+            BattlePreparationEditorUiFactory.SetRect(
+                fillObject.GetComponent<RectTransform>(),
+                Vector2.zero,
+                Vector2.one,
+                new Vector2(4f, 4f),
+                new Vector2(-4f, -4f));
+            Image fill = BattlePreparationEditorUiFactory.AddImage(
+                fillObject,
+                fillColor,
+                sprite,
+                false);
+            fill.type = Image.Type.Filled;
+            fill.fillMethod = Image.FillMethod.Horizontal;
+            fill.fillOrigin = (int)Image.OriginHorizontal.Left;
+            fill.fillAmount = 1f;
+
+            Text valueText = BattlePreparationEditorUiFactory.AddTextChild(
+                "Value",
+                track.transform,
+                previewValue,
+                20,
+                TextAnchor.MiddleCenter,
+                Color.white,
+                4f);
+            valueText.fontStyle = FontStyle.Bold;
+            return new CombatStatusBarParts(fill, valueText);
+        }
+
+        private readonly struct CombatStatusBarParts
+        {
+            public CombatStatusBarParts(Image fill, Text valueText)
+            {
+                Fill = fill;
+                ValueText = valueText;
+            }
+
+            public Image Fill { get; }
+            public Text ValueText { get; }
+        }
+
         private static void BindHomeSceneRuntime()
         {
             Scene previousActive = SceneManager.GetActiveScene();
@@ -1185,10 +1395,36 @@ namespace Game.EditorTools
                 if (presentation == null || BattlePreparationEditorUiFactory.FindRequiredProperty(presentation, sceneProperties[i]).objectReferenceValue == null)
                     throw new InvalidOperationException($"Battle scene binding missing: {sceneProperties[i]}");
             Component ui = uiPrefab.GetComponent(BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(UiMonoType));
-            string[] uiProperties = { "titleText", "currentAreaText", "minimapButton", "minimapView", "mapStatisticsPanelRoot", "mapStatisticsText", "interactionHintPanelRoot", "interactionHintText", "settingsButton", "settingsButtonText", "manualSaveButton", "manualSaveButtonText" };
+            string[] uiProperties = { "titleText", "currentAreaText", "minimapButton", "minimapView", "mapStatisticsPanelRoot", "mapStatisticsText", "skillBarRoot", "settingsButton", "settingsButtonText", "manualSaveButton", "manualSaveButtonText", "combatStatusPanelRoot", "healthBarFillImage", "healthValueText", "manaBarFillImage", "manaValueText" };
             for (int i = 0; i < uiProperties.Length; i++)
                 if (ui == null || BattlePreparationEditorUiFactory.FindRequiredProperty(ui, uiProperties[i]).objectReferenceValue == null)
                     throw new InvalidOperationException($"Battle HUD binding missing: {uiProperties[i]}");
+            Type skillSlotType = BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
+                SkillHudSlotType);
+            Component[] skillSlots = uiPrefab.GetComponentsInChildren(
+                skillSlotType,
+                true);
+            if (skillSlots == null || skillSlots.Length != 6)
+                throw new InvalidOperationException(
+                    $"Battle HUD must contain 6 serialized skill slots; actual=" +
+                    $"{skillSlots?.Length ?? 0}.");
+            string[] skillSlotProperties =
+            {
+                "selectionRoot",
+                "iconImage",
+                "keyText",
+                "cooldownText",
+            };
+            for (int slotIndex = 0; slotIndex < skillSlots.Length; slotIndex++)
+                for (int propertyIndex = 0;
+                     propertyIndex < skillSlotProperties.Length;
+                     propertyIndex++)
+                    if (BattlePreparationEditorUiFactory.FindRequiredProperty(
+                            skillSlots[slotIndex],
+                            skillSlotProperties[propertyIndex]).objectReferenceValue == null)
+                        throw new InvalidOperationException(
+                            $"Battle HUD skill slot {slotIndex + 1} binding missing: " +
+                            skillSlotProperties[propertyIndex]);
             Component minimap = BattlePreparationEditorUiFactory
                 .FindRequiredProperty(ui, "minimapView")
                 .objectReferenceValue as Component;
