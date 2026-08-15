@@ -101,3 +101,10 @@ BattleSkill  -> BattleConfig.GetSkill(id)
 5. 只有全部验证通过后，工具才会同时发布源输出、正式 bytes、生成表代码和 Config。
 6. 查看 Unity 日志末尾打印的三个仓库差异，再分别检查 Git diff。
 7. 业务代码只读 `PetConfig.GetBase(id)`、`GeneralConfig.Data.xxx`、`Lang.Get(key)`。
+
+## 2.0h / 2.0i 战斗配表记忆
+
+- 战斗代码直接读取正式生成的 `RefData.Battle*Table`，不再为 Generated C# 增加业务适配器。导表工具只负责事务性生成和发布，不能在导表后手改 Output、bytes、Manifest 或 GeneratedConfig。
+- 2.0h 已导出的效果/费用相关表包括 BattleOperationEffect、BattleDamageEffect、BattleHitReactionEffect、BattlePersistentEffect 和 Health/Mana/Resource 技能费用表；用户统一导出后，先看三仓库差异和 Unity 编译，再做 PlayMode 验收。
+- 以后 2.0i 的敌人/Boss runtime、死亡盒和搜刮物资池若需要新表，必须先写正式 Excel，新增/改名表使用“导出全部配表并生成入口”，不能靠临时测试配置替代正式表。
+- 显示类语言、图标缺项不应阻断整个导出；真正的 ID 引用断链仍由正式读取/运行时校验阻断。
