@@ -14,7 +14,7 @@ namespace Game.EditorTools
     {
         private const string PrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_loot.prefab";
-        private const string Marker = "__BattleLootUi_v2_0i_3_three_columns_skills";
+        private const string Marker = "__BattleLootUi_v2_0i_4_enemy_scroll_layout";
         private const string MonoType = "Game.GUIMonoBattleLoot";
         private const string ItemViewType = "Game.BattleLootItemView";
         private const string ContainerCellType =
@@ -212,73 +212,157 @@ namespace Game.EditorTools
                         "AvailableSkillTemplate");
                 availableSkillTemplate.gameObject.SetActive(false);
 
-                Text equipmentTitle = BattlePreparationEditorUiFactory.AddTextChild(
-                    "EquipmentTitle",
-                    panel.transform,
-                    "装备",
-                    21,
-                    TextAnchor.MiddleLeft,
-                    new Color(0.76f, 0.88f, 0.96f, 1f),
-                    10f);
+                // 右栏不再把装备和物资拆成两个独立区域，而是复制左栏、
+                // 中栏的布局顺序放进同一个纵向 ScrollRect。这样敌人装备多、
+                // 背包格多时，玩家只需拖动右栏即可查看完整内容。
+                BattlePreparationEditorUiFactory.ScrollParts rightScroll =
+                    BattlePreparationEditorUiFactory.AddVerticalScroll(
+                        "RightScroll",
+                        panel.transform,
+                        12f,
+                        new Vector4(8f, 8f, 8f, 8f),
+                        false,
+                        Vector2.zero,
+                        1);
+                // 右栏 Content 的子项是带 LayoutElement 的固定高度区段。
+                // AddVerticalScroll 为通用列表默认关闭 childControlHeight，
+                // 会让这些区段退回到零高度并全部叠在 Content 顶部；这里必须
+                // 让 VerticalLayoutGroup 读取每个区段的 preferredHeight。
+                VerticalLayoutGroup rightContentLayout =
+                    rightScroll.Content.GetComponent<VerticalLayoutGroup>();
+                if (rightContentLayout != null)
+                {
+                    rightContentLayout.childControlHeight = true;
+                    rightContentLayout.childForceExpandHeight = false;
+                }
                 BattlePreparationEditorUiFactory.SetRect(
-                    equipmentTitle.rectTransform,
-                    new Vector2(0.68f, 0.90f),
+                    rightScroll.ScrollRect.GetComponent<RectTransform>(),
+                    new Vector2(0.68f, 0.06f),
                     new Vector2(1f, 0.90f),
-                    new Vector2(10f, -24f),
-                    new Vector2(-20f, 24f));
+                    new Vector2(10f, 8f),
+                    new Vector2(-20f, -8f));
 
-                GameObject equipmentRootObject = CreateItemGridRoot(
-                    panel.transform,
-                    "EquipmentItems",
-                    new Vector2(0.68f, 0.61f),
-                    new Vector2(1f, 0.89f),
+                RectTransform rightEquipmentSection = CreateRightSection(
+                    rightScroll.Content,
+                    "RightEquipmentSection",
+                    "装备",
+                    420f);
+                RectTransform rightEquipmentRootObject =
+                    BattlePreparationEditorUiFactory.NewRect(
+                        "RightEquipmentSlots",
+                        rightEquipmentSection,
+                        new Vector2(0.02f, 0.02f),
+                        new Vector2(0.98f, 0.90f),
+                        Vector2.zero,
+                        Vector2.zero);
+                int[] rightEquipmentPositionIds =
+                    { 9, 1, 2, 3, 4, 5, 6, 7, 8 };
+                Vector2[] rightEquipmentAnchors =
+                {
+                    new Vector2(0.50f, 0.86f),
+                    new Vector2(0.50f, 0.57f),
+                    new Vector2(0.50f, 0.28f),
+                    new Vector2(0.25f, 0.31f),
+                    new Vector2(0.75f, 0.31f),
+                    new Vector2(0.34f, 0.08f),
+                    new Vector2(0.66f, 0.08f),
+                    new Vector2(0.15f, 0.72f),
+                    new Vector2(0.85f, 0.72f),
+                };
+                string[] rightEquipmentLabels =
+                {
+                    "脑部", "头部", "上装", "左手", "右手",
+                    "左腿", "右腿", "背包", "胸挂",
+                };
+                BattleLootEquipmentSlotView[] rightEquipmentSlots =
+                    new BattleLootEquipmentSlotView[rightEquipmentPositionIds.Length];
+                for (int index = 0; index < rightEquipmentSlots.Length; index++)
+                {
+                    BattleLootEquipmentSlotView slot = CreateEquipmentSlot(
+                        rightEquipmentRootObject,
+                        $"Equipment_{rightEquipmentPositionIds[index]}",
+                        rightEquipmentPositionIds[index],
+                        rightEquipmentLabels[index]);
+                    BattlePreparationEditorUiFactory.Place(
+                        slot.GetComponent<RectTransform>(),
+                        rightEquipmentAnchors[index],
+                        new Vector2(0.5f, 0.5f),
+                        Vector2.zero,
+                        new Vector2(66f, 88f));
+                    rightEquipmentSlots[index] = slot;
+                }
+
+                RectTransform rightBackpackSection = CreateRightSection(
+                    rightScroll.Content,
+                    "RightBackpackSection",
+                    "背包",
+                    190f);
+                RectTransform rightBackpackRootObject = CreateSectionGridRoot(
+                    rightBackpackSection,
+                    "RightBackpackItems",
+                    5,
+                    62f);
+                BattleLootItemView rightBackpackTemplate = CreateItemTemplate(
+                    rightBackpackRootObject,
+                    "RightBackpackCellTemplate",
+                    new Vector2(62f, 62f));
+                rightBackpackTemplate.gameObject.SetActive(false);
+
+                RectTransform rightChestRigSection = CreateRightSection(
+                    rightScroll.Content,
+                    "RightChestRigSection",
+                    "胸挂",
+                    190f);
+                RectTransform rightChestRigRootObject = CreateSectionGridRoot(
+                    rightChestRigSection,
+                    "RightChestRigItems",
+                    5,
+                    62f);
+                BattleLootItemView rightChestRigTemplate = CreateItemTemplate(
+                    rightChestRigRootObject,
+                    "RightChestRigCellTemplate",
+                    new Vector2(62f, 62f));
+                rightChestRigTemplate.gameObject.SetActive(false);
+
+                RectTransform rightInsuranceSection = CreateRightSection(
+                    rightScroll.Content,
+                    "RightInsuranceBoxSection",
+                    "保险箱",
+                    190f);
+                RectTransform rightInsuranceRootObject = CreateSectionGridRoot(
+                    rightInsuranceSection,
+                    "RightInsuranceBoxItems",
+                    5,
+                    62f);
+                BattleLootItemView rightInsuranceTemplate = CreateItemTemplate(
+                    rightInsuranceRootObject,
+                    "RightInsuranceBoxCellTemplate",
+                    new Vector2(62f, 62f));
+                rightInsuranceTemplate.gameObject.SetActive(false);
+
+                RectTransform mapItemsSection = CreateRightSection(
+                    rightScroll.Content,
+                    "MapItemsSection",
+                    "物资点内容",
+                    260f);
+                RectTransform itemRootObject = CreateSectionGridRoot(
+                    mapItemsSection,
+                    "MapItems",
                     3,
                     92f);
-                BattleLootItemView equipmentTemplate = CreateItemTemplate(
-                    equipmentRootObject.transform,
-                    "EquipmentTemplate",
-                    new Vector2(92f, 92f));
-                equipmentTemplate.gameObject.SetActive(false);
-
-                Text itemTitle = BattlePreparationEditorUiFactory.AddTextChild(
-                    "ItemTitle",
-                    panel.transform,
-                    "物资",
-                    21,
-                    TextAnchor.MiddleLeft,
-                    new Color(0.76f, 0.88f, 0.96f, 1f),
-                    10f);
-                BattlePreparationEditorUiFactory.SetRect(
-                    itemTitle.rectTransform,
-                    new Vector2(0.68f, 0.55f),
-                    new Vector2(1f, 0.55f),
-                    new Vector2(10f, -24f),
-                    new Vector2(-20f, 24f));
-
-                // 右栏物资同样复用仓库的 ScrollRect/Viewport/Content 层级，
-                // 只是把仓库格模板替换成带搜索遮罩和进度条的 BattleLootItemView。
-                BattlePreparationEditorUiFactory.ScrollParts itemsScroll =
-                    BattlePreparationEditorUiFactory.AddVerticalScroll(
-                        "ItemsScroll",
-                        panel.transform,
-                        7f,
-                        new Vector4(10f, 10f, 10f, 10f),
-                        true,
-                        new Vector2(92f, 92f),
-                        3);
-                BattlePreparationEditorUiFactory.SetRect(
-                    itemsScroll.ScrollRect.GetComponent<RectTransform>(),
-                    new Vector2(0.68f, 0.06f),
-                    new Vector2(1f, 0.54f),
-                    new Vector2(10f, 10f),
-                    new Vector2(-20f, -8f));
-                GameObject itemRootObject = itemsScroll.Content.gameObject;
-
                 BattleLootItemView itemTemplate = CreateItemTemplate(
-                    itemRootObject.transform,
+                    itemRootObject,
                     "ItemTemplate",
                     new Vector2(92f, 92f));
                 itemTemplate.gameObject.SetActive(false);
+
+                // 搜刮窗口打开后由运行时根据来源切换这些段；默认关闭，
+                // 避免预制体加载的一瞬间把四个右栏段同时显示出来。
+                rightEquipmentSection.gameObject.SetActive(false);
+                rightBackpackSection.gameObject.SetActive(false);
+                rightChestRigSection.gameObject.SetActive(false);
+                rightInsuranceSection.gameObject.SetActive(false);
+                mapItemsSection.gameObject.SetActive(false);
 
                 // 中栏仍然是玩家自己的随身容器，顺序与仓库详情一致。
                 Text backpackTitle = BattlePreparationEditorUiFactory.AddTextChild(
@@ -407,16 +491,66 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(mono, "closeButtonText", close.Text);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono,
-                    "equipmentTitleText",
-                    equipmentTitle);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
-                    "itemTitleText",
-                    itemTitle);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
                     "itemsScrollRoot",
-                    itemsScroll.ScrollRect.GetComponent<RectTransform>());
+                    rightScroll.ScrollRect.GetComponent<RectTransform>());
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightEquipmentSectionRoot",
+                    rightEquipmentSection);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightEquipmentRoot",
+                    rightEquipmentRootObject);
+                List<UnityEngine.Object> rightEquipmentSlotObjects =
+                    new List<UnityEngine.Object>(rightEquipmentSlots.Length);
+                for (int index = 0; index < rightEquipmentSlots.Length; index++)
+                {
+                    rightEquipmentSlotObjects.Add(rightEquipmentSlots[index]);
+                }
+                BattlePreparationEditorUiFactory.SetObjects(
+                    mono,
+                    "rightEquipmentSlots",
+                    rightEquipmentSlotObjects);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightBackpackSectionRoot",
+                    rightBackpackSection);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightBackpackRoot",
+                    rightBackpackRootObject);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightBackpackTemplate",
+                    rightBackpackTemplate);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightChestRigSectionRoot",
+                    rightChestRigSection);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightChestRigRoot",
+                    rightChestRigRootObject);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightChestRigTemplate",
+                    rightChestRigTemplate);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightInsuranceBoxSectionRoot",
+                    rightInsuranceSection);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightInsuranceBoxRoot",
+                    rightInsuranceRootObject);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "rightInsuranceBoxTemplate",
+                    rightInsuranceTemplate);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "mapItemsSectionRoot",
+                    mapItemsSection);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono,
                     "playerEquipmentRoot",
@@ -447,11 +581,6 @@ namespace Game.EditorTools
                     mono,
                     "availableSkillTemplate",
                     availableSkillTemplate);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
-                    "equipmentRoot",
-                    equipmentRootObject.GetComponent<RectTransform>());
-                BattlePreparationEditorUiFactory.SetObject(mono, "equipmentTemplate", equipmentTemplate);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono,
                     "itemRoot",
@@ -552,6 +681,72 @@ namespace Game.EditorTools
                 Vector2.zero,
                 Vector2.zero);
             return scroll.Content.gameObject;
+        }
+
+        /// <summary>
+        /// 创建右栏统一滚动内容中的一个固定段。段高度由运行时按容器容量
+        /// 微调，标题和格子都留在同一 Content 下，避免嵌套 ScrollRect 抢夺滚轮。
+        /// </summary>
+        private static RectTransform CreateRightSection(
+            Transform parent,
+            string name,
+            string title,
+            float preferredHeight)
+        {
+            GameObject section = BattlePreparationEditorUiFactory.NewUiObject(
+                name,
+                parent);
+            RectTransform sectionRect = section.GetComponent<RectTransform>();
+            BattlePreparationEditorUiFactory.AddImage(
+                section,
+                BattlePreparationEditorUiFactory.PanelLightColor,
+                null,
+                true);
+            LayoutElement layout = section.AddComponent<LayoutElement>();
+            layout.minHeight = preferredHeight;
+            layout.preferredHeight = preferredHeight;
+            layout.flexibleHeight = 0f;
+
+            Text label = BattlePreparationEditorUiFactory.AddTextChild(
+                "Title",
+                section.transform,
+                title,
+                18,
+                TextAnchor.MiddleLeft,
+                BattlePreparationEditorUiFactory.AccentColor,
+                8f);
+            BattlePreparationEditorUiFactory.SetRect(
+                label.rectTransform,
+                new Vector2(0.02f, 0.84f),
+                new Vector2(0.98f, 1f),
+                Vector2.zero,
+                Vector2.zero);
+            return sectionRect;
+        }
+
+        private static RectTransform CreateSectionGridRoot(
+            Transform section,
+            string name,
+            int columnCount,
+            float cellSize)
+        {
+            GameObject root = BattlePreparationEditorUiFactory.NewUiObject(
+                name,
+                section);
+            RectTransform rect = root.GetComponent<RectTransform>();
+            BattlePreparationEditorUiFactory.SetRect(
+                rect,
+                new Vector2(0.02f, 0.04f),
+                new Vector2(0.98f, 0.83f),
+                Vector2.zero,
+                Vector2.zero);
+            GridLayoutGroup grid = root.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(cellSize, cellSize);
+            grid.spacing = new Vector2(7f, 7f);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = Mathf.Max(1, columnCount);
+            grid.childAlignment = TextAnchor.UpperLeft;
+            return rect;
         }
 
         private static BattleLootEquipmentSlotView CreateEquipmentSlot(
