@@ -558,6 +558,23 @@ namespace Game.EditorTools
                     "ManualSaveButton", topBar.transform, "保存", new Color(0.16f, 0.46f, 0.58f, 0.96f), 21);
                 BattlePreparationEditorUiFactory.Place(manualSave.Rect, new Vector2(0.94f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(132f, 48f));
 
+                Text extractionCountdown = BattlePreparationEditorUiFactory.AddTextChild(
+                    "ExtractionCountdownText",
+                    root.transform,
+                    string.Empty,
+                    28,
+                    TextAnchor.MiddleCenter,
+                    Color.white,
+                    8f);
+                BattlePreparationEditorUiFactory.SetRect(
+                    extractionCountdown.rectTransform,
+                    new Vector2(0.5f, 0f),
+                    new Vector2(0.5f, 0f),
+                    new Vector2(0f, 92f),
+                    new Vector2(420f, 48f));
+                extractionCountdown.raycastTarget = false;
+                extractionCountdown.gameObject.SetActive(false);
+
                 GameObject statsPanel = BattlePreparationEditorUiFactory.AddPanel(
                     "MapStatisticsPanel", root.transform, new Color(0.025f, 0.06f, 0.1f, 0.84f), false);
                 BattlePreparationEditorUiFactory.Place(statsPanel.GetComponent<RectTransform>(), new Vector2(0.02f, 0.82f), new Vector2(0f, 1f), Vector2.zero, new Vector2(390f, 132f));
@@ -925,6 +942,7 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(mono, "healthValueText", healthBar.ValueText);
                 BattlePreparationEditorUiFactory.SetObject(mono, "manaBarFillImage", manaBar.Fill);
                 BattlePreparationEditorUiFactory.SetObject(mono, "manaValueText", manaBar.ValueText);
+                BattlePreparationEditorUiFactory.SetObject(mono, "extractionCountdownText", extractionCountdown);
                 combatStatusPanel.SetActive(false);
                 BattlePreparationEditorUiFactory.AddBuilderMarker(root, UiMarker);
                 BattlePreparationEditorUiFactory.SavePrefab(root, UiPrefabPath);

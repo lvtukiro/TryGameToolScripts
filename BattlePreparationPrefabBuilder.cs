@@ -178,11 +178,12 @@ namespace Game.EditorTools
                 index++)
             {
                 string path = BattlePreparationUiPrefabBuilder.GeneratedPrefabPaths[index];
+                string expectedMarker = GetExpectedUiPrefabMarker(path);
                 GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
                 if (prefab == null
                     || !BattlePreparationEditorUiFactory.ContainsBuilderMarker(
                         prefab,
-                        BattlePreparationUiPrefabBuilder.BuilderMarker))
+                        expectedMarker))
                 {
                     return true;
                 }
@@ -204,6 +205,16 @@ namespace Game.EditorTools
                 || !BattlePreparationEditorUiFactory.ContainsBuilderMarker(
                     homeMain,
                     HomeMainBuilderMarker);
+        }
+
+        private static string GetExpectedUiPrefabMarker(string path)
+        {
+            return string.Equals(
+                    path,
+                    BattlePreparationUiPrefabBuilder.MainPrefabPath,
+                    StringComparison.Ordinal)
+                ? BattlePreparationUiPrefabBuilder.MainBuilderMarker
+                : BattlePreparationUiPrefabBuilder.BuilderMarker;
         }
 
         private static Dictionary<int, Sprite> ConfigureAndLoadSprites()
@@ -651,11 +662,11 @@ namespace Game.EditorTools
                 if (index < BattlePreparationUiPrefabBuilder.GeneratedPrefabPaths.Length
                     && !BattlePreparationEditorUiFactory.ContainsBuilderMarker(
                         prefab,
-                        BattlePreparationUiPrefabBuilder.BuilderMarker))
+                        GetExpectedUiPrefabMarker(path)))
                 {
                     throw new InvalidOperationException(
                         $"Generated UI prefab does not carry the current builder marker: " +
-                        $"path={path}, marker={BattlePreparationUiPrefabBuilder.BuilderMarker}");
+                        $"path={path}, marker={GetExpectedUiPrefabMarker(path)}");
                 }
             }
 

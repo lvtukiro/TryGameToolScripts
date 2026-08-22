@@ -34,7 +34,11 @@ namespace Game.EditorTools
         internal const string TargetSelectionPrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_target_selection.prefab";
 
+        // 维修倒计时只属于主备战界面；其它备战相关预制体继续沿用旧标记，
+        // 避免每次主界面增加字段时被总 Builder 一并重建。
         internal const string BuilderMarker = "__BattlePreparationUiBuilder_v10_2_0g";
+        internal const string MainBuilderMarker =
+            "__BattlePreparationUiBuilder_v11_repair_countdown";
         internal const string BattleDevelopmentEntryMarker =
             "__BattleRobotDetailBattleEntry_v2";
 
@@ -153,7 +157,8 @@ namespace Game.EditorTools
             GameObject root = CreateWindowRoot(
                 "win_battle_preparation",
                 new Color(0f, 0f, 0f, 0f),
-                false);
+                false,
+                MainBuilderMarker);
             try
             {
                 Component mono = Runtime(root, MainMono);
@@ -431,6 +436,17 @@ namespace Game.EditorTools
                 new Vector2(0.94f, 0.24f),
                 Vector2.zero,
                 Vector2.zero);
+            Text repairCountdown = CreateText(
+                "RepairCountdown",
+                occupiedRoot.transform,
+                string.Empty,
+                11,
+                TextAnchor.MiddleRight,
+                new Vector2(0.48f, 0.02f),
+                new Vector2(0.94f, 0.13f),
+                Vector2.zero,
+                Vector2.zero,
+                new Color(1f, 0.72f, 0.28f, 1f));
 
             GameObject destroyObject = BattlePreparationEditorUiFactory.NewUiObject(
                 "DestroyButton",
@@ -465,6 +481,10 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.SetObject(view, "robotImage", robotImage);
             BattlePreparationEditorUiFactory.SetObject(view, "robotNameText", name);
             BattlePreparationEditorUiFactory.SetObject(view, "robotStateText", state);
+            BattlePreparationEditorUiFactory.SetObject(
+                view,
+                "repairCountdownText",
+                repairCountdown);
             BattlePreparationEditorUiFactory.SetObject(view, "destroyButton", destroyButton);
             BattlePreparationEditorUiFactory.SetObject(
                 view,
@@ -3460,7 +3480,8 @@ namespace Game.EditorTools
         private static GameObject CreateWindowRoot(
             string name,
             Color background,
-            bool blocksRaycasts)
+            bool blocksRaycasts,
+            string builderMarker = null)
         {
             GameObject root = BattlePreparationEditorUiFactory.NewUiObject(name, null);
             BattlePreparationEditorUiFactory.Stretch(root.GetComponent<RectTransform>());
@@ -3469,7 +3490,9 @@ namespace Game.EditorTools
                 background,
                 null,
                 blocksRaycasts);
-            BattlePreparationEditorUiFactory.AddBuilderMarker(root, BuilderMarker);
+            BattlePreparationEditorUiFactory.AddBuilderMarker(
+                root,
+                string.IsNullOrEmpty(builderMarker) ? BuilderMarker : builderMarker);
             return root;
         }
 
