@@ -26,6 +26,13 @@ namespace Game.EditorTools.SkeletonAnimation
             SocketsOnly = 2,
         }
 
+        private enum WorkflowTab
+        {
+            Character = 0,
+            Action = 1,
+            Preview = 2,
+        }
+
         private readonly ISkeletonRecognitionEngine recognitionEngine =
             new HeuristicSkeletonRecognitionEngine();
 
@@ -58,6 +65,19 @@ namespace Game.EditorTools.SkeletonAnimation
         private float bodyFitOffsetY;
         private SkeletonDisplayMode displayMode = SkeletonDisplayMode.All;
         private bool frontView;
+        private bool isPlaying;
+        private bool loopPlayback = true;
+        private double lastPlaybackTime;
+        private float playbackFrame;
+        private GameObject characterPreviewPrefab;
+        private GameObject characterPreviewInstance;
+        private PreviewRenderUtility characterPreviewUtility;
+        private readonly Dictionary<string, Transform> characterPreviewBones =
+            new Dictionary<string, Transform>();
+        private bool showCharacterPreview;
+        private float characterPreviewWorldScale = 2f;
+        private string previewActionPath = string.Empty;
+        private WorkflowTab workflowTab = WorkflowTab.Character;
 
         [MenuItem("TryGame/Tools/Skeleton Animation Tool")]
         public static void Open()
@@ -71,10 +91,14 @@ namespace Game.EditorTools.SkeletonAnimation
         private void OnEnable()
         {
             EnsureDocuments();
+            EditorApplication.update += UpdatePlayback;
         }
 
         private void OnDisable()
         {
+            EditorApplication.update -= UpdatePlayback;
+            isPlaying = false;
+            CleanupCharacterPreview();
             if (actionFramePreviewTexture != null)
             {
                 UnityEngine.Object.DestroyImmediate(actionFramePreviewTexture);
@@ -88,6 +112,7 @@ namespace Game.EditorTools.SkeletonAnimation
         {
             EnsureDocuments();
             DrawToolbar();
+            DrawWorkflowTabs();
 
             EditorGUILayout.BeginHorizontal();
             DrawLeftPanel();
@@ -96,6 +121,29 @@ namespace Game.EditorTools.SkeletonAnimation
             EditorGUILayout.EndHorizontal();
 
             HandleKeyboard(Event.current);
+        }
+
+        private void DrawWorkflowTabs()
+        {
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+            int nextTab = GUILayout.Toolbar(
+                (int)workflowTab,
+                new[] { "角色制作", "动作制作", "组合预览" },
+                EditorStyles.toolbarButton,
+                GUILayout.Height(24f));
+            if (nextTab != (int)workflowTab)
+            {
+                workflowTab = (WorkflowTab)nextTab;
+                if (workflowTab == WorkflowTab.Preview && characterPreviewInstance != null)
+                {
+                    showCharacterPreview = true;
+                }
+
+                Repaint();
+            }
+
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
         }
 
         private void DrawToolbar()
@@ -178,6 +226,53 @@ namespace Game.EditorTools.SkeletonAnimation
             }
             EditorGUILayout.EndHorizontal();
 
+            if (workflowTab == WorkflowTab.Preview)
+            {
+            EditorGUILayout.Space(10f);
+            EditorGUILayout.LabelField("角色动作预览", EditorStyles.boldLabel);
+            EditorGUI.BeginChangeCheck();
+            characterPreviewPrefab = (GameObject)EditorGUILayout.ObjectField(
+                "角色预制体",
+                characterPreviewPrefab,
+                typeof(GameObject),
+                false);
+            if (EditorGUI.EndChangeCheck())
+            {
+                CleanupCharacterPreview();
+            }
+
+            characterPreviewWorldScale = EditorGUILayout.Slider(
+                "预览缩放",
+                characterPreviewWorldScale,
+                0.5f,
+                5f);
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(characterPreviewPrefab == null))
+            {
+                if (GUILayout.Button("加载角色"))
+                {
+                    LoadCharacterPreviewPrefab();
+                }
+            }
+
+            if (GUILayout.Button("读取动作 JSON"))
+            {
+                LoadPreviewAnimationJson();
+            }
+            EditorGUILayout.EndHorizontal();
+            showCharacterPreview = EditorGUILayout.ToggleLeft(
+                "显示角色预览",
+                showCharacterPreview && characterPreviewInstance != null);
+            if (characterPreviewInstance == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "需要一个角色预制体：骨骼节点名称应与模板 Bone ID 相同，角色图片应拆成多个 SpriteRenderer 部件。",
+                    MessageType.None);
+            }
+            }
+
+            if (workflowTab == WorkflowTab.Action)
+            {
             EditorGUILayout.Space(10f);
             EditorGUILayout.LabelField("动作参考", EditorStyles.boldLabel);
             extractFrameRate = EditorGUILayout.IntSlider(
@@ -263,6 +358,16 @@ namespace Game.EditorTools.SkeletonAnimation
 
             DrawActionFrameList();
             DrawWarnings();
+            }
+
+            if (workflowTab == WorkflowTab.Character)
+            {
+                EditorGUILayout.Space(10f);
+                EditorGUILayout.HelpBox(
+                    "角色制作流程：导入角色参考图 → 调整骨骼与挂点 → 保存模板 JSON → " +
+                    "在 Project 中制作匹配 Bone ID 的角色预制体。完成后进入“组合预览”。",
+                    MessageType.Info);
+            }
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
         }
@@ -297,14 +402,192 @@ namespace Game.EditorTools.SkeletonAnimation
 
             GUI.Box(canvasRect, GUIContent.none);
             Rect contentRect = CalculateContentRect(canvasRect);
-            DrawCanvasBackground(canvasRect, contentRect);
-            DrawSkeleton(contentRect);
-            HandleCanvasInput(contentRect, Event.current);
+            if (workflowTab == WorkflowTab.Preview
+                && showCharacterPreview && characterPreviewInstance != null)
+            {
+                DrawCharacterPreview(canvasRect, contentRect);
+            }
+            else
+            {
+                DrawCanvasBackground(canvasRect, contentRect);
+                DrawSkeleton(contentRect);
+                HandleCanvasInput(contentRect, Event.current);
+            }
 
-            DrawKeyframeTimeline();
-            DrawAnimationStrip();
-            DrawPersistentActionFrameNavigator();
+            if (workflowTab == WorkflowTab.Action || workflowTab == WorkflowTab.Preview)
+            {
+                DrawKeyframeTimeline();
+                DrawAnimationStrip();
+                DrawPersistentActionFrameNavigator();
+            }
             EditorGUILayout.EndVertical();
+        }
+
+        private void DrawCharacterPreview(Rect canvasRect, Rect contentRect)
+        {
+            EditorGUI.DrawRect(canvasRect, new Color(0.08f, 0.09f, 0.10f, 1f));
+            if (characterPreviewUtility == null || characterPreviewInstance == null)
+            {
+                return;
+            }
+
+            ApplyCharacterPreviewPoseFromTemplate();
+            Camera camera = characterPreviewUtility.camera;
+            camera.orthographic = true;
+            camera.orthographicSize = 1.25f * (2f / Mathf.Max(0.5f, characterPreviewWorldScale));
+            camera.nearClipPlane = 0.01f;
+            camera.farClipPlane = 100f;
+            camera.transform.position = new Vector3(0f, 0f, -10f);
+            camera.transform.rotation = Quaternion.identity;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.08f, 0.09f, 0.10f, 1f);
+
+            characterPreviewUtility.BeginPreview(contentRect, GUIStyle.none);
+            camera.Render();
+            characterPreviewUtility.EndAndDrawPreview(contentRect);
+        }
+
+        private void LoadCharacterPreviewPrefab()
+        {
+            CleanupCharacterPreview();
+            if (characterPreviewPrefab == null)
+            {
+                status = "请先选择角色预制体。";
+                return;
+            }
+
+            characterPreviewUtility = new PreviewRenderUtility();
+            characterPreviewUtility.camera.clearFlags = CameraClearFlags.SolidColor;
+            characterPreviewUtility.camera.backgroundColor = new Color(0.08f, 0.09f, 0.10f, 1f);
+            characterPreviewInstance = (GameObject)UnityEngine.Object.Instantiate(
+                characterPreviewPrefab);
+            characterPreviewInstance.name = characterPreviewPrefab.name + "_Preview";
+            characterPreviewInstance.hideFlags = HideFlags.HideAndDontSave;
+            characterPreviewInstance.transform.position = Vector3.zero;
+            characterPreviewInstance.transform.rotation = Quaternion.identity;
+            characterPreviewUtility.AddSingleGO(characterPreviewInstance);
+
+            characterPreviewBones.Clear();
+            Transform[] transforms = characterPreviewInstance.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < transforms.Length; i++)
+            {
+                Transform current = transforms[i];
+                if (!characterPreviewBones.ContainsKey(current.name))
+                {
+                    characterPreviewBones.Add(current.name, current);
+                }
+            }
+
+            showCharacterPreview = true;
+            ApplyCharacterPreviewPoseFromTemplate();
+            status = "已加载角色预览：" + characterPreviewPrefab.name;
+            Repaint();
+        }
+
+        private void CleanupCharacterPreview()
+        {
+            if (characterPreviewInstance != null)
+            {
+                UnityEngine.Object.DestroyImmediate(characterPreviewInstance);
+                characterPreviewInstance = null;
+            }
+
+            if (characterPreviewUtility != null)
+            {
+                characterPreviewUtility.Cleanup();
+                characterPreviewUtility = null;
+            }
+
+            characterPreviewBones.Clear();
+            showCharacterPreview = false;
+        }
+
+        private void LoadPreviewAnimationJson()
+        {
+            string path = EditorUtility.OpenFilePanel(
+                "读取骨骼动作 JSON",
+                Path.Combine(Application.dataPath, "TryGameToolScripts/SkeletonAnimationTool"),
+                "json");
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            try
+            {
+                SkeletonAnimationDocument loaded = JsonUtility.FromJson< SkeletonAnimationDocument >(
+                    File.ReadAllText(path));
+                if (loaded == null || loaded.keyframes == null || loaded.keyframes.Count == 0)
+                {
+                    status = "动作 JSON 没有可用关键帧：" + path;
+                    return;
+                }
+
+                animationDocument = loaded;
+                previewActionPath = path;
+                previewFrameRate = Mathf.Max(1f, loaded.frameRate);
+                SortKeyframes();
+                currentFrame = animationDocument.keyframes[0].frame;
+                playbackFrame = currentFrame;
+                ApplyInterpolatedPose(playbackFrame);
+                status = "已读取动作 JSON：" + path;
+                Repaint();
+            }
+            catch (Exception exception)
+            {
+                status = "动作 JSON 读取失败：" + exception.Message;
+                Debug.LogError("[SkeletonAnimationEditorWindow] 动作 JSON 读取失败：" + exception);
+            }
+        }
+
+        private void ApplyCharacterPreviewPoseFromTemplate()
+        {
+            if (characterPreviewInstance == null || templateDocument == null
+                || templateDocument.bones == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < templateDocument.bones.Count; i++)
+            {
+                SkeletonBoneData bone = templateDocument.bones[i];
+                Transform previewBone = FindCharacterPreviewBone(bone);
+                if (previewBone == null)
+                {
+                    continue;
+                }
+
+                Vector2 position = bone.normalizedPosition;
+                previewBone.position = characterPreviewInstance.transform.position +
+                    new Vector3(
+                        (position.x - 0.5f) * characterPreviewWorldScale,
+                        (0.5f - position.y) * characterPreviewWorldScale,
+                        previewBone.position.z);
+                previewBone.rotation = Quaternion.Euler(
+                    0f,
+                    0f,
+                    -bone.rotationDegrees);
+            }
+        }
+
+        private Transform FindCharacterPreviewBone(SkeletonBoneData bone)
+        {
+            if (bone == null)
+            {
+                return null;
+            }
+
+            if (characterPreviewBones.TryGetValue(bone.boneId, out Transform byId))
+            {
+                return byId;
+            }
+
+            if (characterPreviewBones.TryGetValue(bone.displayName, out Transform byName))
+            {
+                return byName;
+            }
+
+            return null;
         }
 
         private void DrawKeyframeTimeline()
@@ -872,6 +1155,25 @@ namespace Game.EditorTools.SkeletonAnimation
                     DeleteCurrentKeyframe();
                 }
             }
+
+            if (GUILayout.Button(isPlaying ? "暂停" : "播放", GUILayout.Width(58f)))
+            {
+                if (isPlaying)
+                {
+                    PausePlayback();
+                }
+                else
+                {
+                    StartPlayback();
+                }
+            }
+
+            if (GUILayout.Button("停止", GUILayout.Width(48f)))
+            {
+                StopPlayback();
+            }
+
+            loopPlayback = GUILayout.Toggle(loopPlayback, "循环", "Button", GUILayout.Width(52f));
 
             if (GUILayout.Button("导出动作 JSON", GUILayout.Width(120f)))
             {
@@ -1505,6 +1807,111 @@ namespace Game.EditorTools.SkeletonAnimation
             }
         }
 
+        private void StartPlayback()
+        {
+            if (animationDocument == null || animationDocument.keyframes == null
+                || animationDocument.keyframes.Count == 0)
+            {
+                status = "没有可播放的关键帧。";
+                return;
+            }
+
+            SortKeyframes();
+            int maxFrame = GetPlaybackMaxFrame();
+            if (playbackFrame < 0f || playbackFrame > maxFrame
+                || Mathf.Abs(playbackFrame - currentFrame) > 0.01f)
+            {
+                playbackFrame = currentFrame;
+            }
+
+            if (playbackFrame >= maxFrame && loopPlayback)
+            {
+                playbackFrame = 0f;
+            }
+
+            lastPlaybackTime = EditorApplication.timeSinceStartup;
+            isPlaying = true;
+            status = "正在播放动作插值预览。";
+            Repaint();
+        }
+
+        private void PausePlayback()
+        {
+            isPlaying = false;
+            status = "已暂停动作预览：帧 " + currentFrame;
+            Repaint();
+        }
+
+        private void StopPlayback()
+        {
+            isPlaying = false;
+            playbackFrame = 0f;
+            currentFrame = 0;
+            ApplyInterpolatedPose(0f);
+            OpenActionFramePreviewOnly(0);
+            status = "已停止动作预览。";
+            Repaint();
+        }
+
+        private void UpdatePlayback()
+        {
+            if (!isPlaying || animationDocument == null || templateDocument == null
+                || animationDocument.keyframes == null
+                || animationDocument.keyframes.Count == 0)
+            {
+                return;
+            }
+
+            double now = EditorApplication.timeSinceStartup;
+            double deltaTime = lastPlaybackTime <= 0d ? 0d : now - lastPlaybackTime;
+            lastPlaybackTime = now;
+            float frameRate = Mathf.Max(1f, previewFrameRate);
+            playbackFrame += Mathf.Clamp((float)deltaTime, 0f, 0.1f) * frameRate;
+
+            int maxFrame = GetPlaybackMaxFrame();
+            if (playbackFrame > maxFrame)
+            {
+                if (loopPlayback)
+                {
+                    playbackFrame = 0f;
+                }
+                else
+                {
+                    playbackFrame = maxFrame;
+                    isPlaying = false;
+                }
+            }
+
+            int previousFrame = currentFrame;
+            currentFrame = Mathf.Clamp(Mathf.RoundToInt(playbackFrame), 0, maxFrame);
+            ApplyInterpolatedPose(playbackFrame);
+            if (currentFrame != previousFrame)
+            {
+                OpenActionFramePreviewOnly(currentFrame);
+            }
+            Repaint();
+        }
+
+        private int GetPlaybackMaxFrame()
+        {
+            int maxFrame = GetMaxRecordedKeyframe();
+            if (animationDocument != null && animationDocument.frameSelections != null)
+            {
+                maxFrame = Mathf.Max(maxFrame, animationDocument.frameSelections.Count - 1);
+            }
+
+            return Mathf.Max(0, maxFrame);
+        }
+
+        private void OpenActionFramePreviewOnly(int frameIndex)
+        {
+            SkeletonActionFrameSelectionData frame = FindActionFrame(frameIndex);
+            if (frame != null)
+            {
+                LoadActionFramePreview(frame.sourceFilePath);
+            }
+        }
+
         private void ApplyRecordedPose(int frame)
         {
             if (templateDocument == null || templateDocument.bones == null
@@ -1543,6 +1950,91 @@ namespace Game.EditorTools.SkeletonAnimation
             }
 
             status = "已恢复已记录姿势：帧 #" + frame;
+        }
+
+        private void ApplyInterpolatedPose(float frame)
+        {
+            if (templateDocument == null || templateDocument.bones == null
+                || animationDocument == null || animationDocument.keyframes == null
+                || animationDocument.keyframes.Count == 0)
+            {
+                return;
+            }
+
+            SortKeyframes();
+            SkeletonAnimationKeyframeData previous = animationDocument.keyframes[0];
+            SkeletonAnimationKeyframeData next = animationDocument.keyframes[
+                animationDocument.keyframes.Count - 1];
+
+            for (int i = 0; i < animationDocument.keyframes.Count; i++)
+            {
+                SkeletonAnimationKeyframeData candidate = animationDocument.keyframes[i];
+                if (candidate.frame <= frame)
+                {
+                    previous = candidate;
+                }
+
+                if (candidate.frame >= frame)
+                {
+                    next = candidate;
+                    break;
+                }
+            }
+
+            float t = previous == next || next.frame == previous.frame
+                ? 0f
+                : Mathf.Clamp01((frame - previous.frame) / (next.frame - previous.frame));
+
+            for (int i = 0; i < templateDocument.bones.Count; i++)
+            {
+                SkeletonBoneData bone = templateDocument.bones[i];
+                SkeletonBonePoseData previousPose = FindBonePose(previous, bone.boneId);
+                SkeletonBonePoseData nextPose = FindBonePose(next, bone.boneId);
+                if (previousPose == null && nextPose == null)
+                {
+                    continue;
+                }
+
+                if (previousPose == null)
+                {
+                    previousPose = nextPose;
+                }
+
+                if (nextPose == null)
+                {
+                    nextPose = previousPose;
+                }
+
+                bone.normalizedPosition = Vector2.Lerp(
+                    previousPose.normalizedPosition,
+                    nextPose.normalizedPosition,
+                    t);
+                bone.rotationDegrees = Mathf.LerpAngle(
+                    previousPose.rotationDegrees,
+                    nextPose.rotationDegrees,
+                    t);
+            }
+        }
+
+        private static SkeletonBonePoseData FindBonePose(
+            SkeletonAnimationKeyframeData keyframe,
+            string boneId)
+        {
+            if (keyframe == null || keyframe.bonePoses == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < keyframe.bonePoses.Count; i++)
+            {
+                SkeletonBonePoseData pose = keyframe.bonePoses[i];
+                if (pose != null && pose.boneId == boneId)
+                {
+                    return pose;
+                }
+            }
+
+            return null;
         }
 
         private void LoadActionFrameSequence(string selectedPath)

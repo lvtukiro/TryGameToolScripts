@@ -21,12 +21,17 @@ namespace Game.EditorTools
         private const float DetailRowHeight = 17f;
         private const float DetailTextLineHeight = 17f;
         private const float DetailTitleHeight = 30f;
+        private const float CanvasMinZoom = 0.4f;
+        private const float CanvasMaxZoom = 2.5f;
 
         private BattleAiGraphAsset graphAsset;
         private BattleAiGraphAssetNode selectedNode;
         private readonly List<string> validationIssues = new List<string>();
         // 画布平移量只属于编辑器视图，不写入行为图资产。
         private Vector2 canvasPan;
+        private float canvasZoom = 1f;
+        // 记录最近一次绘制的画布尺寸，工具栏添加节点时把新节点放到当前视口中心。
+        private Vector2 lastCanvasSize = new Vector2(800f, CanvasMinHeight);
         private int draggingNodeId;
         private Vector2 dragOffset;
         private bool draggingCanvas;
@@ -81,6 +86,7 @@ namespace Game.EditorTools
                 graphAsset = next;
                 selectedNode = null;
                 canvasPan = Vector2.zero;
+                canvasZoom = 1f;
                 draggingNodeId = 0;
                 draggingCanvas = false;
                 canvasHotControl = 0;
@@ -204,6 +210,7 @@ namespace Game.EditorTools
             if (GUILayout.Button("重置视图", GUILayout.Width(85f)))
             {
                 canvasPan = Vector2.zero;
+                canvasZoom = 1f;
                 Repaint();
             }
 
@@ -227,7 +234,7 @@ namespace Game.EditorTools
 
             GUILayout.FlexibleSpace();
             GUILayout.Label(
-                "空白处左键/中键平移；右侧端口拖到目标左侧端口",
+                "滚轮以工作区中心缩放；空白处左键/中键平移；右侧端口拖到目标左侧端口",
                 EditorStyles.miniLabel);
             EditorGUILayout.EndHorizontal();
 
@@ -236,6 +243,7 @@ namespace Game.EditorTools
                 CanvasMinHeight,
                 GUILayout.ExpandWidth(true),
                 GUILayout.ExpandHeight(true));
+            lastCanvasSize = canvasRect.size;
             DrawCanvas(canvasRect);
             EditorGUILayout.EndVertical();
         }
@@ -249,7 +257,15 @@ namespace Game.EditorTools
                 canvasRect.width,
                 canvasRect.height);
             GUI.Box(localCanvasRect, GUIContent.none, EditorStyles.textArea);
-            DrawGrid(canvasRect.width, canvasRect.height, canvasPan);
+            // 工作区裁剪固定在红框内，缩放只改变节点内容坐标，不改变这个 Clip。
+            GUI.BeginClip(localCanvasRect);
+            Handles.BeginGUI();
+            DrawGrid(
+                canvasRect.width,
+                canvasRect.height,
+                canvasPan,
+                canvasZoom);
+            Handles.EndGUI();
             Handles.BeginGUI();
             for (int index = 0; index < graphAsset.Nodes.Count; index++)
             {
@@ -269,13 +285,16 @@ namespace Game.EditorTools
                         continue;
                     }
 
-                    Vector2 start = GetOutputPortCenter(parent, childIndex, canvasPan);
-                    Vector2 end = GetInputPortCenter(child, canvasPan);
+                    Vector2 start = GetScreenOutputPortCenter(
+                        parent,
+                        childIndex,
+                        canvasPan);
+                    Vector2 end = GetScreenInputPortCenter(child, canvasPan);
                     Handles.DrawBezier(
                         start,
                         end,
-                        start + Vector2.right * 50f,
-                        end + Vector2.left * 50f,
+                        start + Vector2.right * 50f * GetCanvasContentScale(),
+                        end + Vector2.left * 50f * GetCanvasContentScale(),
                         Color.white,
                         null,
                         2f);
@@ -287,7 +306,7 @@ namespace Game.EditorTools
                 BattleAiGraphAssetNode parent = FindNode(connectingParentNodeId);
                 if (parent != null && connectingChildIndex >= 0)
                 {
-                    Vector2 start = GetOutputPortCenter(
+                    Vector2 start = GetScreenOutputPortCenter(
                         parent,
                         connectingChildIndex,
                         canvasPan);
@@ -295,8 +314,8 @@ namespace Game.EditorTools
                     Handles.DrawBezier(
                         start,
                         end,
-                        start + Vector2.right * 50f,
-                        end + Vector2.left * 50f,
+                        start + Vector2.right * 50f * GetCanvasContentScale(),
+                        end + Vector2.left * 50f * GetCanvasContentScale(),
                         new Color(0.4f, 0.85f, 1f),
                         null,
                         2f);
@@ -309,6 +328,7 @@ namespace Game.EditorTools
                 DrawNode(graphAsset.Nodes[index], canvasPan);
             }
 
+            GUI.EndClip();
             GUI.EndGroup();
             HandleCanvasEvents(canvasRect);
         }
@@ -320,7 +340,8 @@ namespace Game.EditorTools
                 return;
             }
 
-            Rect rect = GetNodeRect(node, pan);
+            Rect rect = GetScreenNodeRect(node, pan);
+            float contentScale = GetCanvasContentScale();
             bool selected = selectedNode == node;
             Color previous = GUI.color;
             GUI.color = selected ? new Color(0.35f, 0.75f, 1f) : Color.white;
@@ -343,12 +364,12 @@ namespace Game.EditorTools
                 GUI.Label(
                     new Rect(
                         rect.x + 8f,
-                        rect.y + 3f,
+                        rect.y + 3f * contentScale,
                         rect.width - 16f,
-                        DetailTitleHeight - 3f),
+                        DetailTitleHeight * contentScale - 3f),
                     label,
                     EditorStyles.miniLabel);
-                DrawNodeDataDetails(node, rect);
+                DrawNodeDataDetails(node, rect, contentScale);
             }
             else
             {
@@ -360,7 +381,7 @@ namespace Game.EditorTools
                 : new Color(0.75f, 0.75f, 0.75f);
             GUI.color = portColor;
             GUI.Box(
-                GetPortHitRect(GetInputPortCenter(node, pan)),
+                GetScreenPortHitRect(GetScreenInputPortCenter(node, pan)),
                 GUIContent.none,
                 EditorStyles.miniButton);
             int outputPortCount = GetOutputPortCount(node);
@@ -371,7 +392,8 @@ namespace Game.EditorTools
                     ? new Color(0.35f, 1f, 0.45f)
                     : new Color(1f, 0.75f, 0.25f);
                 GUI.Box(
-                    GetPortHitRect(GetOutputPortCenter(node, index, pan)),
+                    GetScreenPortHitRect(
+                        GetScreenOutputPortCenter(node, index, pan)),
                     GUIContent.none,
                     EditorStyles.miniButton);
             }
@@ -383,8 +405,25 @@ namespace Game.EditorTools
         {
             Event current = Event.current;
             Vector2 localMouse = current.mousePosition - canvasRect.position;
-            Vector2 worldMouse = localMouse - canvasPan;
             bool mouseInsideCanvas = canvasRect.Contains(current.mousePosition);
+            Vector2 canvasMouse = ScreenToCanvasPoint(
+                localMouse,
+                canvasRect.size);
+            Vector2 worldMouse = canvasMouse - canvasPan;
+
+            if (mouseInsideCanvas && current.type == EventType.ScrollWheel)
+            {
+                float zoomFactor = Mathf.Pow(1.1f, -current.delta.y);
+                canvasZoom = Mathf.Clamp(
+                    canvasZoom * zoomFactor,
+                    CanvasMinZoom,
+                    CanvasMaxZoom);
+                // 缩放中心固定在工作区中心。CanvasToScreenPoint 会围绕同一个
+                // lastCanvasSize 中心变换，因此这里不再根据鼠标位置修改 canvasPan。
+                current.Use();
+                Repaint();
+                return;
+            }
 
             if (connectingParentNodeId > 0)
             {
@@ -398,7 +437,7 @@ namespace Game.EditorTools
 
                 if (current.type == EventType.MouseUp && current.button == 0)
                 {
-                    BattleAiGraphAssetNode target = FindNodeAtInputPort(worldMouse);
+                    BattleAiGraphAssetNode target = FindNodeAtInputPort(localMouse);
                     CompleteConnection(target);
                     if (GUIUtility.hotControl == canvasHotControl)
                     {
@@ -422,7 +461,7 @@ namespace Game.EditorTools
                 if (current.button == 0)
                 {
                     if (TryGetOutputPortAt(
-                            worldMouse,
+                            localMouse,
                             out BattleAiGraphAssetNode parent,
                             out int childIndex))
                     {
@@ -440,9 +479,9 @@ namespace Game.EditorTools
                     for (int index = graphAsset.Nodes.Count - 1; index >= 0; index--)
                     {
                         BattleAiGraphAssetNode node = graphAsset.Nodes[index];
-                        if (node == null || !new Rect(
-                                node.editorPosition,
-                                new Vector2(GetNodeWidth(node), GetNodeHeight(node))).Contains(worldMouse))
+                        if (node == null || !GetScreenNodeRect(
+                                node,
+                                canvasPan).Contains(localMouse))
                         {
                             continue;
                         }
@@ -482,7 +521,9 @@ namespace Game.EditorTools
 
             if (current.type == EventType.MouseDrag && draggingCanvas)
             {
-                canvasPan += current.delta;
+                // canvasPan 使用未缩放坐标保存，因此拖拽距离要除以当前缩放比例，
+                // 保证不同缩放级别下平移手感一致。
+                canvasPan += current.delta / canvasZoom;
                 current.Use();
                 Repaint();
             }
@@ -713,6 +754,19 @@ namespace Game.EditorTools
             return NodeWidth;
         }
 
+        private float GetCanvasContentScale()
+        {
+            // 工作区本身不缩放，节点、端口、连线和词条内容按实际缩放值缩放。
+            // 不能把缩小时的比例强制抬回 1，否则滚轮只能放大、无法真正缩小节点。
+            return Mathf.Max(canvasZoom, 0.0001f);
+        }
+
+        private Vector2 CanvasToScreenPoint(Vector2 canvasPoint)
+        {
+            Vector2 pivot = lastCanvasSize * 0.5f;
+            return pivot + (canvasPoint - pivot) * canvasZoom;
+        }
+
         private Rect GetNodeRect(
             BattleAiGraphAssetNode node,
             Vector2 pan)
@@ -720,6 +774,16 @@ namespace Game.EditorTools
             return new Rect(
                 node.editorPosition + pan,
                 new Vector2(GetNodeWidth(node), GetNodeHeight(node)));
+        }
+
+        private Rect GetScreenNodeRect(
+            BattleAiGraphAssetNode node,
+            Vector2 pan)
+        {
+            Rect worldRect = GetNodeRect(node, pan);
+            return new Rect(
+                CanvasToScreenPoint(worldRect.position),
+                worldRect.size * GetCanvasContentScale());
         }
 
         private Vector2 GetInputPortCenter(
@@ -751,11 +815,56 @@ namespace Game.EditorTools
                 Mathf.Lerp(top, bottom, normalizedIndex));
         }
 
+        private Vector2 GetScreenInputPortCenter(
+            BattleAiGraphAssetNode node,
+            Vector2 pan)
+        {
+            Rect rect = GetScreenNodeRect(node, pan);
+            return new Vector2(rect.x, rect.y + rect.height * 0.5f);
+        }
+
+        private Vector2 GetScreenOutputPortCenter(
+            BattleAiGraphAssetNode node,
+            int childIndex,
+            Vector2 pan)
+        {
+            Rect rect = GetScreenNodeRect(node, pan);
+            int outputPortCount = GetOutputPortCount(node);
+            if (outputPortCount <= 1)
+            {
+                return new Vector2(rect.xMax, rect.y + rect.height * 0.5f);
+            }
+
+            float top = rect.y + 16f * GetCanvasContentScale();
+            float bottom = rect.yMax - 16f * GetCanvasContentScale();
+            float normalizedIndex = Mathf.Clamp01(
+                childIndex / (float)(outputPortCount - 1));
+            return new Vector2(
+                rect.xMax,
+                Mathf.Lerp(top, bottom, normalizedIndex));
+        }
+
         private static Rect GetPortHitRect(Vector2 center)
         {
             return new Rect(
                 center - Vector2.one * (PortHitSize * 0.5f),
                 Vector2.one * PortHitSize);
+        }
+
+        private Rect GetScreenPortHitRect(Vector2 center)
+        {
+            float size = PortHitSize * GetCanvasContentScale();
+            return new Rect(
+                center - Vector2.one * (size * 0.5f),
+                Vector2.one * size);
+        }
+
+        private Vector2 ScreenToCanvasPoint(
+            Vector2 localMouse,
+            Vector2 canvasSize)
+        {
+            Vector2 pivot = canvasSize * 0.5f;
+            return (localMouse - pivot) / canvasZoom + pivot;
         }
 
         /// <summary>
@@ -764,7 +873,8 @@ namespace Game.EditorTools
         /// </summary>
         private void DrawNodeDataDetails(
             BattleAiGraphAssetNode node,
-            Rect nodeRect)
+            Rect nodeRect,
+            float contentScale)
         {
             GetNodeData(
                 node,
@@ -774,21 +884,25 @@ namespace Game.EditorTools
             bool requirementsSatisfied = AreRequirementsSatisfied(
                 required,
                 available);
-            float columnWidth = (nodeRect.width - 18f) * 0.5f;
-            float leftX = nodeRect.x + 6f;
-            float rightX = leftX + columnWidth + 6f;
-            float headerY = nodeRect.y + DetailTitleHeight;
-            float rowsY = headerY + 17f;
+            float columnWidth = (nodeRect.width - 18f * contentScale) * 0.5f;
+            float leftX = nodeRect.x + 6f * contentScale;
+            float rightX = leftX + columnWidth + 6f * contentScale;
+            float headerY = nodeRect.y + DetailTitleHeight * contentScale;
+            float rowsY = headerY + 17f * contentScale;
             List<float> rowHeights = GetDetailRowHeights(
                 required,
                 provided);
+            for (int index = 0; index < rowHeights.Count; index++)
+            {
+                rowHeights[index] *= contentScale;
+            }
 
             GUI.Label(
-                new Rect(leftX, headerY, columnWidth, 16f),
+                new Rect(leftX, headerY, columnWidth, 16f * contentScale),
                 "需要",
                 EditorStyles.miniBoldLabel);
             GUI.Label(
-                new Rect(rightX, headerY, columnWidth, 16f),
+                new Rect(rightX, headerY, columnWidth, 16f * contentScale),
                 "提供",
                 EditorStyles.miniBoldLabel);
 
@@ -1064,7 +1178,10 @@ namespace Game.EditorTools
                     provided.Add("InSkillRange");
                     break;
                 case BattleAiHandlerType.ExecuteSkill:
-                    required.Add("SelectedSkill");
+                    // ExecuteSkill 实际读取的是 SelectSkill 写入的 CombatPlanState，
+                    // 不能继续使用旧的 SelectedSkill 概念名，否则详情模式会误报缺少数据。
+                    required.Add("PlanState.SelectedBinding");
+                    required.Add("PlanState.HasSelectedBinding");
                     required.Add("InSkillRange");
                     provided.Add("SkillExecution");
                     break;
@@ -1073,8 +1190,8 @@ namespace Game.EditorTools
                     provided.Add("AttackFinished");
                     break;
                 case BattleAiHandlerType.MoveToSafePosition:
-                    required.Add("SelectedSkill");
-                    required.Add("TargetPosition");
+                    required.Add("PlanState.SelectedBinding");
+                    required.Add("PlanState.HasSelectedBinding");
                     provided.Add("SafePosition");
                     break;
                 default:
@@ -1187,7 +1304,7 @@ namespace Game.EditorTools
         }
 
         private bool TryGetOutputPortAt(
-            Vector2 worldMouse,
+            Vector2 screenMouse,
             out BattleAiGraphAssetNode parent,
             out int childIndex)
         {
@@ -1199,9 +1316,12 @@ namespace Game.EditorTools
                 int outputPortCount = GetOutputPortCount(candidate);
                 for (int index = outputPortCount - 1; index >= 0; index--)
                 {
-                    if (!GetPortHitRect(
-                            GetOutputPortCenter(candidate, index, Vector2.zero))
-                        .Contains(worldMouse))
+                    if (!GetScreenPortHitRect(
+                            GetScreenOutputPortCenter(
+                                candidate,
+                                index,
+                                canvasPan))
+                        .Contains(screenMouse))
                     {
                         continue;
                     }
@@ -1217,14 +1337,15 @@ namespace Game.EditorTools
             return false;
         }
 
-        private BattleAiGraphAssetNode FindNodeAtInputPort(Vector2 worldMouse)
+        private BattleAiGraphAssetNode FindNodeAtInputPort(Vector2 screenMouse)
         {
             for (int index = graphAsset.Nodes.Count - 1; index >= 0; index--)
             {
                 BattleAiGraphAssetNode node = graphAsset.Nodes[index];
                 if (node == null ||
-                    !GetPortHitRect(GetInputPortCenter(node, Vector2.zero))
-                        .Contains(worldMouse))
+                    !GetScreenPortHitRect(
+                            GetScreenInputPortCenter(node, canvasPan))
+                        .Contains(screenMouse))
                 {
                     continue;
                 }
@@ -1333,6 +1454,7 @@ namespace Game.EditorTools
             graphAsset = asset;
             selectedNode = FindNode(asset.RootNodeId);
             canvasPan = Vector2.zero;
+            canvasZoom = 1f;
             draggingNodeId = 0;
             draggingCanvas = false;
             canvasHotControl = 0;
@@ -1434,10 +1556,12 @@ namespace Game.EditorTools
             {
                 nodeId = nextId,
                 nodeType = nodeType,
-                editorPosition = new Vector2(
-                    90f + (nodes.Count % 4) * 230f,
-                    100f + (nodes.Count / 4) * 100f),
             };
+            Vector2 canvasCenterInWorld = lastCanvasSize * 0.5f - canvasPan;
+            node.editorPosition = canvasCenterInWorld -
+                new Vector2(
+                    GetNodeWidth(node),
+                    GetNodeHeight(node)) * 0.5f;
             nodes.Add(node);
             graphAsset.ClearPublishedState();
             EditorUtility.SetDirty(graphAsset);
@@ -1596,21 +1720,52 @@ namespace Game.EditorTools
             }
         }
 
-        private static void DrawGrid(float width, float height, Vector2 pan)
+        private static void DrawGrid(
+            float width,
+            float height,
+            Vector2 pan,
+            float zoom)
         {
             Color previous = Handles.color;
             Handles.color = new Color(1f, 1f, 1f, 0.05f);
             const float gridSize = 20f;
-            float startX = -gridSize + Mathf.Repeat(pan.x, gridSize);
-            float startY = -gridSize + Mathf.Repeat(pan.y, gridSize);
-            for (float x = startX; x < width; x += gridSize)
+            float safeZoom = Mathf.Max(zoom, 0.0001f);
+            Vector2 pivot = new Vector2(width, height) * 0.5f;
+            // 网格直接按红框视口绘制，不使用节点内容的 GUI 缩放矩阵。
+            // 先反算视口对应的世界范围，再把每条世界网格线转换回屏幕坐标，
+            // 因此缩小时外围仍有网格，放大时也不会越过画布边界。
+            float visibleMinWorldX =
+                (0f - pivot.x) / safeZoom + pivot.x - pan.x;
+            float visibleMaxWorldX =
+                (width - pivot.x) / safeZoom + pivot.x - pan.x;
+            float visibleMinWorldY =
+                (0f - pivot.y) / safeZoom + pivot.y - pan.y;
+            float visibleMaxWorldY =
+                (height - pivot.y) / safeZoom + pivot.y - pan.y;
+            float startWorldX = Mathf.Floor(visibleMinWorldX / gridSize) *
+                gridSize;
+            float startWorldY = Mathf.Floor(visibleMinWorldY / gridSize) *
+                gridSize;
+            for (float worldX = startWorldX;
+                worldX <= visibleMaxWorldX;
+                worldX += gridSize)
             {
-                Handles.DrawLine(new Vector3(x, 0f), new Vector3(x, height));
+                float x = pivot.x +
+                    (worldX + pan.x - pivot.x) * safeZoom;
+                Handles.DrawLine(
+                    new Vector3(x, 0f),
+                    new Vector3(x, height));
             }
 
-            for (float y = startY; y < height; y += gridSize)
+            for (float worldY = startWorldY;
+                worldY <= visibleMaxWorldY;
+                worldY += gridSize)
             {
-                Handles.DrawLine(new Vector3(0f, y), new Vector3(width, y));
+                float y = pivot.y +
+                    (worldY + pan.y - pivot.y) * safeZoom;
+                Handles.DrawLine(
+                    new Vector3(0f, y),
+                    new Vector3(width, y));
             }
 
             Handles.color = previous;
