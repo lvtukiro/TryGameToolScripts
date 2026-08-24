@@ -12,11 +12,15 @@ namespace Game.EditorTools
     /// </summary>
     public sealed class BattleAiGraphEditorWindow : EditorWindow
     {
-        private const float NodeWidth = 190f;
+        // 详情模式中的每个词条会按“.”分成多行；固定宽度留出足够空间显示最长的层级字段。
+        private const float NodeWidth = 260f;
         private const float NodeHeight = 64f;
         private const float CanvasMinHeight = 420f;
         private const float PortHitSize = 16f;
         private const float PortSpacing = 18f;
+        private const float DetailRowHeight = 17f;
+        private const float DetailTextLineHeight = 17f;
+        private const float DetailTitleHeight = 30f;
 
         private BattleAiGraphAsset graphAsset;
         private BattleAiGraphAssetNode selectedNode;
@@ -30,6 +34,7 @@ namespace Game.EditorTools
         private int connectingParentNodeId;
         private int connectingChildIndex = -1;
         private Vector2 connectingMousePosition;
+        private bool showNodeDetails;
         private string status = "请选择一个 BattleAiGraphAsset。";
 
         [MenuItem("TryGame/Battle/AI Graph Editor", false, 433)]
@@ -206,10 +211,18 @@ namespace Game.EditorTools
                                                graphAsset.Nodes == null ||
                                                graphAsset.Nodes.Count == 0))
             {
-                if (GUILayout.Button("重排节点 ID", GUILayout.Width(100f)))
-                {
-                    RenumberNodeIds();
-                }
+            if (GUILayout.Button("重排节点 ID", GUILayout.Width(100f)))
+            {
+                RenumberNodeIds();
+            }
+
+            if (GUILayout.Button(
+                    showNodeDetails ? "简易" : "详情",
+                    GUILayout.Width(65f)))
+            {
+                showNodeDetails = !showNodeDetails;
+                Repaint();
+            }
             }
 
             GUILayout.FlexibleSpace();
@@ -324,7 +337,23 @@ namespace Game.EditorTools
             // 节点的鼠标事件统一由 HandleCanvasEvents 处理。
             // 这里不能使用 GUI.Button：GUI.Button 会在 MouseDown 阶段先消费事件，
             // 导致后面的画布拖拽逻辑收不到 MouseDown，节点只能点击选中但无法拖动。
-            GUI.Box(rect, label, EditorStyles.helpBox);
+            if (showNodeDetails)
+            {
+                GUI.Box(rect, GUIContent.none, EditorStyles.helpBox);
+                GUI.Label(
+                    new Rect(
+                        rect.x + 8f,
+                        rect.y + 3f,
+                        rect.width - 16f,
+                        DetailTitleHeight - 3f),
+                    label,
+                    EditorStyles.miniLabel);
+                DrawNodeDataDetails(node, rect);
+            }
+            else
+            {
+                GUI.Box(rect, label, EditorStyles.helpBox);
+            }
 
             Color portColor = selected
                 ? new Color(0.3f, 0.9f, 1f)
@@ -413,7 +442,7 @@ namespace Game.EditorTools
                         BattleAiGraphAssetNode node = graphAsset.Nodes[index];
                         if (node == null || !new Rect(
                                 node.editorPosition,
-                                new Vector2(NodeWidth, GetNodeHeight(node))).Contains(worldMouse))
+                                new Vector2(GetNodeWidth(node), GetNodeHeight(node))).Contains(worldMouse))
                         {
                             continue;
                         }
@@ -606,26 +635,94 @@ namespace Game.EditorTools
             return node.childNodeIds?.Count ?? 0;
         }
 
-        private static float GetNodeHeight(BattleAiGraphAssetNode node)
+        private float GetNodeHeight(BattleAiGraphAssetNode node)
         {
             int outputPortCount = GetOutputPortCount(node);
-            return Mathf.Max(
+            float baseHeight = Mathf.Max(
                 NodeHeight,
                 outputPortCount <= 1
                     ? NodeHeight
                     : 32f + (outputPortCount - 1) * PortSpacing);
+            if (!showNodeDetails)
+            {
+                return baseHeight;
+            }
+
+            GetNodeData(node, out List<string> required, out List<string> provided);
+            return Mathf.Max(
+                baseHeight,
+                DetailTitleHeight + 22f + GetDetailRowsHeight(
+                    required,
+                    provided) + 6f);
         }
 
-        private static Rect GetNodeRect(
+        private static float GetDetailRowsHeight(
+            IReadOnlyList<string> required,
+            IReadOnlyList<string> provided)
+        {
+            float totalHeight = 0f;
+            List<float> rowHeights = GetDetailRowHeights(
+                required,
+                provided);
+            for (int index = 0; index < rowHeights.Count; index++)
+            {
+                totalHeight += rowHeights[index];
+            }
+
+            return totalHeight > 0f ? totalHeight : DetailRowHeight;
+        }
+
+        private static List<float> GetDetailRowHeights(
+            IReadOnlyList<string> required,
+            IReadOnlyList<string> provided)
+        {
+            int rowCount = Mathf.Max(
+                required?.Count ?? 0,
+                provided?.Count ?? 0);
+            List<float> rowHeights = new List<float>(rowCount);
+            for (int index = 0; index < rowCount; index++)
+            {
+                float requiredHeight = index < (required?.Count ?? 0)
+                    ? GetDataRowHeight(required[index])
+                    : DetailRowHeight;
+                float providedHeight = index < (provided?.Count ?? 0)
+                    ? GetDataRowHeight(provided[index])
+                    : DetailRowHeight;
+                rowHeights.Add(Mathf.Max(requiredHeight, providedHeight));
+            }
+
+            return rowHeights;
+        }
+
+        private static float GetDataRowHeight(string value)
+        {
+            // GUIStyle.CalcHeight 对自定义换行在不同 Unity 版本中结果不一致，
+            // 这里按字段层级数量明确计算，保证词条框和外层节点高度始终一致。
+            int lineCount = string.IsNullOrEmpty(value)
+                ? 1
+                : value.Split('.').Length;
+            float calculatedHeight = lineCount * DetailTextLineHeight + 4f;
+            return Mathf.Max(
+                DetailRowHeight,
+                calculatedHeight);
+        }
+
+        private static float GetNodeWidth(BattleAiGraphAssetNode node)
+        {
+            // 词条现在在固定宽度的框内按层级分行，节点不再为了单行显示字段名而横向扩张。
+            return NodeWidth;
+        }
+
+        private Rect GetNodeRect(
             BattleAiGraphAssetNode node,
             Vector2 pan)
         {
             return new Rect(
                 node.editorPosition + pan,
-                new Vector2(NodeWidth, GetNodeHeight(node)));
+                new Vector2(GetNodeWidth(node), GetNodeHeight(node)));
         }
 
-        private static Vector2 GetInputPortCenter(
+        private Vector2 GetInputPortCenter(
             BattleAiGraphAssetNode node,
             Vector2 pan)
         {
@@ -633,7 +730,7 @@ namespace Game.EditorTools
             return new Vector2(rect.x, rect.y + rect.height * 0.5f);
         }
 
-        private static Vector2 GetOutputPortCenter(
+        private Vector2 GetOutputPortCenter(
             BattleAiGraphAssetNode node,
             int childIndex,
             Vector2 pan)
@@ -659,6 +756,434 @@ namespace Game.EditorTools
             return new Rect(
                 center - Vector2.one * (PortHitSize * 0.5f),
                 Vector2.one * PortHitSize);
+        }
+
+        /// <summary>
+        /// 详情模式绘制节点的数据需求和数据提供。左列显示输入，
+        /// 右列显示该节点成功后可写入共享上下文的数据。
+        /// </summary>
+        private void DrawNodeDataDetails(
+            BattleAiGraphAssetNode node,
+            Rect nodeRect)
+        {
+            GetNodeData(
+                node,
+                out List<string> required,
+                out List<string> provided);
+            HashSet<string> available = GetAvailableDataForNode(node.nodeId);
+            bool requirementsSatisfied = AreRequirementsSatisfied(
+                required,
+                available);
+            float columnWidth = (nodeRect.width - 18f) * 0.5f;
+            float leftX = nodeRect.x + 6f;
+            float rightX = leftX + columnWidth + 6f;
+            float headerY = nodeRect.y + DetailTitleHeight;
+            float rowsY = headerY + 17f;
+            List<float> rowHeights = GetDetailRowHeights(
+                required,
+                provided);
+
+            GUI.Label(
+                new Rect(leftX, headerY, columnWidth, 16f),
+                "需要",
+                EditorStyles.miniBoldLabel);
+            GUI.Label(
+                new Rect(rightX, headerY, columnWidth, 16f),
+                "提供",
+                EditorStyles.miniBoldLabel);
+
+            DrawDataRows(
+                required,
+                available,
+                leftX,
+                rowsY,
+                columnWidth,
+                true,
+                requirementsSatisfied,
+                rowHeights);
+            DrawDataRows(
+                provided,
+                available,
+                rightX,
+                rowsY,
+                columnWidth,
+                false,
+                requirementsSatisfied,
+                rowHeights);
+        }
+
+        private static void DrawDataRows(
+            IReadOnlyList<string> values,
+            ISet<string> available,
+            float x,
+            float y,
+            float width,
+            bool isRequired,
+            bool requirementsSatisfied,
+            IReadOnlyList<float> rowHeights)
+        {
+            if (values == null || values.Count == 0)
+            {
+                GUI.color = new Color(0.6f, 0.6f, 0.6f, 0.45f);
+                GUI.Box(
+                    new Rect(x, y, width, DetailRowHeight - 1f),
+                    "—",
+                    GetEmptyDataRowStyle());
+                GUI.color = Color.white;
+                return;
+            }
+
+            for (int index = 0; index < values.Count; index++)
+            {
+                string value = values[index] ?? string.Empty;
+                bool satisfied = isRequired
+                    ? available.Contains(value)
+                    : requirementsSatisfied;
+                GUI.color = satisfied
+                    ? new Color(0.35f, 0.95f, 0.45f, 0.85f)
+                    : new Color(1f, 0.35f, 0.35f, 0.9f);
+                GUIContent content = new GUIContent(
+                    FormatDataValue(satisfied ? "✓ " : "× ", value),
+                    value);
+                float rowY = y;
+                for (int previousIndex = 0;
+                    previousIndex < index && previousIndex < rowHeights.Count;
+                    previousIndex++)
+                {
+                    rowY += rowHeights[previousIndex];
+                }
+
+                float rowHeight = index < rowHeights.Count
+                    ? rowHeights[index]
+                    : GetDataRowHeight(value);
+                Rect rowRect = new Rect(
+                    x,
+                    rowY,
+                    width,
+                    rowHeight - 1f);
+                // 背景和文字分开绘制。miniButton 自带的单行文本布局会裁剪
+                // 第二行字段名，即使外层 Rect 已经足够高也无法正确显示。
+                GUI.Box(
+                    rowRect,
+                    GUIContent.none,
+                    GetDataRowStyle());
+                GUI.Label(
+                    new Rect(
+                        rowRect.x + 4f,
+                        rowRect.y + 2f,
+                        rowRect.width - 6f,
+                        rowRect.height - 4f),
+                    content,
+                    GetDataRowLabelStyle());
+            }
+
+            GUI.color = Color.white;
+        }
+
+        private static string FormatDataValue(string prefix, string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return prefix;
+            }
+
+            // 一个字段仍然只占一个词条框，但字段的层级部分各占一行，
+            // 避免长字段在“需要/提供”两列之间横向溢出。
+            return prefix + value.Replace(".", "\n");
+        }
+
+        private static GUIStyle GetDataRowStyle()
+        {
+            GUIStyle style = new GUIStyle(EditorStyles.miniButton)
+            {
+                clipping = TextClipping.Clip,
+                fixedHeight = 0f,
+                stretchHeight = true,
+                padding = new RectOffset(0, 0, 0, 0),
+            };
+            return style;
+        }
+
+        private static GUIStyle GetDataRowLabelStyle()
+        {
+            GUIStyle style = new GUIStyle(EditorStyles.miniLabel)
+            {
+                alignment = TextAnchor.UpperLeft,
+                clipping = TextClipping.Clip,
+                wordWrap = false,
+                fixedHeight = 0f,
+                stretchHeight = true,
+                padding = new RectOffset(0, 0, 0, 0),
+            };
+            return style;
+        }
+
+        private static GUIStyle GetEmptyDataRowStyle()
+        {
+            GUIStyle style = new GUIStyle(EditorStyles.miniButton)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                clipping = TextClipping.Clip,
+                wordWrap = false,
+            };
+            return style;
+        }
+
+        /// <summary>
+        /// 返回节点的输入/输出数据键。数据键是编辑器诊断用的稳定名称，
+        /// 运行时仍由 Blackboard 和 CombatPlanState 保存实际对象。
+        /// </summary>
+        private static void GetNodeData(
+            BattleAiGraphAssetNode node,
+            out List<string> required,
+            out List<string> provided)
+        {
+            required = new List<string>();
+            provided = new List<string>();
+            if (node == null)
+            {
+                return;
+            }
+
+            switch (node.nodeType)
+            {
+                case BattleAiGraphNodeType.Selector:
+                case BattleAiGraphNodeType.Sequence:
+                    provided.Add("ControlFlow");
+                    return;
+                case BattleAiGraphNodeType.Condition:
+                    AddConditionData(node.conditionType, required, provided);
+                    return;
+                case BattleAiGraphNodeType.Action:
+                    AddHandlerData(node.handlerType, required, provided);
+                    return;
+                case BattleAiGraphNodeType.Wait:
+                    provided.Add("WaitCompleted");
+                    return;
+            }
+        }
+
+        private static void AddConditionData(
+            BattleAiConditionType type,
+            ICollection<string> required,
+            ICollection<string> provided)
+        {
+            switch (type)
+            {
+                case BattleAiConditionType.IsAlive:
+                    required.Add("SelfAlive");
+                    provided.Add("Alive");
+                    break;
+                case BattleAiConditionType.CurrentActionUninterruptible:
+                    required.Add("CurrentAction");
+                    provided.Add("ActionLocked");
+                    break;
+                case BattleAiConditionType.TargetValid:
+                    required.Add("CurrentTarget");
+                    provided.Add("TargetConfirmed");
+                    break;
+                case BattleAiConditionType.TargetVisible:
+                    required.Add("TargetInSight");
+                    provided.Add("TargetConfirmed");
+                    break;
+                case BattleAiConditionType.RecentHitPending:
+                    required.Add("HitEvent");
+                    provided.Add("HitPosition");
+                    break;
+                case BattleAiConditionType.SearchActive:
+                    required.Add("SearchState");
+                    provided.Add("SearchTarget");
+                    break;
+                case BattleAiConditionType.ReturnHomeRequired:
+                    required.Add("HomePosition");
+                    provided.Add("ReturnHome");
+                    break;
+                case BattleAiConditionType.HasPatrolRoute:
+                    required.Add("PatrolRoute");
+                    provided.Add("PatrolReady");
+                    break;
+                case BattleAiConditionType.IsAtHome:
+                    required.Add("HomePosition");
+                    provided.Add("AtHome");
+                    break;
+                case BattleAiConditionType.HasUsableSkill:
+                    required.Add("SkillRuntimes");
+                    provided.Add("UsableSkill");
+                    break;
+                default:
+                    required.Add("ConditionContext");
+                    provided.Add("ConditionResult");
+                    break;
+            }
+        }
+
+        private static void AddHandlerData(
+            BattleAiHandlerType type,
+            ICollection<string> required,
+            ICollection<string> provided)
+        {
+            switch (type)
+            {
+                case BattleAiHandlerType.Idle:
+                    provided.Add("IdleState");
+                    break;
+                case BattleAiHandlerType.Patrol:
+                    required.Add("PatrolRoute");
+                    provided.Add("PatrolMovement");
+                    break;
+                case BattleAiHandlerType.Wait:
+                    provided.Add("WaitState");
+                    break;
+                case BattleAiHandlerType.SearchTarget:
+                    required.Add("LastKnownPosition");
+                    provided.Add("TargetSearchMovement");
+                    break;
+                case BattleAiHandlerType.MoveToLastHitPosition:
+                    required.Add("LastHitPosition");
+                    provided.Add("InvestigatePosition");
+                    break;
+                case BattleAiHandlerType.ReturnHome:
+                    required.Add("HomePosition");
+                    provided.Add("HomeMovement");
+                    break;
+                case BattleAiHandlerType.SelectSkill:
+                    required.Add("CurrentTarget");
+                    required.Add("SkillRuntimes");
+                    // 与 BattleAiCombatPlanState 的实际字段一一对应，
+                    // 不能把多个运行时字段合并成一个概念名称。
+                    provided.Add("PlanState.SelectedBinding");
+                    provided.Add("PlanState.HasSelectedBinding");
+                    provided.Add("PlanState.SelectedMinimumRange");
+                    provided.Add("PlanState.SelectedMaximumRange");
+                    break;
+                case BattleAiHandlerType.MoveToSkillRange:
+                    required.Add("PlanState.SelectedBinding");
+                    required.Add("PlanState.HasSelectedBinding");
+                    required.Add("PlanState.SelectedMinimumRange");
+                    required.Add("PlanState.SelectedMaximumRange");
+                    provided.Add("InSkillRange");
+                    break;
+                case BattleAiHandlerType.ExecuteSkill:
+                    required.Add("SelectedSkill");
+                    required.Add("InSkillRange");
+                    provided.Add("SkillExecution");
+                    break;
+                case BattleAiHandlerType.AttackFinish:
+                    required.Add("SkillExecution");
+                    provided.Add("AttackFinished");
+                    break;
+                case BattleAiHandlerType.MoveToSafePosition:
+                    required.Add("SelectedSkill");
+                    required.Add("TargetPosition");
+                    provided.Add("SafePosition");
+                    break;
+                default:
+                    required.Add("HandlerContext");
+                    provided.Add("HandlerResult");
+                    break;
+            }
+        }
+
+        private static bool AreRequirementsSatisfied(
+            IReadOnlyList<string> required,
+            ISet<string> available)
+        {
+            if (required == null)
+            {
+                return true;
+            }
+
+            for (int index = 0; index < required.Count; index++)
+            {
+                if (!available.Contains(required[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private HashSet<string> GetAvailableDataForNode(int nodeId)
+        {
+            HashSet<string> available = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "TargetInSight",
+                "CurrentTarget",
+                "SelfAlive",
+                "SkillRuntimes",
+                "HomePosition",
+                "PatrolRoute",
+                "SearchState",
+                "LastKnownPosition",
+                "LastHitPosition",
+                "TargetPosition",
+                "CurrentAction",
+                "HitEvent",
+            };
+            AddAvailableDataFromParents(
+                nodeId,
+                available,
+                new HashSet<int>());
+            return available;
+        }
+
+        private void AddAvailableDataFromParents(
+            int nodeId,
+            ISet<string> available,
+            ISet<int> visiting)
+        {
+            if (!visiting.Add(nodeId) || graphAsset == null ||
+                graphAsset.Nodes == null)
+            {
+                return;
+            }
+
+            for (int parentIndex = 0;
+                parentIndex < graphAsset.Nodes.Count;
+                parentIndex++)
+            {
+                BattleAiGraphAssetNode parent = graphAsset.Nodes[parentIndex];
+                if (parent == null || parent.childNodeIds == null)
+                {
+                    continue;
+                }
+
+                int childIndex = parent.childNodeIds.IndexOf(nodeId);
+                if (childIndex < 0)
+                {
+                    continue;
+                }
+
+                AddAvailableDataFromParents(parent.nodeId, available, visiting);
+                for (int siblingIndex = 0;
+                    siblingIndex < childIndex;
+                    siblingIndex++)
+                {
+                    BattleAiGraphAssetNode sibling = FindNode(
+                        parent.childNodeIds[siblingIndex]);
+                    if (sibling == null)
+                    {
+                        continue;
+                    }
+
+                    GetNodeData(
+                        sibling,
+                        out List<string> siblingRequired,
+                        out List<string> siblingProvided);
+                    if (AreRequirementsSatisfied(siblingRequired, available))
+                    {
+                        for (int dataIndex = 0;
+                            dataIndex < siblingProvided.Count;
+                            dataIndex++)
+                        {
+                            available.Add(siblingProvided[dataIndex]);
+                        }
+                    }
+                }
+            }
+
+            visiting.Remove(nodeId);
         }
 
         private bool TryGetOutputPortAt(
@@ -719,22 +1244,35 @@ namespace Game.EditorTools
                 return;
             }
 
+            if (parent.childNodeIds == null ||
+                connectingChildIndex >= parent.childNodeIds.Count)
+            {
+                status = "连接失败：源节点的子节点槽位不存在。";
+                return;
+            }
+
             if (target == null)
             {
-                status = "连接已取消：请把线拖到目标节点左侧输入端口。";
+                // 从已有输出端口拖到空白处：清除该槽位的旧引用。
+                // 未连接的空槽位不产生无意义的资产修改。
+                if (parent.childNodeIds[connectingChildIndex] <= 0)
+                {
+                    status = "连接已取消：该输出端口当前没有连接。";
+                    return;
+                }
+
+                Undo.RecordObject(graphAsset, "断开行为图节点连接");
+                parent.childNodeIds[connectingChildIndex] = 0;
+                graphAsset.ClearPublishedState();
+                EditorUtility.SetDirty(graphAsset);
+                status = "已断开：节点 " + parent.nodeId +
+                    " 的第 " + (connectingChildIndex + 1) + " 个输出端口。";
                 return;
             }
 
             if (target == parent)
             {
                 status = "连接失败：节点不能引用自身。";
-                return;
-            }
-
-            if (parent.childNodeIds == null ||
-                connectingChildIndex >= parent.childNodeIds.Count)
-            {
-                status = "连接失败：源节点的子节点槽位不存在。";
                 return;
             }
 

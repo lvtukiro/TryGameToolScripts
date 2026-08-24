@@ -44,6 +44,10 @@ namespace Game.EditorTools.SkeletonAnimation
             }
 
             AddDefaultSockets(document);
+            if (input.IsFrontView)
+            {
+                SwapLeftRightSemantics(document);
+            }
 
             if (input.SourceImage == null)
             {
@@ -98,6 +102,52 @@ namespace Game.EditorTools.SkeletonAnimation
             AddSocket(document, "right_hand_weapon", "Right Hand Weapon", "right_hand", 0.02f, 0.02f, "Weapon");
             AddSocket(document, "back_equipment", "Back Equipment", "chest", 0f, 0.04f, "Equipment");
             AddSocket(document, "skill_fx", "Skill FX", "root", 0f, -0.08f, "Effect");
+        }
+
+        private static void SwapLeftRightSemantics(SkeletonTemplateDocument document)
+        {
+            if (document == null)
+            {
+                return;
+            }
+
+            if (document.bones != null)
+            {
+                for (int i = 0; i < document.bones.Count; i++)
+                {
+                    SkeletonBoneData bone = document.bones[i];
+                    bone.boneId = SwapLeftRightToken(bone.boneId);
+                    bone.parentBoneId = SwapLeftRightToken(bone.parentBoneId);
+                    bone.displayName = SwapLeftRightToken(bone.displayName);
+                }
+            }
+
+            if (document.sockets != null)
+            {
+                for (int i = 0; i < document.sockets.Count; i++)
+                {
+                    SkeletonSocketData socket = document.sockets[i];
+                    socket.socketId = SwapLeftRightToken(socket.socketId);
+                    socket.parentBoneId = SwapLeftRightToken(socket.parentBoneId);
+                    socket.displayName = SwapLeftRightToken(socket.displayName);
+                }
+            }
+        }
+
+        private static string SwapLeftRightToken(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            return value
+                .Replace("Left", "__TRYGAME_SIDE_TMP__")
+                .Replace("Right", "Left")
+                .Replace("__TRYGAME_SIDE_TMP__", "Right")
+                .Replace("left", "__trygame_side_tmp__")
+                .Replace("right", "left")
+                .Replace("__trygame_side_tmp__", "right");
         }
 
         private static bool TryEstimateSubjectBounds(Texture2D image, out Rect bounds)

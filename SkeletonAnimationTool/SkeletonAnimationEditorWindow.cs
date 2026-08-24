@@ -57,6 +57,7 @@ namespace Game.EditorTools.SkeletonAnimation
         private float bodyFitOffsetX;
         private float bodyFitOffsetY;
         private SkeletonDisplayMode displayMode = SkeletonDisplayMode.All;
+        private bool frontView;
 
         [MenuItem("TryGame/Tools/Skeleton Animation Tool")]
         public static void Open()
@@ -128,6 +129,10 @@ namespace Game.EditorTools.SkeletonAnimation
                     templateDocument.sourceAssetPath = sourceAssetPath;
                 }
             }
+
+            frontView = EditorGUILayout.ToggleLeft(
+                "正面视图（按角色左右命名）",
+                frontView);
 
             using (new EditorGUI.DisabledScope(sourceImage == null))
             {
@@ -296,8 +301,164 @@ namespace Game.EditorTools.SkeletonAnimation
             DrawSkeleton(contentRect);
             HandleCanvasInput(contentRect, Event.current);
 
+            DrawKeyframeTimeline();
             DrawAnimationStrip();
+            DrawPersistentActionFrameNavigator();
             EditorGUILayout.EndVertical();
+        }
+
+        private void DrawKeyframeTimeline()
+        {
+            if (animationDocument == null || animationDocument.keyframes == null
+                || animationDocument.keyframes.Count == 0)
+            {
+                return;
+            }
+
+            Rect timelineRect = GUILayoutUtility.GetRect(
+                100f,
+                70f,
+                GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(timelineRect, new Color(0.10f, 0.11f, 0.12f, 1f));
+
+            Rect trackRect = new Rect(
+                timelineRect.xMin + 28f,
+                timelineRect.yMin + 34f,
+                Mathf.Max(10f, timelineRect.width - 56f),
+                2f);
+            EditorGUI.DrawRect(trackRect, new Color(0.55f, 0.58f, 0.62f, 1f));
+
+            int maxFrame = GetActionFrameMaxIndex();
+            if (maxFrame <= 0)
+            {
+                maxFrame = GetMaxRecordedKeyframe();
+            }
+
+            GUI.Label(
+                new Rect(timelineRect.xMin + 8f, timelineRect.yMin + 7f, 160f, 20f),
+                "关键帧时间轴",
+                EditorStyles.miniBoldLabel);
+            GUI.Label(
+                new Rect(trackRect.xMin - 8f, trackRect.yMax + 5f, 40f, 18f),
+                "0",
+                EditorStyles.miniLabel);
+            GUI.Label(
+                new Rect(trackRect.xMax - 32f, trackRect.yMax + 5f, 40f, 18f),
+                maxFrame.ToString(),
+                EditorStyles.miniLabel);
+
+            Event evt = Event.current;
+            for (int i = 0; i < animationDocument.keyframes.Count; i++)
+            {
+                SkeletonAnimationKeyframeData keyframe = animationDocument.keyframes[i];
+                float normalized = maxFrame <= 0
+                    ? 0f
+                    : Mathf.Clamp01((float)keyframe.frame / maxFrame);
+                float x = trackRect.xMin + normalized * trackRect.width;
+                bool current = keyframe.frame == currentFrame;
+                Color dotColor = current
+                    ? new Color(1f, 0.78f, 0.15f, 1f)
+                    : new Color(0.25f, 0.75f, 1f, 1f);
+                EditorGUI.DrawRect(
+                    new Rect(x - (current ? 6f : 5f), trackRect.yMin - (current ? 6f : 5f),
+                        current ? 12f : 10f, current ? 12f : 10f),
+                    dotColor);
+                GUI.Label(
+                    new Rect(x - 18f, timelineRect.yMin + 48f, 42f, 18f),
+                    keyframe.frame.ToString(),
+                    EditorStyles.centeredGreyMiniLabel);
+
+                if (evt.type == EventType.MouseDown && evt.button == 0
+                    && Vector2.Distance(evt.mousePosition, new Vector2(x, trackRect.center.y)) <= 12f)
+                {
+                    OpenActionFrameByIndex(keyframe.frame);
+                    status = "正在预览关键帧：" + keyframe.frame;
+                    evt.Use();
+                    Repaint();
+                }
+            }
+        }
+
+        private int GetActionFrameMaxIndex()
+        {
+            if (animationDocument == null || animationDocument.frameSelections == null
+                || animationDocument.frameSelections.Count == 0)
+            {
+                return 0;
+            }
+
+            return Mathf.Max(0, animationDocument.frameSelections.Count - 1);
+        }
+
+        private int GetMaxRecordedKeyframe()
+        {
+            int maxFrame = 0;
+            if (animationDocument == null || animationDocument.keyframes == null)
+            {
+                return maxFrame;
+            }
+
+            for (int i = 0; i < animationDocument.keyframes.Count; i++)
+            {
+                maxFrame = Mathf.Max(maxFrame, animationDocument.keyframes[i].frame);
+            }
+
+            return maxFrame;
+        }
+
+        private void DrawPersistentActionFrameNavigator()
+        {
+            if (animationDocument == null || animationDocument.frameSelections == null
+                || animationDocument.frameSelections.Count == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.BeginHorizontal(EditorStyles.helpBox, GUILayout.Height(30f));
+            GUILayout.Label(
+                "动作帧 " + currentFrame + " / "
+                + (animationDocument.frameSelections.Count - 1),
+                GUILayout.Width(105f));
+
+            using (new EditorGUI.DisabledScope(currentFrame <= 0))
+            {
+                if (GUILayout.Button("上一帧", GUILayout.Width(58f)))
+                {
+                    OpenActionFrameByIndex(currentFrame - 1);
+                }
+            }
+
+            using (new EditorGUI.DisabledScope(
+                currentFrame >= animationDocument.frameSelections.Count - 1))
+            {
+                if (GUILayout.Button("下一帧", GUILayout.Width(58f)))
+                {
+                    OpenActionFrameByIndex(currentFrame + 1);
+                }
+            }
+
+            if (GUILayout.Button("打开当前帧", GUILayout.Width(82f)))
+            {
+                OpenActionFrameByIndex(currentFrame);
+            }
+
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void OpenActionFrameByIndex(int frameIndex)
+        {
+            SkeletonActionFrameSelectionData frame = FindActionFrame(frameIndex);
+            if (frame == null)
+            {
+                return;
+            }
+
+            currentFrame = frame.frameIndex;
+            LoadActionFramePreview(frame.sourceFilePath);
+            LoadReferenceImageFromFrame(frame.sourceFilePath);
+            ApplyRecordedPose(frame.frameIndex);
+            Repaint();
         }
 
         private void DrawRightPanel()
@@ -704,6 +865,14 @@ namespace Game.EditorTools.SkeletonAnimation
                 RecordCurrentPoseAsKeyframe();
             }
 
+            using (new EditorGUI.DisabledScope(!HasKeyframeAt(currentFrame)))
+            {
+                if (GUILayout.Button("删除当前关键帧", GUILayout.Width(120f)))
+                {
+                    DeleteCurrentKeyframe();
+                }
+            }
+
             if (GUILayout.Button("导出动作 JSON", GUILayout.Width(120f)))
             {
                 SaveAnimation();
@@ -713,8 +882,12 @@ namespace Game.EditorTools.SkeletonAnimation
             EditorGUILayout.LabelField(
                 animationDocument.keyframes.Count + " 个关键帧",
                 GUILayout.Width(100f));
+            EditorGUILayout.LabelField(
+                "时长 " + GetRecordedAnimationDuration().ToString("0.00") + " 秒",
+                GUILayout.Width(100f));
             EditorGUILayout.EndHorizontal();
         }
+
 
         private void DrawActionFrameList()
         {
@@ -797,6 +970,7 @@ namespace Game.EditorTools.SkeletonAnimation
                     if (evt.clickCount >= 2)
                     {
                         LoadReferenceImageFromFrame(frame.sourceFilePath);
+                        ApplyRecordedPose(frame.frameIndex);
                     }
 
                     evt.Use();
@@ -976,6 +1150,7 @@ namespace Game.EditorTools.SkeletonAnimation
                     BodyFitHeightScale = bodyFitHeightScale,
                     BodyFitOffsetX = bodyFitOffsetX,
                     BodyFitOffsetY = bodyFitOffsetY,
+                    IsFrontView = frontView,
                 });
 
             templateDocument = result.Template;
@@ -1183,7 +1358,86 @@ namespace Game.EditorTools.SkeletonAnimation
                 });
             }
 
+            SortKeyframes();
+
             status = "已记录关键帧：" + currentFrame;
+            Debug.Log(
+                "[SkeletonAnimationEditorWindow] 已记录关键帧：frame="
+                + currentFrame
+                + ", boneCount="
+                + keyframe.bonePoses.Count);
+            GUI.changed = true;
+            Repaint();
+        }
+
+        private bool HasKeyframeAt(int frame)
+        {
+            if (animationDocument == null || animationDocument.keyframes == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < animationDocument.keyframes.Count; i++)
+            {
+                if (animationDocument.keyframes[i].frame == frame)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void DeleteCurrentKeyframe()
+        {
+            if (animationDocument == null || animationDocument.keyframes == null)
+            {
+                return;
+            }
+
+            int removed = animationDocument.keyframes.RemoveAll(
+                keyframe => keyframe != null && keyframe.frame == currentFrame);
+            if (removed == 0)
+            {
+                status = "当前帧没有已记录的关键帧：" + currentFrame;
+                return;
+            }
+
+            SortKeyframes();
+            status = "已删除当前关键帧：" + currentFrame;
+            GUI.changed = true;
+            Repaint();
+        }
+
+        private void SortKeyframes()
+        {
+            if (animationDocument == null || animationDocument.keyframes == null)
+            {
+                return;
+            }
+
+            animationDocument.keyframes.Sort(
+                (left, right) =>
+                {
+                    if (left == null)
+                    {
+                        return right == null ? 0 : 1;
+                    }
+
+                    if (right == null)
+                    {
+                        return -1;
+                    }
+
+                    return left.frame.CompareTo(right.frame);
+                });
+        }
+
+        private float GetRecordedAnimationDuration()
+        {
+            int maxFrame = GetMaxRecordedKeyframe();
+            float safeFrameRate = Mathf.Max(1f, previewFrameRate);
+            return maxFrame / safeFrameRate;
         }
 
         private void LoadActionSource(string selectedPath)
@@ -1249,6 +1503,46 @@ namespace Game.EditorTools.SkeletonAnimation
             {
                 templateDocument.sourceAssetPath = imagePath;
             }
+        }
+
+        private void ApplyRecordedPose(int frame)
+        {
+            if (templateDocument == null || templateDocument.bones == null
+                || animationDocument == null || animationDocument.keyframes == null)
+            {
+                return;
+            }
+
+            SkeletonAnimationKeyframeData keyframe = null;
+            for (int i = 0; i < animationDocument.keyframes.Count; i++)
+            {
+                if (animationDocument.keyframes[i].frame == frame)
+                {
+                    keyframe = animationDocument.keyframes[i];
+                    break;
+                }
+            }
+
+            if (keyframe == null || keyframe.bonePoses == null)
+            {
+                status = "已进入帧 #" + frame + "，这是新姿势，可直接调整骨骼。";
+                return;
+            }
+
+            for (int i = 0; i < keyframe.bonePoses.Count; i++)
+            {
+                SkeletonBonePoseData pose = keyframe.bonePoses[i];
+                SkeletonBoneData bone = FindBone(pose.boneId);
+                if (bone == null)
+                {
+                    continue;
+                }
+
+                bone.normalizedPosition = pose.normalizedPosition;
+                bone.rotationDegrees = pose.rotationDegrees;
+            }
+
+            status = "已恢复已记录姿势：帧 #" + frame;
         }
 
         private void LoadActionFrameSequence(string selectedPath)

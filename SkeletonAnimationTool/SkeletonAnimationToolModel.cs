@@ -102,6 +102,7 @@ namespace Game.EditorTools.SkeletonAnimation
         public float BodyFitHeightScale = 0.96f;
         public float BodyFitOffsetX;
         public float BodyFitOffsetY;
+        public bool IsFrontView;
     }
 
     public sealed class SkeletonRecognitionResult
