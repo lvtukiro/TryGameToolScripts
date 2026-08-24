@@ -14,15 +14,22 @@ namespace Game.EditorTools
     {
         private const float NodeWidth = 190f;
         private const float NodeHeight = 64f;
-        private const float CanvasWidth = 1200f;
-        private const float CanvasHeight = 760f;
+        private const float CanvasMinHeight = 420f;
+        private const float PortHitSize = 16f;
+        private const float PortSpacing = 18f;
 
         private BattleAiGraphAsset graphAsset;
         private BattleAiGraphAssetNode selectedNode;
         private readonly List<string> validationIssues = new List<string>();
-        private Vector2 canvasScroll;
+        // 画布平移量只属于编辑器视图，不写入行为图资产。
+        private Vector2 canvasPan;
         private int draggingNodeId;
         private Vector2 dragOffset;
+        private bool draggingCanvas;
+        private int canvasHotControl;
+        private int connectingParentNodeId;
+        private int connectingChildIndex = -1;
+        private Vector2 connectingMousePosition;
         private string status = "请选择一个 BattleAiGraphAsset。";
 
         [MenuItem("TryGame/Battle/AI Graph Editor", false, 433)]
@@ -47,6 +54,7 @@ namespace Game.EditorTools
                 return;
             }
 
+            HandleGlobalEvents();
             DrawAssetHeader();
             EditorGUILayout.BeginHorizontal();
             DrawCanvasPanel();
@@ -67,6 +75,11 @@ namespace Game.EditorTools
             {
                 graphAsset = next;
                 selectedNode = null;
+                canvasPan = Vector2.zero;
+                draggingNodeId = 0;
+                draggingCanvas = false;
+                canvasHotControl = 0;
+                ResetConnectionState();
                 validationIssues.Clear();
                 status = graphAsset == null
                     ? "请选择一个 BattleAiGraphAsset。"
@@ -183,29 +196,37 @@ namespace Game.EditorTools
                 AddNode(BattleAiGraphNodeType.Wait);
             }
 
+            if (GUILayout.Button("重置视图", GUILayout.Width(85f)))
+            {
+                canvasPan = Vector2.zero;
+                Repaint();
+            }
+
             GUILayout.FlexibleSpace();
+            GUILayout.Label(
+                "空白处左键/中键平移；右侧端口拖到目标左侧端口",
+                EditorStyles.miniLabel);
             EditorGUILayout.EndHorizontal();
 
-            canvasScroll = EditorGUILayout.BeginScrollView(
-                canvasScroll,
-                EditorStyles.helpBox,
+            Rect canvasRect = GUILayoutUtility.GetRect(
+                0f,
+                CanvasMinHeight,
                 GUILayout.ExpandWidth(true),
                 GUILayout.ExpandHeight(true));
-            Rect canvasRect = GUILayoutUtility.GetRect(
-                CanvasWidth,
-                CanvasHeight,
-                GUILayout.ExpandWidth(false),
-                GUILayout.ExpandHeight(false));
             DrawCanvas(canvasRect);
-            EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
         }
 
         private void DrawCanvas(Rect canvasRect)
         {
-            GUI.Box(canvasRect, GUIContent.none, EditorStyles.textArea);
             GUI.BeginGroup(canvasRect);
-            DrawGrid(canvasRect.width, canvasRect.height);
+            Rect localCanvasRect = new Rect(
+                0f,
+                0f,
+                canvasRect.width,
+                canvasRect.height);
+            GUI.Box(localCanvasRect, GUIContent.none, EditorStyles.textArea);
+            DrawGrid(canvasRect.width, canvasRect.height, canvasPan);
             Handles.BeginGUI();
             for (int index = 0; index < graphAsset.Nodes.Count; index++)
             {
@@ -225,10 +246,8 @@ namespace Game.EditorTools
                         continue;
                     }
 
-                    Vector2 start = parent.editorPosition +
-                        new Vector2(NodeWidth, NodeHeight * 0.5f);
-                    Vector2 end = child.editorPosition +
-                        new Vector2(0f, NodeHeight * 0.5f);
+                    Vector2 start = GetOutputPortCenter(parent, childIndex, canvasPan);
+                    Vector2 end = GetInputPortCenter(child, canvasPan);
                     Handles.DrawBezier(
                         start,
                         end,
@@ -240,26 +259,45 @@ namespace Game.EditorTools
                 }
             }
 
+            if (connectingParentNodeId > 0)
+            {
+                BattleAiGraphAssetNode parent = FindNode(connectingParentNodeId);
+                if (parent != null && connectingChildIndex >= 0)
+                {
+                    Vector2 start = GetOutputPortCenter(
+                        parent,
+                        connectingChildIndex,
+                        canvasPan);
+                    Vector2 end = connectingMousePosition;
+                    Handles.DrawBezier(
+                        start,
+                        end,
+                        start + Vector2.right * 50f,
+                        end + Vector2.left * 50f,
+                        new Color(0.4f, 0.85f, 1f),
+                        null,
+                        2f);
+                }
+            }
+
             Handles.EndGUI();
             for (int index = 0; index < graphAsset.Nodes.Count; index++)
             {
-                DrawNode(graphAsset.Nodes[index]);
+                DrawNode(graphAsset.Nodes[index], canvasPan);
             }
 
             GUI.EndGroup();
             HandleCanvasEvents(canvasRect);
         }
 
-        private void DrawNode(BattleAiGraphAssetNode node)
+        private void DrawNode(BattleAiGraphAssetNode node, Vector2 pan)
         {
             if (node == null)
             {
                 return;
             }
 
-            Rect rect = new Rect(
-                node.editorPosition,
-                new Vector2(NodeWidth, NodeHeight));
+            Rect rect = GetNodeRect(node, pan);
             bool selected = selectedNode == node;
             Color previous = GUI.color;
             GUI.color = selected ? new Color(0.35f, 0.75f, 1f) : Color.white;
@@ -273,10 +311,30 @@ namespace Game.EditorTools
                 label += "\n" + node.handlerType;
             }
 
-            if (GUI.Button(rect, label, EditorStyles.helpBox))
+            // 节点的鼠标事件统一由 HandleCanvasEvents 处理。
+            // 这里不能使用 GUI.Button：GUI.Button 会在 MouseDown 阶段先消费事件，
+            // 导致后面的画布拖拽逻辑收不到 MouseDown，节点只能点击选中但无法拖动。
+            GUI.Box(rect, label, EditorStyles.helpBox);
+
+            Color portColor = selected
+                ? new Color(0.3f, 0.9f, 1f)
+                : new Color(0.75f, 0.75f, 0.75f);
+            GUI.color = portColor;
+            GUI.Box(
+                GetPortHitRect(GetInputPortCenter(node, pan)),
+                GUIContent.none,
+                EditorStyles.miniButton);
+            int outputPortCount = GetOutputPortCount(node);
+            for (int index = 0; index < outputPortCount; index++)
             {
-                selectedNode = node;
-                Repaint();
+                bool connected = node.childNodeIds[index] > 0;
+                GUI.color = connected
+                    ? new Color(0.35f, 1f, 0.45f)
+                    : new Color(1f, 0.75f, 0.25f);
+                GUI.Box(
+                    GetPortHitRect(GetOutputPortCenter(node, index, pan)),
+                    GUIContent.none,
+                    EditorStyles.miniButton);
             }
 
             GUI.color = previous;
@@ -286,26 +344,87 @@ namespace Game.EditorTools
         {
             Event current = Event.current;
             Vector2 localMouse = current.mousePosition - canvasRect.position;
-            if (current.type == EventType.MouseDown && current.button == 0)
-            {
-                for (int index = graphAsset.Nodes.Count - 1; index >= 0; index--)
-                {
-                    BattleAiGraphAssetNode node = graphAsset.Nodes[index];
-                    if (node == null || !new Rect(
-                            node.editorPosition,
-                            new Vector2(NodeWidth, NodeHeight)).Contains(localMouse))
-                    {
-                        continue;
-                    }
+            Vector2 worldMouse = localMouse - canvasPan;
+            bool mouseInsideCanvas = canvasRect.Contains(current.mousePosition);
 
-                    selectedNode = node;
-                    draggingNodeId = node.nodeId;
-                    dragOffset = localMouse - node.editorPosition;
-                    Undo.RecordObject(graphAsset, "移动行为图节点");
+            if (connectingParentNodeId > 0)
+            {
+                if (current.type == EventType.MouseDrag)
+                {
+                    connectingMousePosition = localMouse;
                     current.Use();
                     Repaint();
                     return;
                 }
+
+                if (current.type == EventType.MouseUp && current.button == 0)
+                {
+                    BattleAiGraphAssetNode target = FindNodeAtInputPort(worldMouse);
+                    CompleteConnection(target);
+                    if (GUIUtility.hotControl == canvasHotControl)
+                    {
+                        GUIUtility.hotControl = 0;
+                    }
+
+                    ResetConnectionState();
+                    canvasHotControl = 0;
+                    current.Use();
+                    Repaint();
+                    return;
+                }
+            }
+
+            if (mouseInsideCanvas &&
+                current.type == EventType.MouseDown &&
+                (current.button == 0 || current.button == 2))
+            {
+                canvasHotControl = GUIUtility.GetControlID(FocusType.Passive);
+                GUIUtility.hotControl = canvasHotControl;
+                if (current.button == 0)
+                {
+                    if (TryGetOutputPortAt(
+                            worldMouse,
+                            out BattleAiGraphAssetNode parent,
+                            out int childIndex))
+                    {
+                        selectedNode = parent;
+                        draggingNodeId = 0;
+                        draggingCanvas = false;
+                        connectingParentNodeId = parent.nodeId;
+                        connectingChildIndex = childIndex;
+                        connectingMousePosition = localMouse;
+                        current.Use();
+                        Repaint();
+                        return;
+                    }
+
+                    for (int index = graphAsset.Nodes.Count - 1; index >= 0; index--)
+                    {
+                        BattleAiGraphAssetNode node = graphAsset.Nodes[index];
+                        if (node == null || !new Rect(
+                                node.editorPosition,
+                                new Vector2(NodeWidth, GetNodeHeight(node))).Contains(worldMouse))
+                        {
+                            continue;
+                        }
+
+                        selectedNode = node;
+                        draggingNodeId = node.nodeId;
+                        draggingCanvas = false;
+                        dragOffset = worldMouse - node.editorPosition;
+                        Undo.RecordObject(graphAsset, "移动行为图节点");
+                        current.Use();
+                        Repaint();
+                        return;
+                    }
+                }
+
+                // 空白处左键和任意位置中键都用于平移视图，不修改节点坐标。
+                draggingCanvas = true;
+                draggingNodeId = 0;
+                current.Use();
+                Repaint();
+                return;
             }
 
             if (current.type == EventType.MouseDrag && draggingNodeId > 0)
@@ -313,9 +432,8 @@ namespace Game.EditorTools
                 BattleAiGraphAssetNode node = FindNode(draggingNodeId);
                 if (node != null)
                 {
-                    node.editorPosition = localMouse - dragOffset;
-                    node.editorPosition.x = Mathf.Max(10f, node.editorPosition.x);
-                    node.editorPosition.y = Mathf.Max(10f, node.editorPosition.y);
+                    // 节点坐标不再限制为正数；画布平移后可把负坐标节点重新拖回视口。
+                    node.editorPosition = worldMouse - dragOffset;
                     graphAsset.ClearPublishedState();
                     EditorUtility.SetDirty(graphAsset);
                     current.Use();
@@ -323,9 +441,24 @@ namespace Game.EditorTools
                 }
             }
 
-            if (current.type == EventType.MouseUp && draggingNodeId > 0)
+            if (current.type == EventType.MouseDrag && draggingCanvas)
+            {
+                canvasPan += current.delta;
+                current.Use();
+                Repaint();
+            }
+
+            if (current.type == EventType.MouseUp &&
+                (draggingNodeId > 0 || draggingCanvas))
             {
                 draggingNodeId = 0;
+                draggingCanvas = false;
+                if (GUIUtility.hotControl == canvasHotControl)
+                {
+                    GUIUtility.hotControl = 0;
+                }
+
+                canvasHotControl = 0;
                 current.Use();
             }
         }
@@ -387,7 +520,8 @@ namespace Game.EditorTools
             if (selectedNode.nodeType == BattleAiGraphNodeType.Selector ||
                 selectedNode.nodeType == BattleAiGraphNodeType.Sequence)
             {
-                EditorGUILayout.LabelField("子节点 ID");
+                EditorGUILayout.LabelField(
+                    "子节点 ID（每项对应一个右侧输出端口）");
                 selectedNode.childNodeIds ??= new List<int>();
                 for (int index = 0; index < selectedNode.childNodeIds.Count; index++)
                 {
@@ -423,17 +557,6 @@ namespace Game.EditorTools
                 }
             }
 
-            Vector2 position = EditorGUILayout.Vector2Field(
-                "编辑坐标",
-                selectedNode.editorPosition);
-            if (position != selectedNode.editorPosition)
-            {
-                Undo.RecordObject(graphAsset, "修改行为图节点坐标");
-                selectedNode.editorPosition = position;
-                graphAsset.ClearPublishedState();
-                EditorUtility.SetDirty(graphAsset);
-            }
-
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("删除节点"))
             {
@@ -441,6 +564,182 @@ namespace Game.EditorTools
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>处理不属于某个具体控件的编辑器快捷键。</summary>
+        private void HandleGlobalEvents()
+        {
+            Event current = Event.current;
+            if (selectedNode == null ||
+                current.type != EventType.KeyDown ||
+                EditorGUIUtility.editingTextField ||
+                (current.keyCode != KeyCode.Delete &&
+                 current.keyCode != KeyCode.Backspace))
+            {
+                return;
+            }
+
+            DeleteSelectedNode();
+            current.Use();
+            Repaint();
+        }
+
+        private static int GetOutputPortCount(BattleAiGraphAssetNode node)
+        {
+            if (node == null ||
+                (node.nodeType != BattleAiGraphNodeType.Selector &&
+                 node.nodeType != BattleAiGraphNodeType.Sequence))
+            {
+                return 0;
+            }
+
+            return node.childNodeIds?.Count ?? 0;
+        }
+
+        private static float GetNodeHeight(BattleAiGraphAssetNode node)
+        {
+            int outputPortCount = GetOutputPortCount(node);
+            return Mathf.Max(
+                NodeHeight,
+                outputPortCount <= 1
+                    ? NodeHeight
+                    : 32f + (outputPortCount - 1) * PortSpacing);
+        }
+
+        private static Rect GetNodeRect(
+            BattleAiGraphAssetNode node,
+            Vector2 pan)
+        {
+            return new Rect(
+                node.editorPosition + pan,
+                new Vector2(NodeWidth, GetNodeHeight(node)));
+        }
+
+        private static Vector2 GetInputPortCenter(
+            BattleAiGraphAssetNode node,
+            Vector2 pan)
+        {
+            Rect rect = GetNodeRect(node, pan);
+            return new Vector2(rect.x, rect.y + rect.height * 0.5f);
+        }
+
+        private static Vector2 GetOutputPortCenter(
+            BattleAiGraphAssetNode node,
+            int childIndex,
+            Vector2 pan)
+        {
+            Rect rect = GetNodeRect(node, pan);
+            int outputPortCount = GetOutputPortCount(node);
+            if (outputPortCount <= 1)
+            {
+                return new Vector2(rect.xMax, rect.y + rect.height * 0.5f);
+            }
+
+            float top = rect.y + 16f;
+            float bottom = rect.yMax - 16f;
+            float normalizedIndex = Mathf.Clamp01(
+                childIndex / (float)(outputPortCount - 1));
+            return new Vector2(
+                rect.xMax,
+                Mathf.Lerp(top, bottom, normalizedIndex));
+        }
+
+        private static Rect GetPortHitRect(Vector2 center)
+        {
+            return new Rect(
+                center - Vector2.one * (PortHitSize * 0.5f),
+                Vector2.one * PortHitSize);
+        }
+
+        private bool TryGetOutputPortAt(
+            Vector2 worldMouse,
+            out BattleAiGraphAssetNode parent,
+            out int childIndex)
+        {
+            for (int nodeIndex = graphAsset.Nodes.Count - 1;
+                nodeIndex >= 0;
+                nodeIndex--)
+            {
+                BattleAiGraphAssetNode candidate = graphAsset.Nodes[nodeIndex];
+                int outputPortCount = GetOutputPortCount(candidate);
+                for (int index = outputPortCount - 1; index >= 0; index--)
+                {
+                    if (!GetPortHitRect(
+                            GetOutputPortCenter(candidate, index, Vector2.zero))
+                        .Contains(worldMouse))
+                    {
+                        continue;
+                    }
+
+                    parent = candidate;
+                    childIndex = index;
+                    return true;
+                }
+            }
+
+            parent = null;
+            childIndex = -1;
+            return false;
+        }
+
+        private BattleAiGraphAssetNode FindNodeAtInputPort(Vector2 worldMouse)
+        {
+            for (int index = graphAsset.Nodes.Count - 1; index >= 0; index--)
+            {
+                BattleAiGraphAssetNode node = graphAsset.Nodes[index];
+                if (node == null ||
+                    !GetPortHitRect(GetInputPortCenter(node, Vector2.zero))
+                        .Contains(worldMouse))
+                {
+                    continue;
+                }
+
+                return node;
+            }
+
+            return null;
+        }
+
+        private void CompleteConnection(BattleAiGraphAssetNode target)
+        {
+            BattleAiGraphAssetNode parent = FindNode(connectingParentNodeId);
+            if (parent == null || connectingChildIndex < 0)
+            {
+                status = "连接失败：源节点不存在。";
+                return;
+            }
+
+            if (target == null)
+            {
+                status = "连接已取消：请把线拖到目标节点左侧输入端口。";
+                return;
+            }
+
+            if (target == parent)
+            {
+                status = "连接失败：节点不能引用自身。";
+                return;
+            }
+
+            if (parent.childNodeIds == null ||
+                connectingChildIndex >= parent.childNodeIds.Count)
+            {
+                status = "连接失败：源节点的子节点槽位不存在。";
+                return;
+            }
+
+            Undo.RecordObject(graphAsset, "连接行为图节点");
+            parent.childNodeIds[connectingChildIndex] = target.nodeId;
+            graphAsset.ClearPublishedState();
+            EditorUtility.SetDirty(graphAsset);
+            status = "已连接：" + parent.nodeId + " → " + target.nodeId + "。";
+        }
+
+        private void ResetConnectionState()
+        {
+            connectingParentNodeId = 0;
+            connectingChildIndex = -1;
+            connectingMousePosition = Vector2.zero;
         }
 
         private void DrawValidationPanel()
@@ -485,6 +784,11 @@ namespace Game.EditorTools
             AssetDatabase.Refresh();
             graphAsset = asset;
             selectedNode = FindNode(asset.RootNodeId);
+            canvasPan = Vector2.zero;
+            draggingNodeId = 0;
+            draggingCanvas = false;
+            canvasHotControl = 0;
+            ResetConnectionState();
             validationIssues.Clear();
             status = "已创建草稿行为图。";
             Selection.activeObject = asset;
@@ -659,16 +963,19 @@ namespace Game.EditorTools
             }
         }
 
-        private static void DrawGrid(float width, float height)
+        private static void DrawGrid(float width, float height, Vector2 pan)
         {
             Color previous = Handles.color;
             Handles.color = new Color(1f, 1f, 1f, 0.05f);
-            for (float x = 0f; x < width; x += 20f)
+            const float gridSize = 20f;
+            float startX = -gridSize + Mathf.Repeat(pan.x, gridSize);
+            float startY = -gridSize + Mathf.Repeat(pan.y, gridSize);
+            for (float x = startX; x < width; x += gridSize)
             {
                 Handles.DrawLine(new Vector3(x, 0f), new Vector3(x, height));
             }
 
-            for (float y = 0f; y < height; y += 20f)
+            for (float y = startY; y < height; y += gridSize)
             {
                 Handles.DrawLine(new Vector3(0f, y), new Vector3(width, y));
             }

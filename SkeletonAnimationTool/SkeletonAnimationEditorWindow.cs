@@ -19,6 +19,13 @@ namespace Game.EditorTools.SkeletonAnimation
         private const int DefaultAutoSelectMinGap = 2;
         private const int DefaultExtractFrameRate = 12;
 
+        private enum SkeletonDisplayMode
+        {
+            All = 0,
+            BonesOnly = 1,
+            SocketsOnly = 2,
+        }
+
         private readonly ISkeletonRecognitionEngine recognitionEngine =
             new HeuristicSkeletonRecognitionEngine();
 
@@ -49,6 +56,7 @@ namespace Game.EditorTools.SkeletonAnimation
         private float bodyFitHeightScale = 0.96f;
         private float bodyFitOffsetX;
         private float bodyFitOffsetY;
+        private SkeletonDisplayMode displayMode = SkeletonDisplayMode.All;
 
         [MenuItem("TryGame/Tools/Skeleton Animation Tool")]
         public static void Open()
@@ -257,6 +265,23 @@ namespace Game.EditorTools.SkeletonAnimation
         private void DrawCanvasPanel()
         {
             EditorGUILayout.BeginVertical();
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+            GUILayout.Label("点位显示", EditorStyles.miniLabel, GUILayout.Width(60f));
+            int nextDisplayMode = GUILayout.Toolbar(
+                (int)displayMode,
+                new[] { "全部", "显示蓝点", "显示红点" },
+                EditorStyles.toolbarButton,
+                GUILayout.Width(230f));
+            if (nextDisplayMode != (int)displayMode)
+            {
+                displayMode = (SkeletonDisplayMode)nextDisplayMode;
+                draggingBone = false;
+                draggingSocket = false;
+                Repaint();
+            }
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+
             Rect canvasRect = GUILayoutUtility.GetRect(
                 100f,
                 10000f,
@@ -577,29 +602,38 @@ namespace Game.EditorTools.SkeletonAnimation
             }
 
             Handles.BeginGUI();
-            for (int i = 0; i < templateDocument.bones.Count; i++)
+            if (displayMode != SkeletonDisplayMode.SocketsOnly)
             {
-                SkeletonBoneData bone = templateDocument.bones[i];
-                SkeletonBoneData parent = FindBone(bone.parentBoneId);
-                if (parent == null)
+                for (int i = 0; i < templateDocument.bones.Count; i++)
                 {
-                    continue;
+                    SkeletonBoneData bone = templateDocument.bones[i];
+                    SkeletonBoneData parent = FindBone(bone.parentBoneId);
+                    if (parent == null)
+                    {
+                        continue;
+                    }
+
+                    Vector2 a = ToCanvas(parent.normalizedPosition, contentRect);
+                    Vector2 b = ToCanvas(bone.normalizedPosition, contentRect);
+                    Handles.color = bone.confidence < 0.5f
+                        ? new Color(1f, 0.75f, 0.2f, 0.95f)
+                        : new Color(0.35f, 0.9f, 1f, 0.95f);
+                    Handles.DrawAAPolyLine(4f, a, b);
                 }
-
-                Vector2 a = ToCanvas(parent.normalizedPosition, contentRect);
-                Vector2 b = ToCanvas(bone.normalizedPosition, contentRect);
-                Handles.color = bone.confidence < 0.5f
-                    ? new Color(1f, 0.75f, 0.2f, 0.95f)
-                    : new Color(0.35f, 0.9f, 1f, 0.95f);
-                Handles.DrawAAPolyLine(4f, a, b);
             }
 
-            for (int i = 0; i < templateDocument.bones.Count; i++)
+            if (displayMode != SkeletonDisplayMode.SocketsOnly)
             {
-                DrawBoneNode(templateDocument.bones[i], contentRect);
+                for (int i = 0; i < templateDocument.bones.Count; i++)
+                {
+                    DrawBoneNode(templateDocument.bones[i], contentRect);
+                }
             }
 
-            DrawSockets(contentRect);
+            if (displayMode != SkeletonDisplayMode.BonesOnly)
+            {
+                DrawSockets(contentRect);
+            }
             Handles.EndGUI();
         }
 
@@ -1696,6 +1730,11 @@ namespace Game.EditorTools.SkeletonAnimation
 
         private string HitTestBone(Vector2 mousePosition, Rect contentRect)
         {
+            if (displayMode == SkeletonDisplayMode.SocketsOnly)
+            {
+                return string.Empty;
+            }
+
             string result = string.Empty;
             float bestDistance = float.MaxValue;
             for (int i = 0; i < templateDocument.bones.Count; i++)
@@ -1715,6 +1754,11 @@ namespace Game.EditorTools.SkeletonAnimation
 
         private string HitTestSocket(Vector2 mousePosition, Rect contentRect)
         {
+            if (displayMode == SkeletonDisplayMode.BonesOnly)
+            {
+                return string.Empty;
+            }
+
             string result = string.Empty;
             float bestDistance = float.MaxValue;
             for (int i = 0; i < templateDocument.sockets.Count; i++)
