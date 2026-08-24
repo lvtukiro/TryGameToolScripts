@@ -202,6 +202,16 @@ namespace Game.EditorTools
                 Repaint();
             }
 
+            using (new EditorGUI.DisabledScope(graphAsset == null ||
+                                               graphAsset.Nodes == null ||
+                                               graphAsset.Nodes.Count == 0))
+            {
+                if (GUILayout.Button("重排节点 ID", GUILayout.Width(100f)))
+                {
+                    RenumberNodeIds();
+                }
+            }
+
             GUILayout.FlexibleSpace();
             GUILayout.Label(
                 "空白处左键/中键平移；右侧端口拖到目标左侧端口",
@@ -918,6 +928,91 @@ namespace Game.EditorTools
             graphAsset.ClearPublishedState();
             EditorUtility.SetDirty(graphAsset);
             status = "已删除节点 " + deletedId + "。";
+        }
+
+        /// <summary>
+        /// 按资产节点列表顺序把节点 ID 重排为 1..N，并同步修正所有引用。
+        /// 节点列表顺序就是当前编辑器资产中的顺序，不改变节点对象和编辑坐标。
+        /// </summary>
+        private void RenumberNodeIds()
+        {
+            if (graphAsset == null || graphAsset.Nodes == null ||
+                graphAsset.Nodes.Count == 0)
+            {
+                return;
+            }
+
+            List<BattleAiGraphAssetNode> nodes = graphAsset.GetEditableNodes();
+            Dictionary<int, int> oldToNew = new Dictionary<int, int>();
+            int validNodeCount = 0;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                BattleAiGraphAssetNode node = nodes[index];
+                if (node == null)
+                {
+                    continue;
+                }
+
+                int newId = ++validNodeCount;
+                if (node.nodeId > 0 && !oldToNew.ContainsKey(node.nodeId))
+                {
+                    oldToNew.Add(node.nodeId, newId);
+                }
+            }
+
+            Undo.RecordObject(graphAsset, "重排行为图节点 ID");
+            int oldRootNodeId = graphAsset.RootNodeId;
+
+            // 先把节点 ID 改成临时负数，避免旧 ID 与新 ID 重叠时互相覆盖映射。
+            int nextNewId = 1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                BattleAiGraphAssetNode node = nodes[index];
+                if (node != null)
+                {
+                    node.nodeId = -nextNewId++;
+                }
+            }
+
+            nextNewId = 1;
+            for (int index = 0; index < nodes.Count; index++)
+            {
+                BattleAiGraphAssetNode node = nodes[index];
+                if (node == null)
+                {
+                    continue;
+                }
+
+                node.nodeId = nextNewId++;
+                if (node.childNodeIds == null)
+                {
+                    continue;
+                }
+
+                for (int childIndex = 0;
+                    childIndex < node.childNodeIds.Count;
+                    childIndex++)
+                {
+                    int oldChildId = node.childNodeIds[childIndex];
+                    node.childNodeIds[childIndex] = oldToNew.TryGetValue(
+                        oldChildId,
+                        out int newChildId)
+                        ? newChildId
+                        : 0;
+                }
+            }
+
+            int newRootNodeId = oldToNew.TryGetValue(
+                oldRootNodeId,
+                out int mappedRootNodeId)
+                ? mappedRootNodeId
+                : (validNodeCount > 0 ? 1 : 0);
+            graphAsset.SetRootNodeId(newRootNodeId);
+            graphAsset.ClearPublishedState();
+            EditorUtility.SetDirty(graphAsset);
+            status = "节点 ID 已按列表顺序重排为 1～" + validNodeCount +
+                "，引用已同步。";
+            Repaint();
         }
 
         private BattleAiGraphAssetNode FindNode(int nodeId)
