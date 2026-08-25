@@ -26,6 +26,12 @@ namespace Game.EditorTools.SkeletonAnimation
             SocketsOnly = 2,
         }
 
+        private enum CharacterEditMode
+        {
+            Skeleton = 0,
+            FillVisualParts = 1,
+        }
+
         private enum WorkflowTab
         {
             Character = 0,
@@ -64,6 +70,7 @@ namespace Game.EditorTools.SkeletonAnimation
         private float bodyFitOffsetX;
         private float bodyFitOffsetY;
         private SkeletonDisplayMode displayMode = SkeletonDisplayMode.All;
+        private CharacterEditMode characterEditMode = CharacterEditMode.Skeleton;
         private bool frontView;
         private bool isPlaying;
         private bool loopPlayback = true;
@@ -225,6 +232,19 @@ namespace Game.EditorTools.SkeletonAnimation
                 SaveTemplate();
             }
             EditorGUILayout.EndHorizontal();
+
+            if (workflowTab == WorkflowTab.Character)
+            {
+                EditorGUILayout.HelpBox(
+                    "预制体会按模板创建骨骼和挂点。透明部件目录中的图片文件名要与 Bone ID 一致，\n"
+                    + "例如模板有 chest、head、arm_l，就放 chest.png、head.png、arm_l.png。\n"
+                    + "每张部件图建议把 Sprite Pivot 放在对应骨骼的连接点。",
+                    MessageType.Info);
+                if (GUILayout.Button("按已填图片生成角色预制体..."))
+                {
+                    GenerateCharacterPrefabFromAssignedVisuals();
+                }
+            }
 
             if (workflowTab == WorkflowTab.Preview)
             {
@@ -388,6 +408,34 @@ namespace Game.EditorTools.SkeletonAnimation
                 draggingBone = false;
                 draggingSocket = false;
                 Repaint();
+            }
+            if (workflowTab == WorkflowTab.Character)
+            {
+                bool fillVisualParts = GUILayout.Toggle(
+                    characterEditMode == CharacterEditMode.FillVisualParts,
+                    "填入图片模式",
+                    EditorStyles.toolbarButton,
+                    GUILayout.Width(110f));
+                CharacterEditMode nextEditMode = fillVisualParts
+                    ? CharacterEditMode.FillVisualParts
+                    : CharacterEditMode.Skeleton;
+                if (nextEditMode != characterEditMode)
+                {
+                    characterEditMode = nextEditMode;
+                    if (characterEditMode == CharacterEditMode.FillVisualParts)
+                    {
+                        displayMode = SkeletonDisplayMode.BonesOnly;
+                        draggingBone = false;
+                        draggingSocket = false;
+                        status = "已进入填入图片模式：点击蓝色骨点选择透明部件。";
+                    }
+                    else
+                    {
+                        status = "已返回骨骼编辑模式。";
+                    }
+
+                    Repaint();
+                }
             }
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
@@ -1085,7 +1133,12 @@ namespace Game.EditorTools.SkeletonAnimation
         {
             Vector2 position = ToCanvas(bone.normalizedPosition, contentRect);
             bool selected = bone.boneId == selectedBoneId;
-            Color color = bone.locked
+            bool hasVisualPart = HasVisualPart(bone == null ? string.Empty : bone.boneId);
+            Color color = characterEditMode == CharacterEditMode.FillVisualParts
+                ? hasVisualPart
+                    ? new Color(0.25f, 0.95f, 0.35f, 1f)
+                    : new Color(0.15f, 0.85f, 1f, 1f)
+                : bone.locked
                 ? new Color(0.55f, 0.55f, 0.55f, 1f)
                 : selected
                     ? new Color(1f, 0.85f, 0.2f, 1f)
@@ -1344,6 +1397,21 @@ namespace Game.EditorTools.SkeletonAnimation
 
             if (evt.type == EventType.MouseDown && evt.button == 0)
             {
+                if (characterEditMode == CharacterEditMode.FillVisualParts)
+                {
+                    string fillBoneId = HitTestBone(evt.mousePosition, contentRect);
+                    if (!string.IsNullOrEmpty(fillBoneId))
+                    {
+                        selectedBoneId = fillBoneId;
+                        selectedSocketId = string.Empty;
+                        SelectVisualPartForBone(fillBoneId);
+                        evt.Use();
+                        Repaint();
+                    }
+
+                    return;
+                }
+
                 string hitSocket = HitTestSocket(evt.mousePosition, contentRect);
                 if (!string.IsNullOrEmpty(hitSocket))
                 {
@@ -1590,6 +1658,7 @@ namespace Game.EditorTools.SkeletonAnimation
             }
 
             templateDocument = loaded;
+            EnsureDocuments();
             animationDocument = new SkeletonAnimationDocument
             {
                 templateId = templateDocument.templateId,
@@ -1601,6 +1670,119 @@ namespace Game.EditorTools.SkeletonAnimation
             selectedSocketId = string.Empty;
             status = "已读取模板：" + path;
             Repaint();
+        }
+
+        private bool HasVisualPart(string boneId)
+        {
+            if (templateDocument == null || templateDocument.visualParts == null
+                || string.IsNullOrWhiteSpace(boneId))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < templateDocument.visualParts.Count; i++)
+            {
+                SkeletonBoneVisualData part = templateDocument.visualParts[i];
+                if (part != null && part.boneId == boneId
+                    && !string.IsNullOrWhiteSpace(part.assetPath))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void SelectVisualPartForBone(string boneId)
+        {
+            string path = EditorUtility.OpenFilePanel(
+                "选择骨骼透明部件图片",
+                Application.dataPath,
+                "png,jpg,jpeg,bmp,psd");
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            string assetPath;
+            if (!TryGetProjectAssetPath(path, out assetPath))
+            {
+                EditorUtility.DisplayDialog(
+                    "填入图片",
+                    "图片必须位于当前 Unity 项目的 Assets 下。",
+                    "确定");
+                return;
+            }
+
+            SkeletonBoneVisualData part = null;
+            for (int i = 0; i < templateDocument.visualParts.Count; i++)
+            {
+                if (templateDocument.visualParts[i] != null
+                    && templateDocument.visualParts[i].boneId == boneId)
+                {
+                    part = templateDocument.visualParts[i];
+                    break;
+                }
+            }
+
+            if (part == null)
+            {
+                part = new SkeletonBoneVisualData { boneId = boneId };
+                templateDocument.visualParts.Add(part);
+            }
+
+            part.assetPath = assetPath;
+            status = "已为 " + boneId + " 填入图片：" + Path.GetFileName(assetPath);
+        }
+
+        private void GenerateCharacterPrefabFromAssignedVisuals()
+        {
+            if (templateDocument == null || templateDocument.bones == null
+                || templateDocument.bones.Count == 0)
+            {
+                EditorUtility.DisplayDialog("生成角色预制体", "当前没有骨骼模板。", "确定");
+                return;
+            }
+
+            List<string> missing = new List<string>();
+            for (int i = 0; i < templateDocument.bones.Count; i++)
+            {
+                SkeletonBoneData bone = templateDocument.bones[i];
+                if (bone != null && !HasVisualPart(bone.boneId))
+                {
+                    missing.Add(bone.boneId);
+                }
+            }
+
+            if (missing.Count > 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "无法生成角色预制体",
+                    "以下骨点还没有填入图片：\n\n"
+                    + string.Join("、", missing)
+                    + "\n\n请切换到“填入图片模式”逐个点击蓝色骨点补齐。",
+                    "确定");
+                status = "生成未执行：仍有 " + missing.Count + " 个骨点未填入图片。";
+                return;
+            }
+
+            string outputAbsolutePath = EditorUtility.SaveFilePanelInProject(
+                "保存角色预制体",
+                string.IsNullOrWhiteSpace(templateDocument.displayName)
+                    ? "CharacterPreview"
+                    : templateDocument.displayName + "Preview",
+                "prefab",
+                "选择预制体输出位置",
+                "Assets");
+            if (string.IsNullOrWhiteSpace(outputAbsolutePath))
+            {
+                return;
+            }
+
+            RangerCharacterPrefabBuilder.CreatePreviewPrefabFromAssignments(
+                templateDocument,
+                outputAbsolutePath);
+            status = "已生成角色预制体：" + outputAbsolutePath;
         }
 
         private void SaveAnimation()
@@ -2514,6 +2696,31 @@ namespace Game.EditorTools.SkeletonAnimation
             return new Vector2(Mathf.Clamp01(x), Mathf.Clamp01(y));
         }
 
+        private static bool TryGetProjectAssetPath(string absolutePath, out string assetPath)
+        {
+            assetPath = string.Empty;
+            if (string.IsNullOrWhiteSpace(absolutePath))
+            {
+                return false;
+            }
+
+            string fullPath = Path.GetFullPath(absolutePath).TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            string fullAssets = Path.GetFullPath(Application.dataPath).TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            if (!fullPath.StartsWith(fullAssets + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(fullPath, fullAssets, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            assetPath = "Assets" + fullPath.Substring(fullAssets.Length).Replace('\\', '/');
+            return true;
+        }
+
         private string HitTestBone(Vector2 mousePosition, Rect contentRect)
         {
             if (displayMode == SkeletonDisplayMode.SocketsOnly)
@@ -2694,6 +2901,11 @@ namespace Game.EditorTools.SkeletonAnimation
             if (templateDocument.sockets == null)
             {
                 templateDocument.sockets = new List<SkeletonSocketData>();
+            }
+
+            if (templateDocument.visualParts == null)
+            {
+                templateDocument.visualParts = new List<SkeletonBoneVisualData>();
             }
 
             if (templateDocument.viewTemplates == null)

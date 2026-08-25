@@ -16,7 +16,15 @@ namespace Game.EditorTools.SkeletonAnimation
         public int version = 1;
         public List<SkeletonBoneData> bones = new List<SkeletonBoneData>();
         public List<SkeletonSocketData> sockets = new List<SkeletonSocketData>();
+        public List<SkeletonBoneVisualData> visualParts = new List<SkeletonBoneVisualData>();
         public List<SkeletonViewTemplateData> viewTemplates = new List<SkeletonViewTemplateData>();
+    }
+
+    [Serializable]
+    public sealed class SkeletonBoneVisualData
+    {
+        public string boneId = string.Empty;
+        public string assetPath = string.Empty;
     }
 
     [Serializable]
