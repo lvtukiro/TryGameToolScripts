@@ -3,15 +3,13 @@ using UnityEngine;
 namespace Game.SequenceFrameAnimation
 {
     /// <summary>
-    /// Runtime player for a body sequence plus an optional weapon sequence.
-    /// Assign sprites with the same frame count and canvas/pivot in the Inspector.
+    /// Runtime player for complete character frames.
+    /// Each frame already contains the character and its current weapon.
     /// </summary>
     public sealed class SequenceFrameAnimationPlayer : MonoBehaviour
     {
-        [SerializeField] private SpriteRenderer bodyRenderer;
-        [SerializeField] private SpriteRenderer weaponRenderer;
-        [SerializeField] private Sprite[] bodyFrames = new Sprite[0];
-        [SerializeField] private Sprite[] weaponFrames = new Sprite[0];
+        [SerializeField] private SpriteRenderer frameRenderer;
+        [SerializeField] private Sprite[] frames = new Sprite[0];
         [SerializeField] private float frameRate = 12f;
         [SerializeField] private bool loop = true;
         [SerializeField] private bool playOnEnable = true;
@@ -21,7 +19,7 @@ namespace Game.SequenceFrameAnimation
         private bool playing;
 
         public int FrameIndex => frameIndex;
-        public int FrameCount => bodyFrames == null ? 0 : bodyFrames.Length;
+        public int FrameCount => frames == null ? 0 : frames.Length;
 
         private void OnEnable()
         {
@@ -33,7 +31,7 @@ namespace Game.SequenceFrameAnimation
 
         private void Update()
         {
-            if (!playing || bodyFrames == null || bodyFrames.Length == 0)
+            if (!playing || frames == null || frames.Length == 0)
             {
                 return;
             }
@@ -44,11 +42,11 @@ namespace Game.SequenceFrameAnimation
             {
                 elapsed -= interval;
                 frameIndex++;
-                if (frameIndex >= bodyFrames.Length)
+                if (frameIndex >= frames.Length)
                 {
                     if (!loop)
                     {
-                        frameIndex = bodyFrames.Length - 1;
+                        frameIndex = frames.Length - 1;
                         playing = false;
                         break;
                     }
@@ -80,30 +78,21 @@ namespace Game.SequenceFrameAnimation
 
         public void SetFrame(int index)
         {
-            if (bodyFrames == null || bodyFrames.Length == 0)
+            if (frames == null || frames.Length == 0)
             {
                 return;
             }
 
-            frameIndex = Mathf.Clamp(index, 0, bodyFrames.Length - 1);
+            frameIndex = Mathf.Clamp(index, 0, frames.Length - 1);
             elapsed = 0f;
             ApplyFrame();
         }
 
         private void ApplyFrame()
         {
-            if (bodyRenderer != null && bodyFrames != null && bodyFrames.Length > 0)
+            if (frameRenderer != null && frames != null && frames.Length > 0)
             {
-                bodyRenderer.sprite = bodyFrames[Mathf.Clamp(frameIndex, 0, bodyFrames.Length - 1)];
-            }
-
-            if (weaponRenderer != null)
-            {
-                weaponRenderer.sprite = weaponFrames != null
-                    && frameIndex >= 0
-                    && frameIndex < weaponFrames.Length
-                    ? weaponFrames[frameIndex]
-                    : null;
+                frameRenderer.sprite = frames[Mathf.Clamp(frameIndex, 0, frames.Length - 1)];
             }
         }
     }

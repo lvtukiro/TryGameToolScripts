@@ -29,16 +29,16 @@ namespace TryGame.RefDataTools.Editor
         private const string CanonicalSourceInputRole = "canonicalSource";
         private const string ImplicitDependencyInputRole = "implicitDependency";
 
-        // Media is being landed as an intentionally dormant subsystem: its schemas and
-        // generated accessors must exist before the first production asset rows are added.
-        // Keep this list exact. Other empty tables still fail validation, and every permitted
-        // empty table is logged below so an accidental empty export cannot be silent.
+        // These schemas are intentionally allowed to exist before their first production rows
+        // are configured. A missing row referenced by a live runtime definition is still a
+        // runtime/configuration error; an unused empty schema must not block an export.
         private static readonly HashSet<string> ExplicitlyAllowedEmptyTables =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "MediaResource",
                 "AudioDefinition",
                 "EffectDefinition",
+                "BattleSkillMultiEquipment",
             };
 
         public static bool TryCaptureInputHashes(
@@ -1013,7 +1013,7 @@ namespace TryGame.RefDataTools.Editor
                     Debug.LogWarning(
                         $"[TryGameRefDataExportValidator] 已按精确 schema-only 许可发布空表：" +
                         $"table={tableName}, rowCount=0, path={jsonPath}。" +
-                        "除 MediaResource/AudioDefinition/EffectDefinition 外，其它空表仍会拒绝发布。");
+                        "未列入 schema-only 白名单的其它空表仍会拒绝发布。");
                     return 0;
                 }
 

@@ -50,57 +50,35 @@ namespace Game.EditorTools.SequenceFrameAnimation
             SequenceFrameAnimationDocument document,
             string prefabAssetPath)
         {
-            if (document == null || document.bodyFrames == null || document.bodyFrames.Count == 0)
+            if (document == null || document.frames == null || document.frames.Count == 0)
             {
-                EditorUtility.DisplayDialog("序列帧预制体", "动作中没有身体序列帧。", "确定");
+                EditorUtility.DisplayDialog("序列帧预制体", "动作中没有完整角色帧。", "确定");
                 return;
             }
 
-            List<Sprite> bodySprites = LoadSprites(document.bodyFrames);
-            if (bodySprites.Count != document.bodyFrames.Count)
+            List<Sprite> sprites = LoadSprites(document.frames);
+            if (sprites.Count != document.frames.Count)
             {
                 EditorUtility.DisplayDialog(
                     "序列帧预制体",
-                    "身体序列帧中有图片尚未导出或尚未导入 Unity。",
+                    "完整角色帧中有图片尚未导出或尚未导入 Unity。",
                     "确定");
                 return;
-            }
-
-            List<Sprite> weaponSprites = new List<Sprite>();
-            SequenceFrameLayerData weaponLayer = FindWeaponLayer(document);
-            if (weaponLayer != null && weaponLayer.enabled)
-            {
-                weaponSprites = LoadSprites(weaponLayer.frameAssetPaths);
-                if (weaponSprites.Count != weaponLayer.frameAssetPaths.Count)
-                {
-                    EditorUtility.DisplayDialog(
-                        "序列帧预制体",
-                        "武器序列帧中有图片尚未导出或尚未导入 Unity。",
-                        "确定");
-                    return;
-                }
             }
 
             GameObject root = new GameObject(
                 string.IsNullOrWhiteSpace(document.animationId)
                     ? "SequenceCharacter"
                     : document.animationId);
-            GameObject bodyObject = new GameObject("BodyRenderer");
-            bodyObject.transform.SetParent(root.transform, false);
-            SpriteRenderer bodyRenderer = bodyObject.AddComponent<SpriteRenderer>();
-            bodyRenderer.sortingOrder = 0;
-
-            GameObject weaponObject = new GameObject("WeaponRenderer");
-            weaponObject.transform.SetParent(root.transform, false);
-            SpriteRenderer weaponRenderer = weaponObject.AddComponent<SpriteRenderer>();
-            weaponRenderer.sortingOrder = weaponLayer == null ? 10 : weaponLayer.sortingOrder;
+            GameObject frameObject = new GameObject("FrameRenderer");
+            frameObject.transform.SetParent(root.transform, false);
+            SpriteRenderer frameRenderer = frameObject.AddComponent<SpriteRenderer>();
+            frameRenderer.sortingOrder = 0;
 
             SequenceFrameAnimationPlayer player = root.AddComponent<SequenceFrameAnimationPlayer>();
             SerializedObject serializedPlayer = new SerializedObject(player);
-            serializedPlayer.FindProperty("bodyRenderer").objectReferenceValue = bodyRenderer;
-            serializedPlayer.FindProperty("weaponRenderer").objectReferenceValue = weaponRenderer;
-            SetSpriteArray(serializedPlayer.FindProperty("bodyFrames"), bodySprites);
-            SetSpriteArray(serializedPlayer.FindProperty("weaponFrames"), weaponSprites);
+            serializedPlayer.FindProperty("frameRenderer").objectReferenceValue = frameRenderer;
+            SetSpriteArray(serializedPlayer.FindProperty("frames"), sprites);
             serializedPlayer.FindProperty("frameRate").floatValue = Mathf.Max(1f, document.frameRate);
             serializedPlayer.FindProperty("loop").boolValue = document.loop;
             serializedPlayer.ApplyModifiedPropertiesWithoutUndo();
@@ -120,8 +98,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorUtility.DisplayDialog(
                 "序列帧角色预制体已创建",
                 "已生成：" + prefabAssetPath
-                + "\n身体帧：" + bodySprites.Count
-                + "\n武器帧：" + weaponSprites.Count,
+                + "\n完整角色帧：" + sprites.Count,
                 "确定");
         }
 
@@ -163,25 +140,6 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 property.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
             }
-        }
-
-        private static SequenceFrameLayerData FindWeaponLayer(
-            SequenceFrameAnimationDocument document)
-        {
-            if (document.layers == null)
-            {
-                return null;
-            }
-
-            for (int i = 0; i < document.layers.Count; i++)
-            {
-                if (document.layers[i] != null && document.layers[i].layerId == "weapon")
-                {
-                    return document.layers[i];
-                }
-            }
-
-            return null;
         }
 
         private static bool TryGetProjectAssetPath(string absolutePath, out string assetPath)

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using Game.SequenceFrameAnimation;
 using Debug = UnityEngine.Debug;
 
 namespace Game.EditorTools.SequenceFrameAnimation
@@ -13,23 +14,23 @@ namespace Game.EditorTools.SequenceFrameAnimation
     {
         private enum WorkflowTab
         {
-            Body = 0,
-            Weapon = 1,
-            Preview = 2,
+            Frames = 0,
+            Preview = 1,
         }
 
         private const int DefaultExtractFrameRate = 12;
         private const float DefaultSelectThreshold = 0.06f;
         private const int DefaultSelectMinGap = 2;
+        private const int SequenceFrameResourceSubId = 1;
+        private const string SequenceFrameResourceFolder =
+            "Assets/Resources/TryGameBuildRes/sequence_animation";
 
         private WorkflowTab workflowTab;
         private SequenceFrameAnimationDocument document;
         private string sourceAnimationPath = string.Empty;
         private string extractedFrameFolder = string.Empty;
-        private string weaponFrameFolder = string.Empty;
         private string outputAssetFolder = "Assets/BuildRes";
         private Texture2D previewTexture;
-        private Texture2D previewWeaponTexture;
         private int selectedFrameListIndex = -1;
         private int extractFrameRate = DefaultExtractFrameRate;
         private float autoSelectThreshold = DefaultSelectThreshold;
@@ -41,7 +42,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private string status = "请选择动作视频或序列帧图片。";
         private bool hasExtractedSource;
 
-        // 主窗口唯一入口；预制体生成从“组合预览”页进入。
+        // 主窗口唯一入口；预制体生成从“动作预览”页进入。
         [MenuItem("TryGame/Tools/Sequence Frame Animation Tool")]
         public static void Open()
         {
@@ -62,7 +63,6 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorApplication.update -= UpdatePlayback;
             isPlaying = false;
             DestroyTexture(ref previewTexture);
-            DestroyTexture(ref previewWeaponTexture);
         }
 
         private void OnGUI()
@@ -90,7 +90,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             workflowTab = (WorkflowTab)GUILayout.Toolbar(
                 (int)workflowTab,
-                new[] { "身体序列帧", "武器序列帧", "组合预览" },
+                new[] { "完整角色帧", "动作预览" },
                 EditorStyles.toolbarButton,
                 GUILayout.Height(24f));
             GUILayout.FlexibleSpace();
@@ -100,23 +100,19 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private void DrawLeftPanel()
         {
             EditorGUILayout.BeginVertical(GUILayout.Width(360f));
-            if (workflowTab == WorkflowTab.Body)
+            if (workflowTab == WorkflowTab.Frames)
             {
-                DrawBodyPanel();
-            }
-            else if (workflowTab == WorkflowTab.Weapon)
-            {
-                DrawWeaponPanel();
+                DrawFramesPanel();
             }
             else
             {
-                DrawPreviewControlPanel();
+                DrawActionPreviewControlPanel();
             }
 
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawBodyPanel()
+        private void DrawFramesPanel()
         {
             EditorGUILayout.LabelField("动作来源", EditorStyles.boldLabel);
             EditorGUILayout.LabelField(
@@ -126,14 +122,14 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 EditorStyles.wordWrappedMiniLabel);
             if (GUILayout.Button("选择视频 / 序列帧图片"))
             {
-                SelectBodySource();
+                SelectFrameSource();
             }
 
             using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(sourceAnimationPath)))
             {
                 if (GUILayout.Button(hasExtractedSource ? "重新拆帧" : "拆帧"))
                 {
-                    ExtractSelectedBodySource();
+                    ExtractSelectedFrameSource();
                 }
             }
 
@@ -163,7 +159,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 30);
 
             EditorGUILayout.BeginHorizontal();
-            using (new EditorGUI.DisabledScope(!hasExtractedSource || document.bodyFrames.Count == 0))
+            using (new EditorGUI.DisabledScope(!hasExtractedSource || document.frames.Count == 0))
             {
                 if (GUILayout.Button("自动选帧"))
                 {
@@ -192,67 +188,27 @@ namespace Game.EditorTools.SequenceFrameAnimation
             using (new EditorGUI.DisabledScope(
                 !hasExtractedSource || CountSelectedFrames() == 0))
             {
-                if (GUILayout.Button("保存选中帧并导出身体序列帧"))
+                if (GUILayout.Button("保存选中完整帧并导出"))
                 {
-                    ExportBodyFrames();
+                    ExportFrames();
                 }
             }
 
             EditorGUILayout.Space(10f);
             EditorGUILayout.LabelField(
-                "身体序列帧负责完整角色画面。后续武器只需按相同帧号叠加，不再依赖骨骼。",
+                "每张序列帧都应包含人物和当前武器的完整画面；工具不会再单独读取或贴合武器帧。",
                 EditorStyles.wordWrappedMiniLabel);
         }
 
-        private void DrawWeaponPanel()
+        private void DrawActionPreviewControlPanel()
         {
-            EditorGUILayout.LabelField("武器序列帧", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField(
-                "武器图片按帧号排序，并与身体序列帧一一对应。\n"
-                + "建议使用相同画布尺寸和相同 FPS。",
-                EditorStyles.wordWrappedMiniLabel);
-            if (GUILayout.Button("选择武器序列帧目录"))
-            {
-                string folder = EditorUtility.OpenFolderPanel(
-                    "选择武器序列帧目录",
-                    Application.dataPath,
-                    string.Empty);
-                if (!string.IsNullOrWhiteSpace(folder))
-                {
-                    weaponFrameFolder = folder;
-                    status = "已选择武器序列帧目录。";
-                    LoadWeaponPreview(0);
-                }
-            }
-
-            EditorGUILayout.LabelField(
-                string.IsNullOrWhiteSpace(weaponFrameFolder)
-                    ? "未选择"
-                    : weaponFrameFolder,
-                EditorStyles.wordWrappedMiniLabel);
-            outputAssetFolder = EditorGUILayout.TextField("输出 Assets 目录", outputAssetFolder);
-            if (GUILayout.Button("选择输出目录"))
-            {
-                SelectOutputFolder();
-            }
-
-            using (new EditorGUI.DisabledScope(
-                string.IsNullOrWhiteSpace(weaponFrameFolder)
-                || !hasExtractedSource
-                || CountSelectedFrames() == 0))
-            {
-            if (GUILayout.Button("保存武器序列帧并更新动作清单"))
-                {
-                    ExportWeaponFrames();
-                }
-            }
-        }
-
-        private void DrawPreviewControlPanel()
-        {
-            EditorGUILayout.LabelField("组合预览", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("动作预览", EditorStyles.boldLabel);
+            document.actionId = EditorGUILayout.IntField("Action ID", document.actionId);
             document.loop = EditorGUILayout.Toggle("循环播放", document.loop);
             document.frameRate = EditorGUILayout.FloatField("播放 FPS", document.frameRate);
+            document.pivotNormalized = EditorGUILayout.Vector2Field(
+                "Sprite Pivot",
+                document.pivotNormalized);
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button(isPlaying ? "暂停" : "播放"))
             {
@@ -282,22 +238,19 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 SaveDocument();
             }
 
+            using (new EditorGUI.DisabledScope(
+                document.frames == null || document.frames.Count == 0))
+            {
+                if (GUILayout.Button("生成正式 SequenceFrameClip.asset"))
+                {
+                    ExportSequenceFrameClip();
+                }
+            }
+
             EditorGUILayout.Space(8f);
             EditorGUILayout.LabelField(
-                "组合顺序：身体 → 武器。后续如果加入披风/特效，可以继续增加图层。",
+                "预览使用一张完整角色帧，不再叠加独立身体/武器图层。",
                 EditorStyles.wordWrappedMiniLabel);
-            for (int i = 0; i < document.layers.Count; i++)
-            {
-                SequenceFrameLayerData layer = document.layers[i];
-                if (layer == null)
-                {
-                    continue;
-                }
-
-                layer.enabled = EditorGUILayout.ToggleLeft(
-                    layer.displayName + "（排序 " + layer.sortingOrder + "）",
-                    layer.enabled);
-            }
         }
 
         private void DrawPreviewPanel()
@@ -311,24 +264,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 GUILayout.ExpandWidth(true),
                 GUILayout.ExpandHeight(true));
             EditorGUI.DrawRect(previewRect, new Color(0.12f, 0.13f, 0.14f));
-            if (workflowTab == WorkflowTab.Body)
-            {
-                DrawTextureFit(previewTexture, previewRect);
-            }
-            else if (workflowTab == WorkflowTab.Weapon)
-            {
-                DrawTextureFit(
-                    previewWeaponTexture == null ? previewTexture : previewWeaponTexture,
-                    previewRect);
-            }
-            else
-            {
-                DrawTextureFit(previewTexture, previewRect);
-                if (previewWeaponTexture != null)
-                {
-                    DrawTextureFit(previewWeaponTexture, previewRect);
-                }
-            }
+            DrawTextureFit(previewTexture, previewRect);
 
             DrawFrameList();
             EditorGUILayout.EndVertical();
@@ -337,14 +273,14 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private void DrawFrameList()
         {
             EditorGUILayout.LabelField(
-                "身体帧（已选 " + CountSelectedFrames() + "/" + document.bodyFrames.Count + "）",
+                "完整角色帧（已选 " + CountSelectedFrames() + "/" + document.frames.Count + "）",
                 EditorStyles.boldLabel);
             frameScroll = EditorGUILayout.BeginScrollView(
                 frameScroll,
                 GUILayout.Height(170f));
-            for (int i = 0; i < document.bodyFrames.Count; i++)
+            for (int i = 0; i < document.frames.Count; i++)
             {
-                SequenceFrameData frame = document.bodyFrames[i];
+                SequenceFrameData frame = document.frames[i];
                 if (frame == null)
                 {
                     continue;
@@ -371,7 +307,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.EndScrollView();
         }
 
-        private void SelectBodySource()
+        private void SelectFrameSource()
         {
             string path = EditorUtility.OpenFilePanel(
                 "选择动作视频或序列帧图片",
@@ -386,14 +322,13 @@ namespace Game.EditorTools.SequenceFrameAnimation
             extractedFrameFolder = string.Empty;
             hasExtractedSource = false;
             selectedFrameListIndex = -1;
-            document.bodyFrames.Clear();
+            document.frames.Clear();
             DestroyTexture(ref previewTexture);
-            DestroyTexture(ref previewWeaponTexture);
             status = "已选择动作文件，请点击“拆帧”。";
             Repaint();
         }
 
-        private void ExtractSelectedBodySource()
+        private void ExtractSelectedFrameSource()
         {
             if (string.IsNullOrWhiteSpace(sourceAnimationPath))
             {
@@ -406,7 +341,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 || extension == ".bmp" || extension == ".gif")
             {
                 extractedFrameFolder = Path.GetDirectoryName(sourceAnimationPath);
-                document.bodyFrames = new List<SequenceFrameData>
+                document.frames = new List<SequenceFrameData>
                 {
                     new SequenceFrameData
                     {
@@ -417,7 +352,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 };
                 hasExtractedSource = true;
                 LoadPreviewFrame(0);
-                status = "已载入一张身体序列帧。";
+                status = "已载入一张完整角色帧。";
                 return;
             }
 
@@ -431,14 +366,14 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 return;
             }
 
-            document.bodyFrames = LoadFrameFiles(extractedFrameFolder);
+            document.frames = LoadFrameFiles(extractedFrameFolder);
             document.frameRate = extractFrameRate;
-            hasExtractedSource = document.bodyFrames.Count > 0;
-            selectedFrameListIndex = document.bodyFrames.Count > 0 ? 0 : -1;
+            hasExtractedSource = document.frames.Count > 0;
+            selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
             if (hasExtractedSource)
             {
                 LoadPreviewFrame(0);
-                status = "已拆出 " + document.bodyFrames.Count
+                status = "已拆出 " + document.frames.Count
                     + " 帧，尚未保存。请先选择要保留的帧。";
             }
             else
@@ -477,22 +412,22 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
         private void AutoSelectFrames()
         {
-            if (document.bodyFrames.Count == 0)
+            if (document.frames.Count == 0)
             {
                 return;
             }
 
-            for (int i = 0; i < document.bodyFrames.Count; i++)
+            for (int i = 0; i < document.frames.Count; i++)
             {
-                document.bodyFrames[i].selected = i == 0;
+                document.frames[i].selected = i == 0;
             }
 
             int lastSelected = 0;
-            for (int i = 1; i < document.bodyFrames.Count; i++)
+            for (int i = 1; i < document.frames.Count; i++)
             {
-                SequenceFrameData frame = document.bodyFrames[i];
+                SequenceFrameData frame = document.frames[i];
                 float difference = ComputeFrameDifference(
-                    document.bodyFrames[lastSelected].sourceFilePath,
+                    document.frames[lastSelected].sourceFilePath,
                     frame.sourceFilePath);
                 frame.differenceScore = difference;
                 if (difference >= autoSelectThreshold
@@ -509,16 +444,16 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
         private void SetAllFrameSelection(bool selected)
         {
-            for (int i = 0; i < document.bodyFrames.Count; i++)
+            for (int i = 0; i < document.frames.Count; i++)
             {
-                if (document.bodyFrames[i] != null)
+                if (document.frames[i] != null)
                 {
-                    document.bodyFrames[i].selected = selected;
+                    document.frames[i].selected = selected;
                 }
             }
         }
 
-        private void ExportBodyFrames()
+        private void ExportFrames()
         {
             if (!TryGetProjectAssetFolder(outputAssetFolder, out string outputFolder))
             {
@@ -531,77 +466,204 @@ namespace Game.EditorTools.SequenceFrameAnimation
             List<SequenceFrameData> selected = GetSelectedFrames();
             for (int i = 0; i < selected.Count; i++)
             {
-                string assetPath = animationFolder + "/body_" + i.ToString("D4") + ".png";
+                string assetPath = animationFolder + "/frame_" + i.ToString("D4") + ".png";
                 File.Copy(selected[i].sourceFilePath, ToAbsolutePath(assetPath), true);
                 selected[i].exportedAssetPath = assetPath;
             }
 
-            document.bodyFrames = selected;
+            document.frames = selected;
             document.canvasWidth = GetImageWidth(selected[0].sourceFilePath);
             document.canvasHeight = GetImageHeight(selected[0].sourceFilePath);
-            AssetDatabase.Refresh();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            for (int i = 0; i < selected.Count; i++)
+            {
+                ConfigureSpriteImporter(selected[i].exportedAssetPath, document.pivotNormalized);
+            }
             SaveDocumentToPath(animationFolder + "/" + SafeName(document.animationId) + ".sequence.json");
-            status = "已导出身体序列帧：" + animationFolder;
+            status = "已导出完整角色序列帧：" + animationFolder;
         }
 
-        private void ExportWeaponFrames()
+        private void ExportSequenceFrameClip()
         {
-            if (!TryGetProjectAssetFolder(outputAssetFolder, out string outputFolder))
-            {
-                EditorUtility.DisplayDialog("导出序列帧", "输出目录必须位于当前项目 Assets 下。", "确定");
-                return;
-            }
-
-            List<string> weaponFrames = GetImageFiles(weaponFrameFolder);
-            List<SequenceFrameData> selected = GetSelectedFrames();
-            if (weaponFrames.Count < selected.Count)
+            if (!TryGetActionId(out int actionId))
             {
                 EditorUtility.DisplayDialog(
-                    "武器序列帧数量不足",
-                    "身体已选 " + selected.Count + " 帧，但武器只有 " + weaponFrames.Count + " 帧。",
+                    "生成序列帧 Clip",
+                    "请填写大于 0 的 Action ID。Action ID 必须与 SequenceFrameActionResource 表的 id 一致。",
                     "确定");
                 return;
             }
 
-            string animationFolder = outputFolder.TrimEnd('/') + "/" + SafeName(document.animationId);
-            Directory.CreateDirectory(ToAbsolutePath(animationFolder));
-            SequenceFrameLayerData weaponLayer = FindOrCreateWeaponLayer();
-            weaponLayer.frameAssetPaths.Clear();
-            for (int i = 0; i < selected.Count; i++)
+            if (document.frames == null || document.frames.Count == 0)
             {
-                string assetPath = animationFolder + "/weapon_" + i.ToString("D4") + ".png";
-                File.Copy(weaponFrames[i], ToAbsolutePath(assetPath), true);
-                weaponLayer.frameAssetPaths.Add(assetPath);
+                EditorUtility.DisplayDialog("生成序列帧 Clip", "请先导出至少一张完整角色帧。", "确定");
+                return;
             }
 
-            AssetDatabase.Refresh();
-            SaveDocumentToPath(animationFolder + "/" + SafeName(document.animationId) + ".sequence.json");
-            status = "已导出武器序列帧并更新动作清单。";
+            List<Sprite> sprites = LoadSpriteAssets(document.frames);
+            if (sprites.Count != document.frames.Count)
+            {
+                EditorUtility.DisplayDialog(
+                    "生成序列帧 Clip",
+                    "完整角色帧中存在尚未按 Sprite 导入的图片，请先重新导出。",
+                    "确定");
+                return;
+            }
+
+            if (document.canvasWidth <= 0 || document.canvasHeight <= 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "生成序列帧 Clip",
+                    "完整角色帧画布尺寸无效，请先重新导出。",
+                    "确定");
+                return;
+            }
+
+            if (document.frameRate <= 0f
+                || document.pivotNormalized.x < 0f
+                || document.pivotNormalized.x > 1f
+                || document.pivotNormalized.y < 0f
+                || document.pivotNormalized.y > 1f)
+            {
+                EditorUtility.DisplayDialog(
+                    "生成序列帧 Clip",
+                    "播放 FPS 必须大于 0，Sprite Pivot 必须在 0 到 1 之间。",
+                    "确定");
+                return;
+            }
+
+            string assetPath = GetSequenceFrameClipAssetPath(actionId);
+            string absoluteFolder = ToAbsolutePath(SequenceFrameResourceFolder);
+            Directory.CreateDirectory(absoluteFolder);
+            SequenceFrameClip existing = AssetDatabase.LoadAssetAtPath<SequenceFrameClip>(assetPath);
+            if (existing != null
+                && !EditorUtility.DisplayDialog(
+                    "覆盖序列帧 Clip",
+                    "Action ID " + actionId + " 已存在 Clip，是否覆盖？\n" + assetPath,
+                    "覆盖",
+                    "取消"))
+            {
+                return;
+            }
+
+            if (existing != null)
+            {
+                AssetDatabase.DeleteAsset(assetPath);
+            }
+
+            SequenceFrameClip clip = ScriptableObject.CreateInstance<SequenceFrameClip>();
+            SerializedObject serializedClip = new SerializedObject(clip);
+            serializedClip.FindProperty("actionId").intValue = actionId;
+            serializedClip.FindProperty("frameRate").floatValue = document.frameRate;
+            serializedClip.FindProperty("loop").boolValue = document.loop;
+            serializedClip.FindProperty("canvasWidth").intValue = document.canvasWidth;
+            serializedClip.FindProperty("canvasHeight").intValue = document.canvasHeight;
+            serializedClip.FindProperty("pivotNormalized").vector2Value = document.pivotNormalized;
+            SetSpriteArray(serializedClip.FindProperty("frames"), sprites);
+            serializedClip.ApplyModifiedPropertiesWithoutUndo();
+
+            if (!clip.TryValidate(out string validationError))
+            {
+                DestroyImmediate(clip);
+                EditorUtility.DisplayDialog("生成序列帧 Clip", validationError, "确定");
+                return;
+            }
+
+            clip.name = Path.GetFileNameWithoutExtension(assetPath);
+            AssetDatabase.CreateAsset(clip, assetPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            SequenceFrameClip saved = AssetDatabase.LoadAssetAtPath<SequenceFrameClip>(assetPath);
+            Selection.activeObject = saved;
+            EditorGUIUtility.PingObject(saved);
+            status = "已生成正式序列帧 Clip：" + assetPath;
         }
 
-        private SequenceFrameLayerData FindOrCreateWeaponLayer()
+        private bool TryGetActionId(out int actionId)
         {
-            for (int i = 0; i < document.layers.Count; i++)
+            actionId = document.actionId;
+            if (actionId <= 0 && int.TryParse(document.animationId, out int parsedActionId))
             {
-                if (document.layers[i] != null && document.layers[i].layerId == "weapon")
+                actionId = parsedActionId;
+                document.actionId = parsedActionId;
+            }
+
+            return actionId > 0;
+        }
+
+        private static string GetSequenceFrameClipAssetPath(int actionId)
+        {
+            return SequenceFrameResourceFolder
+                + "/clip_"
+                + actionId
+                + "_"
+                + SequenceFrameResourceSubId
+                + ".asset";
+        }
+
+        private static List<Sprite> LoadSpriteAssets(List<SequenceFrameData> frames)
+        {
+            List<string> assetPaths = new List<string>();
+            for (int i = 0; i < frames.Count; i++)
+            {
+                if (frames[i] != null)
                 {
-                    return document.layers[i];
+                    assetPaths.Add(frames[i].exportedAssetPath);
                 }
             }
 
-            SequenceFrameLayerData layer = new SequenceFrameLayerData();
-            document.layers.Add(layer);
-            return layer;
+            return LoadSpriteAssets(assetPaths);
+        }
+
+        private static List<Sprite> LoadSpriteAssets(List<string> assetPaths)
+        {
+            List<Sprite> result = new List<Sprite>();
+            for (int i = 0; i < assetPaths.Count; i++)
+            {
+                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPaths[i]);
+                if (sprite == null)
+                {
+                    continue;
+                }
+
+                result.Add(sprite);
+            }
+
+            return result;
+        }
+
+        private static void SetSpriteArray(SerializedProperty property, List<Sprite> sprites)
+        {
+            property.arraySize = sprites.Count;
+            for (int i = 0; i < sprites.Count; i++)
+            {
+                property.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
+            }
+        }
+
+        private static void ConfigureSpriteImporter(string assetPath, Vector2 pivotNormalized)
+        {
+            TextureImporter importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (importer == null)
+            {
+                return;
+            }
+
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spritePivot = pivotNormalized;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.SaveAndReimport();
         }
 
         private List<SequenceFrameData> GetSelectedFrames()
         {
             List<SequenceFrameData> result = new List<SequenceFrameData>();
-            for (int i = 0; i < document.bodyFrames.Count; i++)
+            for (int i = 0; i < document.frames.Count; i++)
             {
-                if (document.bodyFrames[i] != null && document.bodyFrames[i].selected)
+                if (document.frames[i] != null && document.frames[i].selected)
                 {
-                    result.Add(document.bodyFrames[i]);
+                    result.Add(document.frames[i]);
                 }
             }
 
@@ -610,62 +672,22 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
         private void LoadPreviewFrame(int index)
         {
-            if (document.bodyFrames.Count == 0)
+            if (document.frames.Count == 0)
             {
                 DestroyTexture(ref previewTexture);
                 return;
             }
 
-            index = Mathf.Clamp(index, 0, document.bodyFrames.Count - 1);
+            index = Mathf.Clamp(index, 0, document.frames.Count - 1);
             selectedFrameListIndex = index;
             DestroyTexture(ref previewTexture);
-            previewTexture = LoadTexture(document.bodyFrames[index].sourceFilePath);
-            LoadWeaponPreview(index);
+            previewTexture = LoadTexture(document.frames[index].sourceFilePath);
             Repaint();
-        }
-
-        private void LoadWeaponPreview(int index)
-        {
-            DestroyTexture(ref previewWeaponTexture);
-            SequenceFrameLayerData layer = FindWeaponLayer();
-            if (layer != null && layer.enabled && index >= 0
-                && index < layer.frameAssetPaths.Count)
-            {
-                string path = layer.frameAssetPaths[index];
-                if (path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-                {
-                    path = ToAbsolutePath(path);
-                }
-
-                previewWeaponTexture = LoadTexture(path);
-                return;
-            }
-
-            List<string> sourceWeaponFrames = GetImageFiles(weaponFrameFolder);
-            if (index < 0 || index >= sourceWeaponFrames.Count)
-            {
-                return;
-            }
-
-            previewWeaponTexture = LoadTexture(sourceWeaponFrames[index]);
-        }
-
-        private SequenceFrameLayerData FindWeaponLayer()
-        {
-            for (int i = 0; i < document.layers.Count; i++)
-            {
-                if (document.layers[i] != null && document.layers[i].layerId == "weapon")
-                {
-                    return document.layers[i];
-                }
-            }
-
-            return null;
         }
 
         private void UpdatePlayback()
         {
-            if (!isPlaying || document == null || document.bodyFrames.Count == 0)
+            if (!isPlaying || document == null || document.frames.Count == 0)
             {
                 return;
             }
@@ -679,7 +701,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             playbackFrame++;
             lastPlaybackTime = now;
-            if (playbackFrame >= document.bodyFrames.Count)
+            if (playbackFrame >= document.frames.Count)
             {
                 if (document.loop)
                 {
@@ -687,7 +709,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
                 else
                 {
-                    playbackFrame = document.bodyFrames.Count - 1;
+                    playbackFrame = document.frames.Count - 1;
                     isPlaying = false;
                 }
             }
@@ -854,8 +876,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             document = JsonUtility.FromJson<SequenceFrameAnimationDocument>(File.ReadAllText(path));
             EnsureDocument();
-            hasExtractedSource = document.bodyFrames.Count > 0;
-            selectedFrameListIndex = document.bodyFrames.Count > 0 ? 0 : -1;
+            hasExtractedSource = document.frames.Count > 0;
+            selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
             LoadPreviewFrame(0);
             status = "已读取序列帧动作：" + path;
         }
@@ -879,23 +901,6 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 EditorUtility.DisplayDialog("输出目录", "目录必须位于当前项目 Assets 下。", "确定");
             }
-        }
-
-        private static List<string> GetImageFiles(string folder)
-        {
-            List<string> result = new List<string>();
-            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
-            {
-                return result;
-            }
-
-            foreach (string extension in new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp" })
-            {
-                result.AddRange(Directory.GetFiles(folder, extension));
-            }
-
-            result.Sort(StringComparer.OrdinalIgnoreCase);
-            return result;
         }
 
         private static Texture2D LoadTexture(string path)
@@ -943,9 +948,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private int CountSelectedFrames()
         {
             int count = 0;
-            for (int i = 0; i < document.bodyFrames.Count; i++)
+            for (int i = 0; i < document.frames.Count; i++)
             {
-                if (document.bodyFrames[i] != null && document.bodyFrames[i].selected)
+                if (document.frames[i] != null && document.frames[i].selected)
                 {
                     count++;
                 }
@@ -961,14 +966,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 document = new SequenceFrameAnimationDocument();
             }
 
-            if (document.bodyFrames == null)
+            if (document.frames == null)
             {
-                document.bodyFrames = new List<SequenceFrameData>();
-            }
-
-            if (document.layers == null)
-            {
-                document.layers = new List<SequenceFrameLayerData>();
+                document.frames = new List<SequenceFrameData>();
             }
         }
 

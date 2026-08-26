@@ -36,6 +36,42 @@ namespace TryGame.RefDataTools.Editor
                 return false;
             }
 
+            // 共用枚举/结构体表只作为 cltabtoy 的隐式依赖，不能再次作为普通输入传入。
+            // 否则 cltabtoy 会在每个源表处理时重复注册 StructCommonResource 等定义。
+            List<string> normalizedExcelPaths = new List<string>();
+            HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < excelFullPaths.Count; i++)
+            {
+                string excelPath = excelFullPaths[i];
+                if (string.IsNullOrWhiteSpace(excelPath))
+                {
+                    continue;
+                }
+
+                string fullPath = Path.GetFullPath(excelPath);
+                string fileName = Path.GetFileName(fullPath);
+                if (fileName.Equals(
+                        TryGameRefDataPaths.CommonDefineExcelName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    UnityEngine.Debug.LogWarning(
+                        "跳过作为 cltabtoy 直接输入的共用枚举结构体表；该表只作为隐式依赖：" +
+                        fullPath);
+                    continue;
+                }
+
+                if (seenPaths.Add(fullPath))
+                {
+                    normalizedExcelPaths.Add(fullPath);
+                }
+            }
+
+            if (normalizedExcelPaths.Count == 0)
+            {
+                UnityEngine.Debug.LogWarning("过滤共用定义和重复路径后没有可导出的 Excel 配表。");
+                return false;
+            }
+
             Directory.CreateDirectory(outputPath);
             Directory.CreateDirectory(csharpOutputPath);
             Directory.CreateDirectory(luaOutputPath);
@@ -45,9 +81,9 @@ namespace TryGame.RefDataTools.Editor
             args.Append("-luaoutput ").Append(Quote(luaOutputPath)).Append(' ');
             args.Append("-csharpoutput ").Append(Quote(csharpOutputPath)).Append(' ');
 
-            for (int i = 0; i < excelFullPaths.Count; i++)
+            for (int i = 0; i < normalizedExcelPaths.Count; i++)
             {
-                string excelPath = excelFullPaths[i];
+                string excelPath = normalizedExcelPaths[i];
                 if (!File.Exists(excelPath))
                 {
                     UnityEngine.Debug.LogError("Excel 文件不存在：" + excelPath);
