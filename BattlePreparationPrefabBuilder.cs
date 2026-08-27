@@ -797,10 +797,11 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.FindRequiredProperty(
                     mono,
                     "equipmentSlotViews");
-            if (!equipmentSlots.isArray || equipmentSlots.arraySize != 9)
+            if (!equipmentSlots.isArray || equipmentSlots.arraySize != 11)
             {
                 throw new InvalidOperationException(
-                    $"Battle robot detail must contain nine fixed equipment slots: " +
+                    $"Battle robot detail must contain eleven fixed equipment slots " +
+                    "(including left/right weapon slots): " +
                     $"actual={(equipmentSlots.isArray ? equipmentSlots.arraySize : -1)}");
             }
 
@@ -842,7 +843,7 @@ namespace Game.EditorTools
                 ValidateEquipmentSkillStrip(equipment, $"fixed equipment {position}");
             }
 
-            for (int position = 1; position <= 9; position++)
+            for (int position = 1; position <= 11; position++)
             {
                 if (!fixedPositions.Contains(position))
                 {

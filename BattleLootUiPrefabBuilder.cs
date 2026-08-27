@@ -122,7 +122,10 @@ namespace Game.EditorTools
                         new Vector2(0.32f, 0.89f),
                         Vector2.zero,
                         Vector2.zero);
-                int[] playerEquipmentPositionIds = { 9, 1, 2, 3, 4, 5, 6, 7, 8 };
+                // 武器使用独立的左/右武器格，放在对应手部格的外侧，
+                // 不再作为扩展格堆叠到装备区底部。
+                int[] playerEquipmentPositionIds =
+                    { 9, 1, 2, 3, 4, 10, 11, 5, 6, 7, 8 };
                 Vector2[] playerEquipmentAnchors =
                 {
                     new Vector2(0.50f, 0.86f),
@@ -130,6 +133,8 @@ namespace Game.EditorTools
                     new Vector2(0.50f, 0.28f),
                     new Vector2(0.25f, 0.31f),
                     new Vector2(0.75f, 0.31f),
+                    new Vector2(0.13f, 0.31f),
+                    new Vector2(0.87f, 0.31f),
                     new Vector2(0.34f, 0.08f),
                     new Vector2(0.66f, 0.08f),
                     new Vector2(0.15f, 0.72f),
@@ -138,7 +143,7 @@ namespace Game.EditorTools
                 string[] playerEquipmentLabels =
                 {
                     "脑部", "头部", "上装", "左手", "右手",
-                    "左腿", "右腿", "背包", "胸挂",
+                    "左武器", "右武器", "左腿", "右腿", "背包", "胸挂",
                 };
                 BattleLootEquipmentSlotView[] playerEquipmentSlots =
                     new BattleLootEquipmentSlotView[playerEquipmentPositionIds.Length];
@@ -256,7 +261,7 @@ namespace Game.EditorTools
                         Vector2.zero,
                         Vector2.zero);
                 int[] rightEquipmentPositionIds =
-                    { 9, 1, 2, 3, 4, 5, 6, 7, 8 };
+                    { 9, 1, 2, 3, 4, 10, 11, 5, 6, 7, 8 };
                 Vector2[] rightEquipmentAnchors =
                 {
                     new Vector2(0.50f, 0.86f),
@@ -264,6 +269,8 @@ namespace Game.EditorTools
                     new Vector2(0.50f, 0.28f),
                     new Vector2(0.25f, 0.31f),
                     new Vector2(0.75f, 0.31f),
+                    new Vector2(0.13f, 0.31f),
+                    new Vector2(0.87f, 0.31f),
                     new Vector2(0.34f, 0.08f),
                     new Vector2(0.66f, 0.08f),
                     new Vector2(0.15f, 0.72f),
@@ -272,7 +279,7 @@ namespace Game.EditorTools
                 string[] rightEquipmentLabels =
                 {
                     "脑部", "头部", "上装", "左手", "右手",
-                    "左腿", "右腿", "背包", "胸挂",
+                    "左武器", "右武器", "左腿", "右腿", "背包", "胸挂",
                 };
                 BattleLootEquipmentSlotView[] rightEquipmentSlots =
                     new BattleLootEquipmentSlotView[rightEquipmentPositionIds.Length];

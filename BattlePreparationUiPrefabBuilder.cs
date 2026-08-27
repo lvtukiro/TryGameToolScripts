@@ -1359,7 +1359,10 @@ namespace Game.EditorTools
                         "EquipmentSlots", left.transform,
                         new Vector2(0.03f, 0.105f), new Vector2(0.97f, 0.535f),
                         Vector2.zero, Vector2.zero);
-                int[] positions = { 9, 1, 2, 3, 4, 5, 6, 7, 8 };
+                // 9/10/11 分别是 Brain、左武器、右武器。武器格必须是固定
+                // 身体布局的一部分，不能再落到下方 ExtensionEquipment 里，
+                // 否则装备武器时会和腿部/技能区挤在一起。
+                int[] positions = { 9, 1, 2, 3, 4, 10, 11, 5, 6, 7, 8 };
                 Vector2[] anchors =
                 {
                     new Vector2(0.50f, 0.86f),
@@ -1367,6 +1370,8 @@ namespace Game.EditorTools
                     new Vector2(0.50f, 0.28f),
                     new Vector2(0.25f, 0.31f),
                     new Vector2(0.75f, 0.31f),
+                    new Vector2(0.10f, 0.31f),
+                    new Vector2(0.90f, 0.31f),
                     new Vector2(0.34f, 0.08f),
                     new Vector2(0.66f, 0.08f),
                     new Vector2(0.15f, 0.72f),
@@ -1375,7 +1380,8 @@ namespace Game.EditorTools
                 string[] labels =
                 {
                     "Brain", "Head", "Upper Body", "Left Hand", "Right Hand",
-                    "Left Leg", "Right Leg", "Backpack", "Chest Rig",
+                    "Left Weapon", "Right Weapon", "Left Leg", "Right Leg",
+                    "Backpack", "Chest Rig",
                 };
                 List<UnityEngine.Object> equipmentSlots =
                     new List<UnityEngine.Object>(positions.Length);

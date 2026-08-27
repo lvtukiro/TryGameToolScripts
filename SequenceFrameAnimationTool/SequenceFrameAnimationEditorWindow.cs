@@ -212,6 +212,18 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button(isPlaying ? "暂停" : "播放"))
             {
+                // 非循环动作完成后停在最后一帧。再次点击播放时从第 0 帧
+                // 重新开始；暂停中的其它帧仍保持原有的继续播放行为。
+                if (!isPlaying
+                    && !document.loop
+                    && document.frames != null
+                    && document.frames.Count > 0
+                    && playbackFrame >= document.frames.Count - 1)
+                {
+                    playbackFrame = 0;
+                    LoadPreviewFrame(playbackFrame);
+                }
+
                 isPlaying = !isPlaying;
                 lastPlaybackTime = EditorApplication.timeSinceStartup;
             }
@@ -278,9 +290,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             frameScroll = EditorGUILayout.BeginScrollView(
                 frameScroll,
                 GUILayout.Height(170f));
-            for (int i = 0; i < document.frames.Count; i++)
+            List<int> displayOrder = BuildFrameDisplayOrder();
+            for (int displayIndex = 0; displayIndex < displayOrder.Count; displayIndex++)
             {
-                SequenceFrameData frame = document.frames[i];
+                int frameIndex = displayOrder[displayIndex];
+                SequenceFrameData frame = document.frames[frameIndex];
                 if (frame == null)
                 {
                     continue;
@@ -291,15 +305,16 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 if (selected != frame.selected)
                 {
                     frame.selected = selected;
+                    RecalculateDifferenceScoresFromSelectedFrames();
                 }
 
                 if (GUILayout.Button(
-                        "源帧 " + frame.sourceFrameIndex + "  差异 "
+                        "源帧 " + frame.sourceFrameIndex + "  与前一个已选帧差异 "
                         + frame.differenceScore.ToString("0.000"),
                         EditorStyles.miniButton))
                 {
-                    selectedFrameListIndex = i;
-                    LoadPreviewFrame(i);
+                    selectedFrameListIndex = frameIndex;
+                    LoadPreviewFrame(frameIndex);
                 }
 
                 EditorGUILayout.EndHorizontal();
@@ -420,8 +435,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             for (int i = 0; i < document.frames.Count; i++)
             {
                 document.frames[i].selected = i == 0;
+                document.frames[i].differenceScore = i == 0 ? 1f : 0f;
             }
 
+            // 差异基准始终是“上一个已选中的帧”，而不是 sourceFrameIndex - 1。
+            // 例如 0、5 已选中时，帧 6、7、8 都要和帧 5 比较。
             int lastSelected = 0;
             for (int i = 1; i < document.frames.Count; i++)
             {
@@ -438,8 +456,60 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
             }
 
-            status = "自动选帧完成，已选 " + CountSelectedFrames() + " 帧。";
+            status = "自动选帧完成（与上一个已选帧比较），已选 "
+                + CountSelectedFrames() + " 帧。";
             Repaint();
+        }
+
+        private List<int> BuildFrameDisplayOrder()
+        {
+            List<int> result = new List<int>(document.frames.Count);
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                if (document.frames[i] != null && document.frames[i].selected)
+                {
+                    result.Add(i);
+                }
+            }
+
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                if (document.frames[i] != null && !document.frames[i].selected)
+                {
+                    result.Add(i);
+                }
+            }
+
+            return result;
+        }
+
+        private void RecalculateDifferenceScoresFromSelectedFrames()
+        {
+            int previousSelected = -1;
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                SequenceFrameData frame = document.frames[i];
+                if (frame == null)
+                {
+                    continue;
+                }
+
+                if (previousSelected < 0)
+                {
+                    frame.differenceScore = frame.selected ? 1f : 0f;
+                }
+                else
+                {
+                    frame.differenceScore = ComputeFrameDifference(
+                        document.frames[previousSelected].sourceFilePath,
+                        frame.sourceFilePath);
+                }
+
+                if (frame.selected)
+                {
+                    previousSelected = i;
+                }
+            }
         }
 
         private void SetAllFrameSelection(bool selected)
@@ -451,6 +521,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     document.frames[i].selected = selected;
                 }
             }
+
+            RecalculateDifferenceScoresFromSelectedFrames();
         }
 
         private void ExportFrames()
@@ -464,6 +536,14 @@ namespace Game.EditorTools.SequenceFrameAnimation
             string animationFolder = outputFolder.TrimEnd('/') + "/" + SafeName(document.animationId);
             Directory.CreateDirectory(ToAbsolutePath(animationFolder));
             List<SequenceFrameData> selected = GetSelectedFrames();
+            if (selected.Count == 0)
+            {
+                EditorUtility.DisplayDialog("导出序列帧", "请至少选择一帧。", "确定");
+                return;
+            }
+
+            // 导出是覆盖当前动作的完整结果。清理旧的工具生成帧，避免本次选 8 帧但目录里还残留上次的 15 帧。
+            DeletePreviouslyExportedFrameFiles(animationFolder);
             for (int i = 0; i < selected.Count; i++)
             {
                 string assetPath = animationFolder + "/frame_" + i.ToString("D4") + ".png";
@@ -480,7 +560,30 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 ConfigureSpriteImporter(selected[i].exportedAssetPath, document.pivotNormalized);
             }
             SaveDocumentToPath(animationFolder + "/" + SafeName(document.animationId) + ".sequence.json");
-            status = "已导出完整角色序列帧：" + animationFolder;
+            status = "已导出完整角色序列帧：" + selected.Count + " 张：" + animationFolder;
+        }
+
+        private static void DeletePreviouslyExportedFrameFiles(string animationFolder)
+        {
+            string absoluteFolder = ToAbsolutePath(animationFolder);
+            if (!Directory.Exists(absoluteFolder))
+            {
+                return;
+            }
+
+            string[] oldFrameFiles = Directory.GetFiles(
+                absoluteFolder,
+                "frame_*.png",
+                SearchOption.TopDirectoryOnly);
+            for (int i = 0; i < oldFrameFiles.Length; i++)
+            {
+                File.Delete(oldFrameFiles[i]);
+                string metaPath = oldFrameFiles[i] + ".meta";
+                if (File.Exists(metaPath))
+                {
+                    File.Delete(metaPath);
+                }
+            }
         }
 
         private void ExportSequenceFrameClip()
@@ -709,8 +812,13 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
                 else
                 {
+                    // 非循环播放完成后停在最后一帧，便于检查结束姿态；
+                    // 再次点击“播放”时由按钮逻辑回到第 0 帧重播。
                     playbackFrame = document.frames.Count - 1;
                     isPlaying = false;
+                    lastPlaybackTime = now;
+                    LoadPreviewFrame(playbackFrame);
+                    return;
                 }
             }
 

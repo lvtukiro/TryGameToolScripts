@@ -46,8 +46,13 @@ namespace Game.SequenceFrameAnimation
                 {
                     if (!loop)
                     {
+                        // 非循环动作播完停在最后一帧，方便查看动作结束姿态。
+                        // Play() 检测到已经停在末帧时会把播放位置重新置为 0，
+                        // 因而可以直接再次点击播放重播，而不必在这里闪回首帧。
                         frameIndex = frames.Length - 1;
                         playing = false;
+                        elapsed = 0f;
+                        ApplyFrame();
                         break;
                     }
 
@@ -60,6 +65,14 @@ namespace Game.SequenceFrameAnimation
 
         public void Play()
         {
+            if (!loop && !playing && frames != null && frames.Length > 0
+                && frameIndex >= frames.Length - 1)
+            {
+                frameIndex = 0;
+                elapsed = 0f;
+                ApplyFrame();
+            }
+
             playing = true;
         }
 

@@ -61,7 +61,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 EditorUtility.DisplayDialog(
                     "序列帧预制体",
-                    "完整角色帧中有图片尚未导出或尚未导入 Unity。",
+                    "完整角色帧中有图片尚未导出或尚未导入 Unity。请先在“完整角色帧”页导出选中帧，再生成预制体。",
                     "确定");
                 return;
             }
@@ -76,11 +76,36 @@ namespace Game.EditorTools.SequenceFrameAnimation
             frameRenderer.sortingOrder = 0;
 
             SequenceFrameAnimationPlayer player = root.AddComponent<SequenceFrameAnimationPlayer>();
+            if (player == null)
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                EditorUtility.DisplayDialog(
+                    "序列帧预制体",
+                    "无法添加 SequenceFrameAnimationPlayer。请确认该脚本位于运行时程序集，而不是 Editor 程序集，并等待 Unity 编译完成。",
+                    "确定");
+                return;
+            }
+
             SerializedObject serializedPlayer = new SerializedObject(player);
-            serializedPlayer.FindProperty("frameRenderer").objectReferenceValue = frameRenderer;
-            SetSpriteArray(serializedPlayer.FindProperty("frames"), sprites);
-            serializedPlayer.FindProperty("frameRate").floatValue = Mathf.Max(1f, document.frameRate);
-            serializedPlayer.FindProperty("loop").boolValue = document.loop;
+            SerializedProperty frameRendererProperty = serializedPlayer.FindProperty("frameRenderer");
+            SerializedProperty framesProperty = serializedPlayer.FindProperty("frames");
+            SerializedProperty frameRateProperty = serializedPlayer.FindProperty("frameRate");
+            SerializedProperty loopProperty = serializedPlayer.FindProperty("loop");
+            if (frameRendererProperty == null || framesProperty == null
+                || frameRateProperty == null || loopProperty == null)
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                EditorUtility.DisplayDialog(
+                    "序列帧预制体",
+                    "SequenceFrameAnimationPlayer 字段不完整，无法生成预制体。请重新编译 Unity 脚本。",
+                    "确定");
+                return;
+            }
+
+            frameRendererProperty.objectReferenceValue = frameRenderer;
+            SetSpriteArray(framesProperty, sprites);
+            frameRateProperty.floatValue = Mathf.Max(1f, document.frameRate);
+            loopProperty.boolValue = document.loop;
             serializedPlayer.ApplyModifiedPropertiesWithoutUndo();
 
             GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, prefabAssetPath);
