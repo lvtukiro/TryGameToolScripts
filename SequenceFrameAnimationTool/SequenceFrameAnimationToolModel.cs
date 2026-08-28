@@ -12,6 +12,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
         public int actionId;
         public float frameRate = 12f;
         public bool loop = true;
+        // 序列帧原图默认面向左；生成 Clip 时会一并写入，后续可在动作页切换。
+        public bool defaultFacingLeft = true;
         public int canvasWidth;
         public int canvasHeight;
         public UnityEngine.Vector2 pivotNormalized = new UnityEngine.Vector2(0.5f, 0f);

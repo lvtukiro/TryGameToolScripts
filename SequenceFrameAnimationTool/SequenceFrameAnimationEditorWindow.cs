@@ -210,6 +210,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
             document.actionId = EditorGUILayout.IntField("Action ID", document.actionId);
             document.loop = EditorGUILayout.Toggle("循环播放", document.loop);
+            document.defaultFacingLeft = EditorGUILayout.Toggle(
+                "素材默认朝向左",
+                document.defaultFacingLeft);
             document.frameRate = EditorGUILayout.FloatField("播放 FPS", document.frameRate);
             document.pivotNormalized = EditorGUILayout.Vector2Field(
                 "Sprite Pivot",
@@ -679,6 +682,12 @@ namespace Game.EditorTools.SequenceFrameAnimation
             serializedClip.FindProperty("actionId").intValue = actionId;
             serializedClip.FindProperty("frameRate").floatValue = document.frameRate;
             serializedClip.FindProperty("loop").boolValue = document.loop;
+            SerializedProperty defaultFacingLeftProperty =
+                serializedClip.FindProperty("defaultFacingLeft");
+            if (defaultFacingLeftProperty != null)
+            {
+                defaultFacingLeftProperty.boolValue = document.defaultFacingLeft;
+            }
             serializedClip.FindProperty("canvasWidth").intValue = document.canvasWidth;
             serializedClip.FindProperty("canvasHeight").intValue = document.canvasHeight;
             serializedClip.FindProperty("pivotNormalized").vector2Value = document.pivotNormalized;
@@ -1027,8 +1036,15 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 return;
             }
 
-            document = JsonUtility.FromJson<SequenceFrameAnimationDocument>(File.ReadAllText(path));
+            string json = File.ReadAllText(path);
+            document = JsonUtility.FromJson<SequenceFrameAnimationDocument>(json);
             EnsureDocument();
+            // 兼容早期没有默认朝向字段的动作清单。当前项目素材约定原图面向左，
+            // 只有清单显式写入字段时才使用用户保存的右向设置。
+            if (json.IndexOf("\"defaultFacingLeft\"", StringComparison.Ordinal) < 0)
+            {
+                document.defaultFacingLeft = true;
+            }
             hasExtractedSource = document.frames.Count > 0;
             selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
             LoadPreviewFrame(0);
