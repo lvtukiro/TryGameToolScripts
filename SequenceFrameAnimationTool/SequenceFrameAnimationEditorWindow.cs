@@ -23,13 +23,13 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private const int DefaultSelectMinGap = 2;
         private const int SequenceFrameResourceSubId = 1;
         private const string SequenceFrameResourceFolder =
-            "Assets/Resources/TryGameBuildRes/sequence_animation";
+            "Assets/Resources/TryGameBuildRes/clip_sprite/sequence_animation";
 
         private WorkflowTab workflowTab;
         private SequenceFrameAnimationDocument document;
         private string sourceAnimationPath = string.Empty;
         private string extractedFrameFolder = string.Empty;
-        private string outputAssetFolder = "Assets/BuildRes";
+        private string outputAssetFolder = "Assets/Resources/TryGameBuildRes/clip_sprite";
         private Texture2D previewTexture;
         private int selectedFrameListIndex = -1;
         private int extractFrameRate = DefaultExtractFrameRate;
@@ -179,6 +179,10 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(8f);
+            document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
+            EditorGUILayout.LabelField(
+                "用于帧目录、动作 JSON 和预览名称；Action ID 仍单独填写。",
+                EditorStyles.wordWrappedMiniLabel);
             outputAssetFolder = EditorGUILayout.TextField("输出 Assets 目录", outputAssetFolder);
             if (GUILayout.Button("选择输出目录"))
             {
@@ -203,6 +207,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private void DrawActionPreviewControlPanel()
         {
             EditorGUILayout.LabelField("动作预览", EditorStyles.boldLabel);
+            document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
             document.actionId = EditorGUILayout.IntField("Action ID", document.actionId);
             document.loop = EditorGUILayout.Toggle("循环播放", document.loop);
             document.frameRate = EditorGUILayout.FloatField("播放 FPS", document.frameRate);
@@ -261,7 +266,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             EditorGUILayout.Space(8f);
             EditorGUILayout.LabelField(
-                "预览使用一张完整角色帧，不再叠加独立身体/武器图层。",
+                "生成 Clip 时如果帧还没有导出，工具会自动保存当前选中帧并导入为 Sprite；"
+                + "不需要再手动返回上一页导出。",
                 EditorStyles.wordWrappedMiniLabel);
         }
 
@@ -525,12 +531,12 @@ namespace Game.EditorTools.SequenceFrameAnimation
             RecalculateDifferenceScoresFromSelectedFrames();
         }
 
-        private void ExportFrames()
+        private bool ExportFrames()
         {
             if (!TryGetProjectAssetFolder(outputAssetFolder, out string outputFolder))
             {
                 EditorUtility.DisplayDialog("导出序列帧", "输出目录必须位于当前项目 Assets 下。", "确定");
-                return;
+                return false;
             }
 
             string animationFolder = outputFolder.TrimEnd('/') + "/" + SafeName(document.animationId);
@@ -539,7 +545,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             if (selected.Count == 0)
             {
                 EditorUtility.DisplayDialog("导出序列帧", "请至少选择一帧。", "确定");
-                return;
+                return false;
             }
 
             // 导出是覆盖当前动作的完整结果。清理旧的工具生成帧，避免本次选 8 帧但目录里还残留上次的 15 帧。
@@ -561,6 +567,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
             SaveDocumentToPath(animationFolder + "/" + SafeName(document.animationId) + ".sequence.json");
             status = "已导出完整角色序列帧：" + selected.Count + " 张：" + animationFolder;
+            return true;
         }
 
         private static void DeletePreviouslyExportedFrameFiles(string animationFolder)
@@ -604,13 +611,26 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             List<Sprite> sprites = LoadSpriteAssets(document.frames);
-            if (sprites.Count != document.frames.Count)
+            if (!AreFramesExportedToCurrentDestination()
+                || sprites.Count != document.frames.Count)
             {
-                EditorUtility.DisplayDialog(
-                    "生成序列帧 Clip",
-                    "完整角色帧中存在尚未按 Sprite 导入的图片，请先重新导出。",
-                    "确定");
-                return;
+                // 拆帧后的 sourceFilePath 仍然指向临时帧文件；如果用户还没有点过
+                // “保存选中完整帧并导出”，这里直接复用同一套导出逻辑，完成复制、
+                // Sprite 导入和 JSON 保存，然后继续生成 Clip。
+                if (!ExportFrames())
+                {
+                    return;
+                }
+
+                sprites = LoadSpriteAssets(document.frames);
+                if (sprites.Count != document.frames.Count)
+                {
+                    EditorUtility.DisplayDialog(
+                        "生成序列帧 Clip",
+                        "选中的完整角色帧导入 Sprite 失败，请检查输出目录和图片文件。",
+                        "确定");
+                    return;
+                }
             }
 
             if (document.canvasWidth <= 0 || document.canvasHeight <= 0)
@@ -733,6 +753,31 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             return result;
+        }
+
+        private bool AreFramesExportedToCurrentDestination()
+        {
+            if (!TryGetProjectAssetFolder(outputAssetFolder, out string outputFolder))
+            {
+                return false;
+            }
+
+            string expectedFolder = outputFolder.TrimEnd('/') + "/" + SafeName(document.animationId);
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                SequenceFrameData frame = document.frames[i];
+                if (frame == null
+                    || string.IsNullOrWhiteSpace(frame.exportedAssetPath)
+                    || !frame.exportedAssetPath.StartsWith(
+                        expectedFolder + "/",
+                        StringComparison.OrdinalIgnoreCase)
+                    || !File.Exists(ToAbsolutePath(frame.exportedAssetPath)))
+                {
+                    return false;
+                }
+            }
+
+            return document.frames.Count > 0;
         }
 
         private static void SetSpriteArray(SerializedProperty property, List<Sprite> sprites)
