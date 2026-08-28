@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Game.SequenceFrameAnimation;
@@ -41,6 +42,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private Vector2 frameScroll;
         private string status = "请选择动作视频或序列帧图片。";
         private bool hasExtractedSource;
+        private bool refDataTablesRegistered;
 
         // 主窗口唯一入口；预制体生成从“动作预览”页进入。
         [MenuItem("TryGame/Tools/Sequence Frame Animation Tool")]
@@ -208,7 +210,13 @@ namespace Game.EditorTools.SequenceFrameAnimation
         {
             EditorGUILayout.LabelField("动作预览", EditorStyles.boldLabel);
             document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
+            EditorGUILayout.BeginHorizontal();
             document.actionId = EditorGUILayout.IntField("Action ID", document.actionId);
+            if (GUILayout.Button("取下一个 ID", GUILayout.Width(96f)))
+            {
+                AssignNextSequenceFrameActionId();
+            }
+            EditorGUILayout.EndHorizontal();
             document.loop = EditorGUILayout.Toggle("循环播放", document.loop);
             document.defaultFacingLeft = EditorGUILayout.Toggle(
                 "素材默认朝向左",
@@ -220,16 +228,30 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button(isPlaying ? "暂停" : "播放"))
             {
+                List<SequenceFrameData> selectedFrames = GetSelectedFrames();
+                if (selectedFrames.Count == 0)
+                {
+                    isPlaying = false;
+                    status = "请至少勾选一帧后再播放。";
+                    Repaint();
+                    EditorGUILayout.EndHorizontal();
+                    return;
+                }
+
                 // 非循环动作完成后停在最后一帧。再次点击播放时从第 0 帧
                 // 重新开始；暂停中的其它帧仍保持原有的继续播放行为。
                 if (!isPlaying
                     && !document.loop
-                    && document.frames != null
-                    && document.frames.Count > 0
-                    && playbackFrame >= document.frames.Count - 1)
+                    && playbackFrame >= selectedFrames.Count - 1)
                 {
                     playbackFrame = 0;
-                    LoadPreviewFrame(playbackFrame);
+                }
+
+                // 第一次播放或从暂停继续时，先显示当前“已选帧”位置；
+                // 否则初始预览若停在未勾选源帧，会在第一拍直接跳过已选列表第 0 帧。
+                if (!isPlaying)
+                {
+                    LoadPreviewSelectedFrame(playbackFrame);
                 }
 
                 isPlaying = !isPlaying;
@@ -240,7 +262,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 isPlaying = false;
                 playbackFrame = 0;
-                LoadPreviewFrame(playbackFrame);
+                LoadPreviewSelectedFrame(playbackFrame);
             }
             EditorGUILayout.EndHorizontal();
             if (GUILayout.Button("读取序列帧动作 JSON"))
@@ -259,7 +281,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             using (new EditorGUI.DisabledScope(
-                document.frames == null || document.frames.Count == 0))
+                document.frames == null || CountSelectedFrames() == 0))
             {
                 if (GUILayout.Button("生成正式 SequenceFrameClip.asset"))
                 {
@@ -296,6 +318,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.LabelField(
                 "完整角色帧（已选 " + CountSelectedFrames() + "/" + document.frames.Count + "）",
                 EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(
+                "播放预览只使用已勾选的帧；未勾选帧仍可单击查看。",
+                EditorStyles.miniLabel);
             frameScroll = EditorGUILayout.BeginScrollView(
                 frameScroll,
                 GUILayout.Height(170f));
@@ -346,6 +371,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
             extractedFrameFolder = string.Empty;
             hasExtractedSource = false;
             selectedFrameListIndex = -1;
+            isPlaying = false;
+            playbackFrame = 0;
             document.frames.Clear();
             DestroyTexture(ref previewTexture);
             status = "已选择动作文件，请点击“拆帧”。";
@@ -375,6 +402,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     },
                 };
                 hasExtractedSource = true;
+                isPlaying = false;
+                playbackFrame = 0;
                 LoadPreviewFrame(0);
                 status = "已载入一张完整角色帧。";
                 return;
@@ -394,6 +423,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
             document.frameRate = extractFrameRate;
             hasExtractedSource = document.frames.Count > 0;
             selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
+            isPlaying = false;
+            playbackFrame = 0;
             if (hasExtractedSource)
             {
                 LoadPreviewFrame(0);
@@ -607,15 +638,16 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 return;
             }
 
-            if (document.frames == null || document.frames.Count == 0)
+            List<SequenceFrameData> selectedFrames = GetSelectedFrames();
+            if (selectedFrames.Count == 0)
             {
-                EditorUtility.DisplayDialog("生成序列帧 Clip", "请先导出至少一张完整角色帧。", "确定");
+                EditorUtility.DisplayDialog("生成序列帧 Clip", "请至少勾选一张完整角色帧。", "确定");
                 return;
             }
 
-            List<Sprite> sprites = LoadSpriteAssets(document.frames);
-            if (!AreFramesExportedToCurrentDestination()
-                || sprites.Count != document.frames.Count)
+            List<Sprite> sprites = LoadSpriteAssets(selectedFrames);
+            if (!AreFramesExportedToCurrentDestination(selectedFrames)
+                || sprites.Count != selectedFrames.Count)
             {
                 // 拆帧后的 sourceFilePath 仍然指向临时帧文件；如果用户还没有点过
                 // “保存选中完整帧并导出”，这里直接复用同一套导出逻辑，完成复制、
@@ -625,8 +657,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     return;
                 }
 
-                sprites = LoadSpriteAssets(document.frames);
-                if (sprites.Count != document.frames.Count)
+                selectedFrames = GetSelectedFrames();
+                sprites = LoadSpriteAssets(selectedFrames);
+                if (sprites.Count != selectedFrames.Count)
                 {
                     EditorUtility.DisplayDialog(
                         "生成序列帧 Clip",
@@ -723,6 +756,113 @@ namespace Game.EditorTools.SequenceFrameAnimation
             return actionId > 0;
         }
 
+        /// <summary>
+        /// 从正式 SequenceFrameActionResource 表取下一个可用的 actionId。
+        /// 编辑器窗口可能在运行时 RefData 初始化前打开，因此这里按正式编辑器加载
+        /// 流程补做一次表注册/初始化；不读取临时帧目录，也不改动任何导出文件。
+        /// </summary>
+        private void AssignNextSequenceFrameActionId()
+        {
+            try
+            {
+                RefData.CLRefDataModuleCommon common =
+                    RefData.CLRefDataModule.instance.refDataModuleCommon;
+                if (!RefData.SequenceFrameActionResourceTable.IsLoaded
+                    && !refDataTablesRegistered)
+                {
+                    List<Type> tableTypes = TypeCache
+                        .GetTypesDerivedFrom<RefData.IRefData>()
+                        .Where(type => type != null
+                            && !type.IsAbstract
+                            && string.Equals(type.Namespace, "RefData", StringComparison.Ordinal)
+                            && type.Name.EndsWith("Table", StringComparison.Ordinal))
+                        .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                        .ToList();
+                    if (tableTypes.Count == 0)
+                    {
+                        throw new InvalidOperationException(
+                            "No generated RefData table types were discovered.");
+                    }
+
+                    for (int index = 0; index < tableTypes.Count; index++)
+                    {
+                        Type tableType = tableTypes[index];
+                        System.Reflection.MethodInfo register = tableType.GetMethod(
+                            "Register",
+                            System.Reflection.BindingFlags.Public
+                            | System.Reflection.BindingFlags.Static,
+                            null,
+                            Type.EmptyTypes,
+                            null);
+                        if (register == null)
+                        {
+                            throw new InvalidOperationException(
+                                $"{tableType.FullName} is missing public static Register().");
+                        }
+
+                        register.Invoke(null, null);
+                    }
+
+                    refDataTablesRegistered = true;
+                }
+                else if (RefData.SequenceFrameActionResourceTable.IsLoaded)
+                {
+                    refDataTablesRegistered = true;
+                }
+
+                if (!common.Inited)
+                {
+                    common.LoadRefData();
+                    common.Init();
+                }
+                else if (!RefData.SequenceFrameActionResourceTable.IsLoaded)
+                {
+                    common.LoadRefData();
+                    common.ReLoadAll_OnlyForEditor();
+                }
+
+                if (!RefData.SequenceFrameActionResourceTable.IsLoaded)
+                {
+                    status = "读取 SequenceFrameActionResource 配置失败，请先完成导表。";
+                    Debug.LogError(
+                        "[SequenceFrameAnimationTool] SequenceFrameActionResource 表尚未加载，无法获取下一个 Action ID。 ");
+                    Repaint();
+                    return;
+                }
+
+                int maximumId = 0;
+                for (int index = 0;
+                     index < RefData.SequenceFrameActionResourceTable.Count;
+                     index++)
+                {
+                    RefData.SequenceFrameActionResource row =
+                        RefData.SequenceFrameActionResourceTable.SequenceFrameActionResources(index);
+                    maximumId = Mathf.Max(maximumId, row.Id);
+                }
+
+                if (maximumId >= int.MaxValue)
+                {
+                    status = "SequenceFrameActionResource 的 Action ID 已耗尽。";
+                    Debug.LogError(
+                        "[SequenceFrameAnimationTool] SequenceFrameActionResource 的 Action ID 已达到 int.MaxValue。 ");
+                    Repaint();
+                    return;
+                }
+
+                document.actionId = maximumId + 1;
+                status = "已取得下一个 Action ID：" + document.actionId;
+                Repaint();
+            }
+            catch (Exception exception)
+            {
+                status = "读取 SequenceFrameActionResource 配置失败：" + exception.Message;
+                Debug.LogError(
+                    "[SequenceFrameAnimationTool] 获取下一个 Action ID 失败："
+                    + exception);
+                Repaint();
+            }
+        }
+
         private static string GetSequenceFrameClipAssetPath(int actionId)
         {
             return SequenceFrameResourceFolder
@@ -764,7 +904,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
             return result;
         }
 
-        private bool AreFramesExportedToCurrentDestination()
+        private bool AreFramesExportedToCurrentDestination(
+            List<SequenceFrameData> frames)
         {
             if (!TryGetProjectAssetFolder(outputAssetFolder, out string outputFolder))
             {
@@ -772,9 +913,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             string expectedFolder = outputFolder.TrimEnd('/') + "/" + SafeName(document.animationId);
-            for (int i = 0; i < document.frames.Count; i++)
+            for (int i = 0; i < frames.Count; i++)
             {
-                SequenceFrameData frame = document.frames[i];
+                SequenceFrameData frame = frames[i];
                 if (frame == null
                     || string.IsNullOrWhiteSpace(frame.exportedAssetPath)
                     || !frame.exportedAssetPath.StartsWith(
@@ -786,7 +927,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
             }
 
-            return document.frames.Count > 0;
+            return frames.Count > 0;
         }
 
         private static void SetSpriteArray(SerializedProperty property, List<Sprite> sprites)
@@ -842,12 +983,53 @@ namespace Game.EditorTools.SequenceFrameAnimation
             Repaint();
         }
 
+        /// <summary>
+        /// 按已勾选帧的播放序号加载预览。未勾选帧保留在源帧列表中，
+        /// 但不应进入动作播放时间轴。
+        /// </summary>
+        private void LoadPreviewSelectedFrame(int index)
+        {
+            List<SequenceFrameData> selectedFrames = GetSelectedFrames();
+            if (selectedFrames.Count == 0)
+            {
+                selectedFrameListIndex = -1;
+                DestroyTexture(ref previewTexture);
+                Repaint();
+                return;
+            }
+
+            index = Mathf.Clamp(index, 0, selectedFrames.Count - 1);
+            SequenceFrameData frame = selectedFrames[index];
+            if (frame == null)
+            {
+                return;
+            }
+
+            int sourceIndex = document.frames.IndexOf(frame);
+            if (sourceIndex >= 0)
+            {
+                LoadPreviewFrame(sourceIndex);
+            }
+        }
+
         private void UpdatePlayback()
         {
             if (!isPlaying || document == null || document.frames.Count == 0)
             {
                 return;
             }
+
+            List<SequenceFrameData> selectedFrames = GetSelectedFrames();
+            if (selectedFrames.Count == 0)
+            {
+                isPlaying = false;
+                playbackFrame = 0;
+                LoadPreviewSelectedFrame(0);
+                return;
+            }
+
+            // 勾选状态可以在播放过程中修改，避免旧的播放序号超出新的已选帧列表。
+            playbackFrame = Mathf.Clamp(playbackFrame, 0, selectedFrames.Count - 1);
 
             double now = EditorApplication.timeSinceStartup;
             float fps = Mathf.Max(1f, document.frameRate);
@@ -858,7 +1040,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             playbackFrame++;
             lastPlaybackTime = now;
-            if (playbackFrame >= document.frames.Count)
+            if (playbackFrame >= selectedFrames.Count)
             {
                 if (document.loop)
                 {
@@ -868,15 +1050,15 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 {
                     // 非循环播放完成后停在最后一帧，便于检查结束姿态；
                     // 再次点击“播放”时由按钮逻辑回到第 0 帧重播。
-                    playbackFrame = document.frames.Count - 1;
+                    playbackFrame = selectedFrames.Count - 1;
                     isPlaying = false;
                     lastPlaybackTime = now;
-                    LoadPreviewFrame(playbackFrame);
+                    LoadPreviewSelectedFrame(playbackFrame);
                     return;
                 }
             }
 
-            LoadPreviewFrame(playbackFrame);
+            LoadPreviewSelectedFrame(playbackFrame);
         }
 
         private void DrawTextureFit(Texture2D texture, Rect rect)
@@ -1047,6 +1229,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
             hasExtractedSource = document.frames.Count > 0;
             selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
+            isPlaying = false;
+            playbackFrame = 0;
             LoadPreviewFrame(0);
             status = "已读取序列帧动作：" + path;
         }
