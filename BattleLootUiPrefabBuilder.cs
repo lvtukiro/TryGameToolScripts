@@ -14,7 +14,7 @@ namespace Game.EditorTools
     {
         private const string PrefabPath =
             "Assets/Resources/TryGameBuildRes/gui/ui_game/win_battle_loot.prefab";
-        private const string Marker = "__BattleLootUi_v2_0i_4_enemy_scroll_layout";
+        private const string Marker = "__BattleLootUi_v2_0i_5_ground_drop_area";
         private const string MonoType = "Game.GUIMonoBattleLoot";
         private const string ItemViewType = "Game.BattleLootItemView";
         private const string ContainerCellType =
@@ -246,6 +246,25 @@ namespace Game.EditorTools
                     new Vector2(1f, 0.90f),
                     new Vector2(10f, 8f),
                     new Vector2(-20f, -8f));
+
+                // 右侧整块空白区域是统一的丢出落点。它放在格子 ScrollRect
+                // 的下层：格子命中时仍优先执行移动/装备，只有松手处没有格子
+                // 时才由运行时按这个 RectTransform 判定为丢出。
+                RectTransform groundDropArea =
+                    BattlePreparationEditorUiFactory.NewRect(
+                        "GroundDropArea",
+                        panel.transform,
+                        new Vector2(0.68f, 0.06f),
+                        new Vector2(1f, 0.90f),
+                        new Vector2(10f, 8f),
+                        new Vector2(-20f, -8f));
+                BattlePreparationEditorUiFactory.AddImage(
+                    groundDropArea.gameObject,
+                    new Color(0.08f, 0.16f, 0.22f, 0.18f),
+                    null,
+                    true);
+                groundDropArea.SetSiblingIndex(
+                    rightScroll.ScrollRect.transform.GetSiblingIndex());
 
                 RectTransform rightEquipmentSection = CreateRightSection(
                     rightScroll.Content,
@@ -558,6 +577,10 @@ namespace Game.EditorTools
                     mono,
                     "mapItemsSectionRoot",
                     mapItemsSection);
+                BattlePreparationEditorUiFactory.SetObject(
+                    mono,
+                    "groundDropArea",
+                    groundDropArea);
                 BattlePreparationEditorUiFactory.SetObject(
                     mono,
                     "playerEquipmentRoot",

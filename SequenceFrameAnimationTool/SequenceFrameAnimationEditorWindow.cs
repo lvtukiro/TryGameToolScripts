@@ -22,6 +22,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private const int DefaultExtractFrameRate = 12;
         private const float DefaultSelectThreshold = 0.06f;
         private const int DefaultSelectMinGap = 2;
+        private const float DefaultBackgroundTolerance = 0.08f;
         private const int SequenceFrameResourceSubId = 1;
         private const string SequenceFrameResourceFolder =
             "Assets/Resources/TryGameBuildRes/clip_sprite/sequence_animation";
@@ -40,9 +41,27 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private double lastPlaybackTime;
         private int playbackFrame;
         private Vector2 frameScroll;
+        private bool scrollFrameListToSelected;
         private string status = "请选择动作视频或序列帧图片。";
         private bool hasExtractedSource;
         private bool refDataTablesRegistered;
+        // 仅表示当前窗口中的临时拆帧是否已经执行过批量扣底色。
+        // 该状态不写入动作 JSON；重新读取动作时仍以 JSON 和正式导出帧为准。
+        private bool temporaryFramesBackgroundRemoved;
+        private bool backgroundColorSampled;
+        private readonly HashSet<string> temporaryBackgroundProcessedPaths =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private bool regionSelectionMode;
+        private Rect selectedRegionNormalized;
+        private bool hasSelectedRegion;
+        private Color regionKeyColor = Color.white;
+        private bool regionColorSampled;
+        private bool[] selectedRegionMask;
+        private int selectedRegionWidth;
+        private int selectedRegionHeight;
+        private int selectedRegionPixelCount;
+        private string regionUndoPath = string.Empty;
+        private byte[] regionUndoPng;
 
         // 主窗口唯一入口；预制体生成从“动作预览”页进入。
         [MenuItem("TryGame/Tools/Sequence Frame Animation Tool")]
@@ -179,11 +198,89 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
             }
             EditorGUILayout.EndHorizontal();
+            using (new EditorGUI.DisabledScope(!hasExtractedSource || document.frames.Count == 0))
+            {
+                if (GUILayout.Button("选中下一帧"))
+                {
+                    SelectNextFrameForPreview();
+                }
+            }
 
             EditorGUILayout.Space(8f);
             document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
             EditorGUILayout.LabelField(
                 "用于帧目录、动作 JSON 和预览名称；Action ID 仍单独填写。",
+                EditorStyles.wordWrappedMiniLabel);
+            document.removeBackground = EditorGUILayout.Toggle("扣底色", document.removeBackground);
+            EditorGUILayout.BeginHorizontal();
+            document.backgroundKeyColor = EditorGUILayout.ColorField(
+                "背景色",
+                document.backgroundKeyColor);
+            if (GUILayout.Button("取底色", GUILayout.Width(72f)))
+            {
+                SampleBackgroundColorFromCurrentFrame();
+            }
+            EditorGUILayout.EndHorizontal();
+            document.backgroundTolerance = EditorGUILayout.Slider(
+                "扣底容差",
+                document.backgroundTolerance,
+                0f,
+                0.3f);
+            using (new EditorGUI.DisabledScope(
+                !CanBatchRemoveTemporaryBackground()))
+            {
+                if (GUILayout.Button("批量扣除临时帧背景"))
+                {
+                    RemoveBackgroundFromTemporaryFrames();
+                }
+            }
+            EditorGUILayout.LabelField(
+                "先取底色；批量处理时每帧会重新采样四角底色，并允许小范围近色断缝连通。",
+                EditorStyles.wordWrappedMiniLabel);
+
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("单帧局部抠图", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.ColorField("点击颜色", regionKeyColor);
+            }
+            if (GUILayout.Button(regionSelectionMode ? "取消选取" : "点击选取区域", GUILayout.Width(108f)))
+            {
+                regionSelectionMode = !regionSelectionMode;
+                status = regionSelectionMode
+                    ? "请在右侧预览图上点击要扣除的区域，工具会按点击处颜色识别连通区域。"
+                    : "已取消局部区域选取。";
+            }
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(!hasSelectedRegion || !regionColorSampled))
+            {
+                if (GUILayout.Button("抠除选中区域"))
+                {
+                    RemoveBackgroundFromSelectedRegion();
+                }
+            }
+
+            using (new EditorGUI.DisabledScope(regionUndoPng == null))
+            {
+                if (GUILayout.Button("撤销单帧抠图"))
+                {
+                    UndoRegionBackgroundRemoval();
+                }
+            }
+            using (new EditorGUI.DisabledScope(!hasSelectedRegion))
+            {
+                if (GUILayout.Button("清除选区"))
+                {
+                    ClearSelectedRegion();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.LabelField(
+                hasSelectedRegion
+                    ? "已选中红色区域；抠图只作用于当前帧。"
+                    : "点击选取区域后，在右侧预览图上点击需要处理的颜色区域。",
                 EditorStyles.wordWrappedMiniLabel);
             outputAssetFolder = EditorGUILayout.TextField("输出 Assets 目录", outputAssetFolder);
             if (GUILayout.Button("选择输出目录"))
@@ -202,7 +299,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             EditorGUILayout.Space(10f);
             EditorGUILayout.LabelField(
-                "每张序列帧都应包含人物和当前武器的完整画面；工具不会再单独读取或贴合武器帧。",
+                "每张序列帧都应包含人物和当前武器的完整画面；工具不会再单独读取或贴合武器帧。"
+                + " 勾选“扣底色”后会把导出的纯色背景扣成透明。",
                 EditorStyles.wordWrappedMiniLabel);
         }
 
@@ -299,6 +397,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private void DrawPreviewPanel()
         {
             EditorGUILayout.BeginVertical();
+            EditorGUILayout.LabelField(
+                document.defaultFacingLeft
+                    ? "预览方向：素材默认朝向左"
+                    : "预览方向：素材默认朝向右",
+                EditorStyles.miniLabel);
             Rect previewRect = GUILayoutUtility.GetRect(
                 100f,
                 10000f,
@@ -307,7 +410,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 GUILayout.ExpandWidth(true),
                 GUILayout.ExpandHeight(true));
             EditorGUI.DrawRect(previewRect, new Color(0.12f, 0.13f, 0.14f));
-            DrawTextureFit(previewTexture, previewRect);
+            bool mirrorHorizontally = !document.defaultFacingLeft;
+            Rect textureRect = GetTextureDrawRect(previewTexture, previewRect);
+            DrawTextureFit(previewTexture, textureRect, mirrorHorizontally);
+            DrawSelectedRegion(textureRect);
+            HandleRegionPreviewInput(textureRect, mirrorHorizontally);
 
             DrawFrameList();
             EditorGUILayout.EndVertical();
@@ -325,6 +432,18 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 frameScroll,
                 GUILayout.Height(170f));
             List<int> displayOrder = BuildFrameDisplayOrder();
+            if (scrollFrameListToSelected && selectedFrameListIndex >= 0)
+            {
+                int displayIndex = displayOrder.IndexOf(selectedFrameListIndex);
+                if (displayIndex >= 0)
+                {
+                    // 每行高度会因编辑器字体略有变化，使用略保守的行高并留出
+                    // 一行上下边距，确保当前帧在滚动区域中可见。
+                    frameScroll.y = Mathf.Max(0f, displayIndex * 27f - 54f);
+                }
+
+                scrollFrameListToSelected = false;
+            }
             for (int displayIndex = 0; displayIndex < displayOrder.Count; displayIndex++)
             {
                 int frameIndex = displayOrder[displayIndex];
@@ -334,6 +453,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     continue;
                 }
 
+                bool isCurrentPreviewFrame = frameIndex == selectedFrameListIndex;
+                Color previousBackgroundColor = GUI.backgroundColor;
+                GUI.backgroundColor = isCurrentPreviewFrame
+                    ? new Color(0.35f, 0.65f, 1f, 1f)
+                    : Color.white;
                 EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
                 bool selected = EditorGUILayout.Toggle(frame.selected, GUILayout.Width(20f));
                 if (selected != frame.selected)
@@ -352,8 +476,25 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
 
                 EditorGUILayout.EndHorizontal();
+                GUI.backgroundColor = previousBackgroundColor;
             }
             EditorGUILayout.EndScrollView();
+        }
+
+        private void SelectNextFrameForPreview()
+        {
+            if (document == null || document.frames == null || document.frames.Count == 0)
+            {
+                return;
+            }
+
+            int nextIndex = selectedFrameListIndex < 0
+                ? 0
+                : (selectedFrameListIndex + 1) % document.frames.Count;
+            LoadPreviewFrame(nextIndex);
+            scrollFrameListToSelected = true;
+            status = "当前预览帧：源帧 " + document.frames[nextIndex].sourceFrameIndex;
+            Repaint();
         }
 
         private void SelectFrameSource()
@@ -375,6 +516,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             playbackFrame = 0;
             document.frames.Clear();
             DestroyTexture(ref previewTexture);
+            temporaryFramesBackgroundRemoved = false;
+            backgroundColorSampled = false;
+            temporaryBackgroundProcessedPaths.Clear();
+            ResetRegionSelectionState(true);
+            scrollFrameListToSelected = false;
             status = "已选择动作文件，请点击“拆帧”。";
             Repaint();
         }
@@ -404,6 +550,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 hasExtractedSource = true;
                 isPlaying = false;
                 playbackFrame = 0;
+                temporaryFramesBackgroundRemoved = false;
+                backgroundColorSampled = false;
+                temporaryBackgroundProcessedPaths.Clear();
+                ResetRegionSelectionState(true);
+                scrollFrameListToSelected = false;
                 LoadPreviewFrame(0);
                 status = "已载入一张完整角色帧。";
                 return;
@@ -425,6 +576,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
             isPlaying = false;
             playbackFrame = 0;
+            temporaryFramesBackgroundRemoved = false;
+            backgroundColorSampled = false;
+            temporaryBackgroundProcessedPaths.Clear();
+            ResetRegionSelectionState(true);
+            scrollFrameListToSelected = false;
             if (hasExtractedSource)
             {
                 LoadPreviewFrame(0);
@@ -587,7 +743,22 @@ namespace Game.EditorTools.SequenceFrameAnimation
             for (int i = 0; i < selected.Count; i++)
             {
                 string assetPath = animationFolder + "/frame_" + i.ToString("D4") + ".png";
-                File.Copy(selected[i].sourceFilePath, ToAbsolutePath(assetPath), true);
+                // 临时帧已经通过“批量扣除临时帧背景”处理过时，直接复制透明 PNG。
+                // 再次执行颜色键会在某些底色（尤其黑色）下误删角色本身的像素。
+                if (document.removeBackground && !temporaryFramesBackgroundRemoved)
+                {
+                    if (!TryExportProcessedFrame(
+                            selected[i].sourceFilePath,
+                            ToAbsolutePath(assetPath),
+                            document.backgroundTolerance))
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    File.Copy(selected[i].sourceFilePath, ToAbsolutePath(assetPath), true);
+                }
                 selected[i].exportedAssetPath = assetPath;
             }
 
@@ -977,6 +1148,10 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             index = Mathf.Clamp(index, 0, document.frames.Count - 1);
+            if (selectedFrameListIndex != index)
+            {
+                ResetRegionSelectionState(true);
+            }
             selectedFrameListIndex = index;
             DestroyTexture(ref previewTexture);
             previewTexture = LoadTexture(document.frames[index].sourceFilePath);
@@ -1061,12 +1236,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             LoadPreviewSelectedFrame(playbackFrame);
         }
 
-        private void DrawTextureFit(Texture2D texture, Rect rect)
+        private static Rect GetTextureDrawRect(Texture2D texture, Rect rect)
         {
             if (texture == null)
             {
-                GUI.Label(rect, "暂无预览图", EditorStyles.centeredGreyMiniLabel);
-                return;
+                return rect;
             }
 
             float imageRatio = (float)texture.width / Mathf.Max(1, texture.height);
@@ -1085,7 +1259,314 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 drawRect.width = width;
             }
 
-            GUI.DrawTexture(drawRect, texture, ScaleMode.StretchToFill, true);
+            return drawRect;
+        }
+
+        private void DrawTextureFit(Texture2D texture, Rect rect, bool mirrorHorizontally)
+        {
+            if (texture == null)
+            {
+                GUI.Label(rect, "暂无预览图", EditorStyles.centeredGreyMiniLabel);
+                return;
+            }
+
+            if (mirrorHorizontally)
+            {
+                Matrix4x4 previousMatrix = GUI.matrix;
+                try
+                {
+                    GUIUtility.ScaleAroundPivot(new Vector2(-1f, 1f), rect.center);
+                    GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, true);
+                }
+                finally
+                {
+                    GUI.matrix = previousMatrix;
+                }
+            }
+            else
+            {
+                GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, true);
+            }
+        }
+
+        private void DrawSelectedRegion(Rect textureRect)
+        {
+            if (!hasSelectedRegion || textureRect.width <= 0f || textureRect.height <= 0f)
+            {
+                return;
+            }
+
+            Rect regionRect = new Rect(
+                textureRect.x + selectedRegionNormalized.x * textureRect.width,
+                textureRect.y + selectedRegionNormalized.y * textureRect.height,
+                selectedRegionNormalized.width * textureRect.width,
+                selectedRegionNormalized.height * textureRect.height);
+            Handles.BeginGUI();
+            Color previousColor = Handles.color;
+            Handles.color = new Color(1f, 0.15f, 0.1f, 1f);
+            Handles.DrawSolidRectangleWithOutline(
+                regionRect,
+                new Color(1f, 0.1f, 0.1f, 0.08f),
+                new Color(1f, 0.15f, 0.1f, 1f));
+            Handles.color = previousColor;
+            Handles.EndGUI();
+        }
+
+        private void HandleRegionPreviewInput(Rect textureRect, bool mirrorHorizontally)
+        {
+            if (!regionSelectionMode
+                || previewTexture == null
+                || textureRect.width <= 0f
+                || textureRect.height <= 0f)
+            {
+                return;
+            }
+
+            Event current = Event.current;
+            if (current.type != EventType.MouseDown
+                || current.button != 0
+                || !textureRect.Contains(current.mousePosition))
+            {
+                return;
+            }
+
+            Vector2 normalized = GuiToTextureNormalized(
+                current.mousePosition,
+                textureRect,
+                mirrorHorizontally);
+            int x = Mathf.Clamp(
+                Mathf.FloorToInt(normalized.x * previewTexture.width),
+                0,
+                previewTexture.width - 1);
+            int y = Mathf.Clamp(
+                Mathf.FloorToInt(normalized.y * previewTexture.height),
+                0,
+                previewTexture.height - 1);
+            SelectConnectedColorRegion(x, y, normalized);
+            regionSelectionMode = false;
+            current.Use();
+            Repaint();
+        }
+
+        private void SelectConnectedColorRegion(int startX, int startY, Vector2 clickedNormalized)
+        {
+            Color32[] pixels = previewTexture.GetPixels32();
+            selectedRegionWidth = previewTexture.width;
+            selectedRegionHeight = previewTexture.height;
+            selectedRegionMask = new bool[pixels.Length];
+            regionKeyColor = pixels[startY * selectedRegionWidth + startX];
+            regionColorSampled = true;
+            float threshold = Mathf.Clamp01(document.backgroundTolerance);
+            float thresholdSq = threshold * threshold;
+            Queue<int> pending = new Queue<int>();
+            int startIndex = startY * selectedRegionWidth + startX;
+            selectedRegionMask[startIndex] = true;
+            pending.Enqueue(startIndex);
+            selectedRegionPixelCount = 0;
+            int minX = startX;
+            int maxX = startX;
+            int minY = startY;
+            int maxY = startY;
+            while (pending.Count > 0)
+            {
+                int index = pending.Dequeue();
+                selectedRegionPixelCount++;
+                int x = index % selectedRegionWidth;
+                int y = index / selectedRegionWidth;
+                minX = Mathf.Min(minX, x);
+                maxX = Mathf.Max(maxX, x);
+                minY = Mathf.Min(minY, y);
+                maxY = Mathf.Max(maxY, y);
+                TryQueueColorRegionNeighbor(
+                    index - 1,
+                    x > 0,
+                    pixels,
+                    regionKeyColor,
+                    thresholdSq,
+                    pending);
+                TryQueueColorRegionNeighbor(
+                    index + 1,
+                    x + 1 < selectedRegionWidth,
+                    pixels,
+                    regionKeyColor,
+                    thresholdSq,
+                    pending);
+                TryQueueColorRegionNeighbor(
+                    index - selectedRegionWidth,
+                    y > 0,
+                    pixels,
+                    regionKeyColor,
+                    thresholdSq,
+                    pending);
+                TryQueueColorRegionNeighbor(
+                    index + selectedRegionWidth,
+                    y + 1 < selectedRegionHeight,
+                    pixels,
+                    regionKeyColor,
+                    thresholdSq,
+                    pending);
+            }
+
+            selectedRegionNormalized = new Rect(
+                (float)minX / selectedRegionWidth,
+                1f - (float)(maxY + 1) / selectedRegionHeight,
+                (float)(maxX - minX + 1) / selectedRegionWidth,
+                (float)(maxY - minY + 1) / selectedRegionHeight);
+            hasSelectedRegion = selectedRegionPixelCount > 0;
+            status = "已选中区域：" + selectedRegionPixelCount
+                + " 像素，颜色 " + ColorUtility.ToHtmlStringRGBA(regionKeyColor)
+                + "。点击“抠除选中区域”执行。";
+        }
+
+        private void TryQueueColorRegionNeighbor(
+            int index,
+            bool valid,
+            Color32[] pixels,
+            Color keyColor,
+            float thresholdSq,
+            Queue<int> pending)
+        {
+            if (!valid || selectedRegionMask[index])
+            {
+                return;
+            }
+
+            if (ColorDistanceSquared(pixels[index], keyColor) <= thresholdSq)
+            {
+                selectedRegionMask[index] = true;
+                pending.Enqueue(index);
+            }
+        }
+
+        private void RemoveBackgroundFromSelectedRegion()
+        {
+            if (!hasSelectedRegion
+                || selectedRegionMask == null
+                || selectedRegionMask.Length == 0
+                || string.IsNullOrWhiteSpace(previewTexture != null ? GetCurrentFramePath() : string.Empty))
+            {
+                status = "请先在当前帧上点击选取一个区域。";
+                Repaint();
+                return;
+            }
+
+            string path = GetCurrentFramePath();
+            if (!IsTemporaryExtractedFrame(path))
+            {
+                status = "局部抠图只允许处理视频拆出的临时帧。";
+                Repaint();
+                return;
+            }
+
+            if (regionUndoPng == null || !string.Equals(regionUndoPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                regionUndoPath = path;
+                regionUndoPng = File.ReadAllBytes(path);
+            }
+
+            Texture2D texture = LoadTexture(path);
+            if (texture == null)
+            {
+                status = "读取当前帧失败，无法执行局部抠图。";
+                return;
+            }
+
+            try
+            {
+                Color32[] pixels = texture.GetPixels32();
+                int count = Mathf.Min(pixels.Length, selectedRegionMask.Length);
+                for (int i = 0; i < count; i++)
+                {
+                    if (selectedRegionMask[i])
+                    {
+                        pixels[i].a = 0;
+                    }
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply(false, false);
+                File.WriteAllBytes(path, texture.EncodeToPNG());
+            }
+            finally
+            {
+                DestroyTexture(ref texture);
+            }
+
+            LoadPreviewFrame(selectedFrameListIndex);
+            status = "已抠除当前帧选中区域；如不满意可点击“撤销单帧抠图”。";
+            Repaint();
+        }
+
+        private void UndoRegionBackgroundRemoval()
+        {
+            if (regionUndoPng == null || string.IsNullOrWhiteSpace(regionUndoPath))
+            {
+                return;
+            }
+
+            File.WriteAllBytes(regionUndoPath, regionUndoPng);
+            regionUndoPng = null;
+            string restoredPath = regionUndoPath;
+            regionUndoPath = string.Empty;
+            LoadPreviewFrame(selectedFrameListIndex);
+            status = "已撤销当前帧的局部抠图：" + Path.GetFileName(restoredPath);
+            Repaint();
+        }
+
+        private void ClearSelectedRegion()
+        {
+            hasSelectedRegion = false;
+            regionSelectionMode = false;
+            selectedRegionMask = null;
+            selectedRegionPixelCount = 0;
+            selectedRegionNormalized = new Rect();
+            regionColorSampled = false;
+            status = "已清除局部抠图选区。";
+            Repaint();
+        }
+
+        private string GetCurrentFramePath()
+        {
+            if (document == null
+                || document.frames == null
+                || selectedFrameListIndex < 0
+                || selectedFrameListIndex >= document.frames.Count
+                || document.frames[selectedFrameListIndex] == null)
+            {
+                return string.Empty;
+            }
+
+            return document.frames[selectedFrameListIndex].sourceFilePath;
+        }
+
+        private void ResetRegionSelectionState(bool clearUndo)
+        {
+            regionSelectionMode = false;
+            hasSelectedRegion = false;
+            regionColorSampled = false;
+            selectedRegionMask = null;
+            selectedRegionPixelCount = 0;
+            selectedRegionNormalized = new Rect();
+            if (clearUndo)
+            {
+                regionUndoPath = string.Empty;
+                regionUndoPng = null;
+            }
+        }
+
+        private static Vector2 GuiToTextureNormalized(
+            Vector2 guiPoint,
+            Rect textureRect,
+            bool mirrorHorizontally)
+        {
+            float x = Mathf.Clamp01((guiPoint.x - textureRect.x) / textureRect.width);
+            float y = Mathf.Clamp01(1f - (guiPoint.y - textureRect.y) / textureRect.height);
+            if (mirrorHorizontally)
+            {
+                x = 1f - x;
+            }
+
+            return new Vector2(x, y);
         }
 
         private bool TryExtractFrames(string animationPath, out string frameFolder, out string error)
@@ -1227,10 +1708,27 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 document.defaultFacingLeft = true;
             }
+            if (json.IndexOf("\"removeBackground\"", StringComparison.Ordinal) < 0)
+            {
+                document.removeBackground = false;
+            }
+            if (json.IndexOf("\"backgroundKeyColor\"", StringComparison.Ordinal) < 0)
+            {
+                document.backgroundKeyColor = Color.white;
+            }
+            if (json.IndexOf("\"backgroundTolerance\"", StringComparison.Ordinal) < 0)
+            {
+                document.backgroundTolerance = DefaultBackgroundTolerance;
+            }
             hasExtractedSource = document.frames.Count > 0;
             selectedFrameListIndex = document.frames.Count > 0 ? 0 : -1;
             isPlaying = false;
             playbackFrame = 0;
+            temporaryFramesBackgroundRemoved = false;
+            backgroundColorSampled = false;
+            temporaryBackgroundProcessedPaths.Clear();
+            ResetRegionSelectionState(true);
+            scrollFrameListToSelected = false;
             LoadPreviewFrame(0);
             status = "已读取序列帧动作：" + path;
         }
@@ -1271,6 +1769,467 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             return texture;
+        }
+
+        private void SampleBackgroundColorFromCurrentFrame()
+        {
+            string path = GetBackgroundSampleSourcePath();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                status = "请先选中一张完整角色帧再取底色。";
+                return;
+            }
+
+            Texture2D texture = LoadTexture(path);
+            if (texture == null)
+            {
+                status = "底色采样失败，无法读取图片。";
+                return;
+            }
+
+            try
+            {
+                document.backgroundKeyColor = SampleCornerBackgroundColor(texture);
+                backgroundColorSampled = true;
+                if (document.backgroundTolerance <= 0f)
+                {
+                    document.backgroundTolerance = DefaultBackgroundTolerance;
+                }
+
+                status = "已取底色：" + ColorUtility.ToHtmlStringRGBA(document.backgroundKeyColor);
+            }
+            finally
+            {
+                DestroyTexture(ref texture);
+            }
+
+            Repaint();
+        }
+
+        private bool CanBatchRemoveTemporaryBackground()
+        {
+            if (!hasExtractedSource
+                || document == null
+                || document.frames == null
+                || document.frames.Count == 0
+                || !backgroundColorSampled
+                || temporaryFramesBackgroundRemoved)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                SequenceFrameData frame = document.frames[i];
+                if (frame != null && IsTemporaryExtractedFrame(frame.sourceFilePath))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void RemoveBackgroundFromTemporaryFrames()
+        {
+            if (!backgroundColorSampled)
+            {
+                status = "请先点击“取底色”，再批量扣除临时帧背景。";
+                Repaint();
+                return;
+            }
+
+            int processed = 0;
+            int failed = 0;
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                SequenceFrameData frame = document.frames[i];
+                if (frame == null
+                    || !IsTemporaryExtractedFrame(frame.sourceFilePath)
+                    || temporaryBackgroundProcessedPaths.Contains(frame.sourceFilePath))
+                {
+                    continue;
+                }
+
+                if (TryExportProcessedFrame(
+                        frame.sourceFilePath,
+                        frame.sourceFilePath,
+                        document.backgroundTolerance))
+                {
+                    processed++;
+                    temporaryBackgroundProcessedPaths.Add(frame.sourceFilePath);
+                }
+                else
+                {
+                    failed++;
+                }
+            }
+
+            if (processed > 0 && failed == 0)
+            {
+                temporaryFramesBackgroundRemoved = true;
+                document.removeBackground = true;
+                RecalculateDifferenceScoresFromSelectedFrames();
+                if (selectedFrameListIndex >= 0
+                    && selectedFrameListIndex < document.frames.Count)
+                {
+                    LoadPreviewFrame(selectedFrameListIndex);
+                }
+
+                status = "已批量扣除 " + processed + " 张临时帧背景。现在可继续选帧并导出。";
+            }
+            else if (processed > 0)
+            {
+                document.removeBackground = true;
+                status = "已处理 " + processed + " 张临时帧，失败 " + failed + " 张。";
+            }
+            else
+            {
+                status = "没有可处理的临时帧。";
+            }
+
+            Repaint();
+        }
+
+        private static bool IsTemporaryExtractedFrame(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            string fullPath;
+            string temporaryRoot;
+            try
+            {
+                fullPath = Path.GetFullPath(path)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                temporaryRoot = Path.GetFullPath(Path.Combine(
+                        Path.GetTempPath(),
+                        "TryAiGame",
+                        "SequenceFrameAnimation",
+                        "ExtractedFrames"))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            return fullPath.StartsWith(
+                temporaryRoot + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase)
+                || fullPath.StartsWith(
+                    temporaryRoot + Path.AltDirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string GetBackgroundSampleSourcePath()
+        {
+            if (document.frames == null || document.frames.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (selectedFrameListIndex >= 0 && selectedFrameListIndex < document.frames.Count)
+            {
+                SequenceFrameData selectedFrame = document.frames[selectedFrameListIndex];
+                if (selectedFrame != null && !string.IsNullOrWhiteSpace(selectedFrame.sourceFilePath))
+                {
+                    return selectedFrame.sourceFilePath;
+                }
+            }
+
+            for (int i = 0; i < document.frames.Count; i++)
+            {
+                SequenceFrameData frame = document.frames[i];
+                if (frame != null && !string.IsNullOrWhiteSpace(frame.sourceFilePath))
+                {
+                    return frame.sourceFilePath;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static Color SampleCornerBackgroundColor(Texture2D texture)
+        {
+            int width = Mathf.Max(1, texture.width);
+            int height = Mathf.Max(1, texture.height);
+            int sampleSize = Mathf.Clamp(Mathf.Min(width, height) / 16, 4, 24);
+            Color[] pixels = texture.GetPixels();
+            Vector4 sum = Vector4.zero;
+            int count = 0;
+            AccumulateCornerSample(
+                pixels,
+                width,
+                height,
+                0,
+                0,
+                sampleSize,
+                ref sum,
+                ref count);
+            AccumulateCornerSample(
+                pixels,
+                width,
+                height,
+                Mathf.Max(0, width - sampleSize),
+                0,
+                sampleSize,
+                ref sum,
+                ref count);
+            AccumulateCornerSample(
+                pixels,
+                width,
+                height,
+                0,
+                Mathf.Max(0, height - sampleSize),
+                sampleSize,
+                ref sum,
+                ref count);
+            AccumulateCornerSample(
+                pixels,
+                width,
+                height,
+                Mathf.Max(0, width - sampleSize),
+                Mathf.Max(0, height - sampleSize),
+                sampleSize,
+                ref sum,
+                ref count);
+
+            if (count <= 0)
+            {
+                return Color.white;
+            }
+
+            Vector4 average = sum / count;
+            return new Color(average.x, average.y, average.z, 1f);
+        }
+
+        private static void AccumulateCornerSample(
+            Color[] pixels,
+            int width,
+            int height,
+            int startX,
+            int startY,
+            int sampleSize,
+            ref Vector4 sum,
+            ref int count)
+        {
+            int maxY = Mathf.Min(height, startY + sampleSize);
+            int maxX = Mathf.Min(width, startX + sampleSize);
+            for (int y = startY; y < maxY; y++)
+            {
+                int row = y * width;
+                for (int x = startX; x < maxX; x++)
+                {
+                    sum += (Vector4)pixels[row + x];
+                    count++;
+                }
+            }
+        }
+
+        private static bool TryExportProcessedFrame(
+            string sourcePath,
+            string outputPath,
+            float tolerance)
+        {
+            Texture2D texture = LoadTexture(sourcePath);
+            if (texture == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "导出序列帧",
+                    "读取图片失败，无法扣底色：" + sourcePath,
+                    "确定");
+                return false;
+            }
+
+            try
+            {
+                Color32[] pixels = texture.GetPixels32();
+                int width = texture.width;
+                int height = texture.height;
+                float threshold = Mathf.Clamp01(tolerance);
+                float thresholdSq = threshold * threshold;
+                float bridgeThreshold = Mathf.Clamp01(Mathf.Max(threshold, threshold * 1.5f));
+                float bridgeThresholdSq = bridgeThreshold * bridgeThreshold;
+                // 抠图只从画面边缘开始连通，避免把角色内部接近底色的高光
+                // 一并删除；允许跨过颜色差距很小的窄断缝，再对边缘做柔化。
+                // 每帧独立采样四角，适应视频压缩或生成过程造成的底色漂移。
+                Color key = SampleCornerBackgroundColor(texture);
+                bool[] backgroundMask = new bool[pixels.Length];
+                bool[] connectedBackground = new bool[pixels.Length];
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    Color32 pixel = pixels[i];
+                    backgroundMask[i] = ColorDistanceSquared(pixel, key) <= bridgeThresholdSq;
+                }
+
+                Queue<int> pending = new Queue<int>();
+                for (int y = 0; y < height; y++)
+                {
+                    TryQueueBackgroundPixel(y * width, backgroundMask, connectedBackground, pending);
+                    if (width > 1)
+                    {
+                        TryQueueBackgroundPixel(
+                            y * width + width - 1,
+                            backgroundMask,
+                            connectedBackground,
+                            pending);
+                    }
+                }
+
+                for (int x = 1; x < width - 1; x++)
+                {
+                    TryQueueBackgroundPixel(x, backgroundMask, connectedBackground, pending);
+                    if (height > 1)
+                    {
+                        TryQueueBackgroundPixel(
+                            (height - 1) * width + x,
+                            backgroundMask,
+                            connectedBackground,
+                            pending);
+                    }
+                }
+
+                while (pending.Count > 0)
+                {
+                    int index = pending.Dequeue();
+                    int x = index % width;
+                    int y = index / width;
+                    TryQueueBackgroundNeighbor(
+                        index - 1,
+                        x > 0,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index + 1,
+                        x + 1 < width,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index - width,
+                        y > 0,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index + width,
+                        y + 1 < height,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index - width - 1,
+                        x > 0 && y > 0,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index - width + 1,
+                        x + 1 < width && y > 0,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index + width - 1,
+                        x > 0 && y + 1 < height,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                    TryQueueBackgroundNeighbor(
+                        index + width + 1,
+                        x + 1 < width && y + 1 < height,
+                        backgroundMask,
+                        connectedBackground,
+                        pending);
+                }
+
+                float edgeThreshold = Mathf.Clamp01(bridgeThreshold * 1.5f);
+                float edgeThresholdSq = edgeThreshold * edgeThreshold;
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    Color32 pixel = pixels[i];
+                    if (connectedBackground[i])
+                    {
+                        float distance = Mathf.Sqrt(ColorDistanceSquared(pixel, key));
+                        // 精确匹配和小断缝都视为背景删除；桥接阈值只比
+                        // 用户容差放宽 50%，不会把差异明显的角色像素连进去。
+                        if (distance <= bridgeThreshold)
+                        {
+                            pixel.a = 0;
+                        }
+                    }
+                    else if (ColorDistanceSquared(pixel, key) <= edgeThresholdSq
+                        && HasConnectedBackgroundNeighbor(i, width, height, connectedBackground))
+                    {
+                        float distance = Mathf.Sqrt(ColorDistanceSquared(pixel, key));
+                        float edgeAlpha = Mathf.InverseLerp(bridgeThreshold, edgeThreshold, distance);
+                        pixel.a = (byte)Mathf.Clamp(Mathf.RoundToInt(edgeAlpha * 255f), 0, 255);
+                    }
+
+                    pixels[i] = pixel;
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply(false, false);
+                File.WriteAllBytes(outputPath, texture.EncodeToPNG());
+                return true;
+            }
+            finally
+            {
+                DestroyTexture(ref texture);
+            }
+        }
+
+        private static float ColorDistanceSquared(Color32 pixel, Color key)
+        {
+            float dr = (pixel.r / 255f) - key.r;
+            float dg = (pixel.g / 255f) - key.g;
+            float db = (pixel.b / 255f) - key.b;
+            return dr * dr + dg * dg + db * db;
+        }
+
+        private static void TryQueueBackgroundPixel(
+            int index,
+            bool[] backgroundMask,
+            bool[] connectedBackground,
+            Queue<int> pending)
+        {
+            if (backgroundMask[index] && !connectedBackground[index])
+            {
+                connectedBackground[index] = true;
+                pending.Enqueue(index);
+            }
+        }
+
+        private static void TryQueueBackgroundNeighbor(
+            int index,
+            bool valid,
+            bool[] backgroundMask,
+            bool[] connectedBackground,
+            Queue<int> pending)
+        {
+            if (valid)
+            {
+                TryQueueBackgroundPixel(index, backgroundMask, connectedBackground, pending);
+            }
+        }
+
+        private static bool HasConnectedBackgroundNeighbor(
+            int index,
+            int width,
+            int height,
+            bool[] connectedBackground)
+        {
+            int x = index % width;
+            int y = index / width;
+            return (x > 0 && connectedBackground[index - 1])
+                || (x + 1 < width && connectedBackground[index + 1])
+                || (y > 0 && connectedBackground[index - width])
+                || (y + 1 < height && connectedBackground[index + width]);
         }
 
         private static int GetImageWidth(string path)
