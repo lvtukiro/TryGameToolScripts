@@ -16,6 +16,13 @@ namespace Game.EditorTools.SequenceFrameAnimation
         public bool defaultFacingLeft = true;
         public int canvasWidth;
         public int canvasHeight;
+        public bool useManualCanvasSize;
+        public int manualCanvasWidth;
+        public int manualCanvasHeight;
+        // 从画布底部计算的脚底基准线，0 表示贴近画布底边。
+        public float footBaselineNormalized;
+        // 画布中心相对默认中心的归一化偏移，正值向右/向上移动。
+        public UnityEngine.Vector2 canvasCenterOffsetNormalized;
         public UnityEngine.Vector2 pivotNormalized = new UnityEngine.Vector2(0.5f, 0f);
         public bool removeBackground;
         public UnityEngine.Color backgroundKeyColor = UnityEngine.Color.white;

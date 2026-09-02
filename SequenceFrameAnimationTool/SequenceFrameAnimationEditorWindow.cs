@@ -48,6 +48,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         // 仅表示当前窗口中的临时拆帧是否已经执行过批量扣底色。
         // 该状态不写入动作 JSON；重新读取动作时仍以 JSON 和正式导出帧为准。
         private bool temporaryFramesBackgroundRemoved;
+        private bool temporaryFramesStandardized;
         private bool backgroundColorSampled;
         private readonly HashSet<string> temporaryBackgroundProcessedPaths =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -239,6 +240,63 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 EditorStyles.wordWrappedMiniLabel);
 
             EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("导出标准化", EditorStyles.boldLabel);
+            document.useManualCanvasSize = EditorGUILayout.Toggle(
+                "手动统一画布尺寸",
+                document.useManualCanvasSize);
+            EnsureCanvasDefaultsFromFirstFrame();
+            using (new EditorGUI.DisabledScope(!document.useManualCanvasSize))
+            {
+                document.manualCanvasWidth = EditorGUILayout.IntField(
+                    "画布宽度",
+                    document.manualCanvasWidth);
+                document.manualCanvasHeight = EditorGUILayout.IntField(
+                    "画布高度",
+                    document.manualCanvasHeight);
+            }
+            if (document.useManualCanvasSize
+                && document.manualCanvasWidth > 0
+                && document.manualCanvasHeight > 0)
+            {
+                document.canvasWidth = document.manualCanvasWidth;
+                document.canvasHeight = document.manualCanvasHeight;
+            }
+            else if (!document.useManualCanvasSize)
+            {
+                EnsureCanvasDefaultsFromFirstFrame();
+            }
+            document.footBaselineNormalized = EditorGUILayout.Slider(
+                "脚底基准线",
+                document.footBaselineNormalized,
+                0f,
+                0.25f);
+            document.canvasCenterOffsetNormalized = EditorGUILayout.Vector2Field(
+                "画布中心偏移",
+                document.canvasCenterOffsetNormalized);
+            document.canvasCenterOffsetNormalized = new Vector2(
+                Mathf.Clamp(document.canvasCenterOffsetNormalized.x, -0.5f, 0.5f),
+                Mathf.Clamp(document.canvasCenterOffsetNormalized.y, -0.5f, 0.5f));
+            EditorGUILayout.LabelField(
+                "中心偏移：X 正值向右，Y 正值向上；右侧蓝色十字为当前中心。",
+                EditorStyles.miniLabel);
+            if (GUILayout.Button("脚底线取当前人物底部"))
+            {
+                SetFootBaselineFromCurrentFrame();
+            }
+            using (new EditorGUI.DisabledScope(!hasExtractedSource || document.frames.Count == 0))
+            {
+                if (GUILayout.Button("批量标准化临时帧"))
+                {
+                    StandardizeTemporaryFrames();
+                }
+            }
+            EditorGUILayout.LabelField(
+                temporaryFramesStandardized
+                    ? "临时帧已完成标准化；不改变角色缩放比例。"
+                    : "绿框按宽高比例显示；橙线是脚底基准线。只平移和填充透明画布，不改变角色缩放比例。",
+                EditorStyles.wordWrappedMiniLabel);
+
+            EditorGUILayout.Space(6f);
             EditorGUILayout.LabelField("单帧局部抠图", EditorStyles.boldLabel);
             EditorGUILayout.BeginHorizontal();
             using (new EditorGUI.DisabledScope(true))
@@ -413,11 +471,83 @@ namespace Game.EditorTools.SequenceFrameAnimation
             bool mirrorHorizontally = !document.defaultFacingLeft;
             Rect textureRect = GetTextureDrawRect(previewTexture, previewRect);
             DrawTextureFit(previewTexture, textureRect, mirrorHorizontally);
+            DrawCanvasGuides(previewRect, textureRect);
             DrawSelectedRegion(textureRect);
             HandleRegionPreviewInput(textureRect, mirrorHorizontally);
 
             DrawFrameList();
             EditorGUILayout.EndVertical();
+        }
+
+        private void DrawCanvasGuides(Rect previewRect, Rect textureRect)
+        {
+            EnsureCanvasDefaultsFromFirstFrame();
+            int canvasWidth = document.canvasWidth;
+            int canvasHeight = document.canvasHeight;
+            if (canvasWidth <= 0 || canvasHeight <= 0)
+            {
+                return;
+            }
+
+            float sourceWidth = previewTexture == null
+                ? canvasWidth
+                : Mathf.Max(1, previewTexture.width);
+            float sourceHeight = previewTexture == null
+                ? canvasHeight
+                : Mathf.Max(1, previewTexture.height);
+            float pixelScale = Mathf.Min(
+                textureRect.width / sourceWidth,
+                textureRect.height / sourceHeight);
+            if (pixelScale <= 0f)
+            {
+                pixelScale = Mathf.Min(
+                    previewRect.width / Mathf.Max(1f, canvasWidth),
+                    previewRect.height / Mathf.Max(1f, canvasHeight));
+            }
+
+            Rect canvasRect = new Rect(
+                textureRect.center.x - canvasWidth * pixelScale * 0.5f,
+                textureRect.center.y - canvasHeight * pixelScale * 0.5f,
+                canvasWidth * pixelScale,
+                canvasHeight * pixelScale);
+
+            Vector2 centerOffset = new Vector2(
+                document.canvasCenterOffsetNormalized.x * canvasRect.width,
+                -document.canvasCenterOffsetNormalized.y * canvasRect.height);
+            canvasRect.position += centerOffset;
+
+            Handles.BeginGUI();
+            Color previousColor = Handles.color;
+            Handles.color = new Color(0.25f, 0.85f, 0.55f, 0.95f);
+            Handles.DrawPolyLine(
+                new Vector3(canvasRect.xMin, canvasRect.yMin),
+                new Vector3(canvasRect.xMax, canvasRect.yMin),
+                new Vector3(canvasRect.xMax, canvasRect.yMax),
+                new Vector3(canvasRect.xMin, canvasRect.yMax),
+                new Vector3(canvasRect.xMin, canvasRect.yMin));
+
+            float baselineY = canvasRect.yMax
+                - Mathf.Clamp01(document.footBaselineNormalized) * canvasRect.height;
+            Handles.color = new Color(1f, 0.65f, 0.15f, 0.95f);
+            Handles.DrawLine(
+                new Vector3(canvasRect.xMin, baselineY),
+                new Vector3(canvasRect.xMax, baselineY));
+            Handles.color = new Color(0.3f, 0.8f, 1f, 0.95f);
+            Handles.DrawLine(
+                new Vector3(canvasRect.center.x - 8f, canvasRect.center.y),
+                new Vector3(canvasRect.center.x + 8f, canvasRect.center.y));
+            Handles.DrawLine(
+                new Vector3(canvasRect.center.x, canvasRect.center.y - 8f),
+                new Vector3(canvasRect.center.x, canvasRect.center.y + 8f));
+            Handles.color = previousColor;
+            Handles.EndGUI();
+
+            GUI.Label(
+                new Rect(canvasRect.xMin + 6f, canvasRect.yMin + 5f, 360f, 20f),
+                "画布 " + canvasWidth + " × " + canvasHeight
+                    + "   脚底线 " + Mathf.RoundToInt(
+                        document.footBaselineNormalized * canvasHeight) + " px",
+                EditorStyles.whiteMiniLabel);
         }
 
         private void DrawFrameList()
@@ -517,6 +647,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             document.frames.Clear();
             DestroyTexture(ref previewTexture);
             temporaryFramesBackgroundRemoved = false;
+            temporaryFramesStandardized = false;
             backgroundColorSampled = false;
             temporaryBackgroundProcessedPaths.Clear();
             ResetRegionSelectionState(true);
@@ -551,10 +682,12 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 isPlaying = false;
                 playbackFrame = 0;
                 temporaryFramesBackgroundRemoved = false;
+                temporaryFramesStandardized = false;
                 backgroundColorSampled = false;
                 temporaryBackgroundProcessedPaths.Clear();
                 ResetRegionSelectionState(true);
                 scrollFrameListToSelected = false;
+                EnsureCanvasDefaultsFromFirstFrame();
                 LoadPreviewFrame(0);
                 status = "已载入一张完整角色帧。";
                 return;
@@ -577,12 +710,14 @@ namespace Game.EditorTools.SequenceFrameAnimation
             isPlaying = false;
             playbackFrame = 0;
             temporaryFramesBackgroundRemoved = false;
+            temporaryFramesStandardized = false;
             backgroundColorSampled = false;
             temporaryBackgroundProcessedPaths.Clear();
             ResetRegionSelectionState(true);
             scrollFrameListToSelected = false;
             if (hasExtractedSource)
             {
+                EnsureCanvasDefaultsFromFirstFrame();
                 LoadPreviewFrame(0);
                 status = "已拆出 " + document.frames.Count
                     + " 帧，尚未保存。请先选择要保留的帧。";
@@ -1725,10 +1860,12 @@ namespace Game.EditorTools.SequenceFrameAnimation
             isPlaying = false;
             playbackFrame = 0;
             temporaryFramesBackgroundRemoved = false;
+            temporaryFramesStandardized = false;
             backgroundColorSampled = false;
             temporaryBackgroundProcessedPaths.Clear();
             ResetRegionSelectionState(true);
             scrollFrameListToSelected = false;
+            EnsureCanvasDefaultsFromFirstFrame();
             LoadPreviewFrame(0);
             status = "已读取序列帧动作：" + path;
         }
@@ -1769,6 +1906,106 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             return texture;
+        }
+
+        private void EnsureCanvasDefaultsFromFirstFrame()
+        {
+            if (document == null
+                || document.frames == null
+                || document.frames.Count == 0)
+            {
+                return;
+            }
+
+            SequenceFrameData firstFrame = document.frames[0];
+            if (firstFrame == null || string.IsNullOrWhiteSpace(firstFrame.sourceFilePath))
+            {
+                return;
+            }
+
+            Texture2D texture = LoadTexture(firstFrame.sourceFilePath);
+            if (texture == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (document.canvasWidth <= 0 || document.canvasHeight <= 0)
+                {
+                    document.canvasWidth = texture.width;
+                    document.canvasHeight = texture.height;
+                }
+
+                if (document.manualCanvasWidth <= 0 || document.manualCanvasHeight <= 0)
+                {
+                    document.manualCanvasWidth = texture.width;
+                    document.manualCanvasHeight = texture.height;
+                }
+            }
+            finally
+            {
+                DestroyTexture(ref texture);
+            }
+        }
+
+        private void SetFootBaselineFromCurrentFrame()
+        {
+            string path = GetCurrentFramePath();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                status = "请先选中一张帧图。";
+                Repaint();
+                return;
+            }
+
+            Texture2D texture = LoadTexture(path);
+            if (texture == null)
+            {
+                status = "无法读取当前帧，不能计算脚底线。";
+                Repaint();
+                return;
+            }
+
+            try
+            {
+                Color32[] pixels = texture.GetPixels32();
+                int contentBottom = texture.height;
+                const byte alphaThreshold = 8;
+                for (int y = 0; y < texture.height; y++)
+                {
+                    for (int x = 0; x < texture.width; x++)
+                    {
+                        if (pixels[y * texture.width + x].a > alphaThreshold)
+                        {
+                            contentBottom = Mathf.Min(contentBottom, y);
+                        }
+                    }
+                }
+
+                if (contentBottom >= texture.height)
+                {
+                    status = "当前帧没有透明背景，请先完成扣底再取人物底部。";
+                    Repaint();
+                    return;
+                }
+
+                EnsureCanvasDefaultsFromFirstFrame();
+                int canvasHeight = document.canvasHeight > 0
+                    ? document.canvasHeight
+                    : texture.height;
+                // contentBottom 是从图片底部向上的像素距离，正好对应脚底线参数。
+                document.footBaselineNormalized = Mathf.Clamp01(
+                    (float)contentBottom / Mathf.Max(1, canvasHeight - 1));
+                status = "脚底线已定位到当前人物最低点："
+                    + contentBottom + " px。";
+            }
+            finally
+            {
+                DestroyTexture(ref texture);
+            }
+
+            Repaint();
         }
 
         private void SampleBackgroundColorFromCurrentFrame()
@@ -1889,6 +2126,252 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             Repaint();
+        }
+
+        private void StandardizeTemporaryFrames()
+        {
+            if (document == null || document.frames == null || document.frames.Count == 0)
+            {
+                return;
+            }
+
+            if (!document.removeBackground || !backgroundColorSampled)
+            {
+                status = "请先勾选“扣底色”并取底色，再进行标准化。";
+                EditorUtility.DisplayDialog(
+                    "标准化临时帧",
+                    "脚底检测需要透明背景。请先取底色并批量扣除背景。",
+                    "确定");
+                Repaint();
+                return;
+            }
+
+            List<SequenceFrameData> frames = document.frames;
+            string firstPath = frames[0] == null ? string.Empty : frames[0].sourceFilePath;
+            Texture2D firstTexture = LoadTexture(firstPath);
+            if (firstTexture == null)
+            {
+                status = "无法读取第一帧，标准化失败。";
+                return;
+            }
+
+            int targetWidth = document.useManualCanvasSize
+                ? document.manualCanvasWidth
+                : firstTexture.width;
+            int targetHeight = document.useManualCanvasSize
+                ? document.manualCanvasHeight
+                : firstTexture.height;
+            DestroyTexture(ref firstTexture);
+            if (targetWidth <= 0 || targetHeight <= 0)
+            {
+                status = "画布宽高必须大于 0。";
+                return;
+            }
+
+            int baselineY = Mathf.Clamp(
+                Mathf.RoundToInt((targetHeight - 1) * document.footBaselineNormalized),
+                0,
+                targetHeight - 1);
+            int processed = 0;
+            int warnings = 0;
+            for (int i = 0; i < frames.Count; i++)
+            {
+                SequenceFrameData frame = frames[i];
+                if (frame == null
+                    || string.IsNullOrWhiteSpace(frame.sourceFilePath)
+                    || !IsTemporaryExtractedFrame(frame.sourceFilePath))
+                {
+                    continue;
+                }
+
+                if (document.removeBackground
+                    && !temporaryBackgroundProcessedPaths.Contains(frame.sourceFilePath))
+                {
+                    if (!TryExportProcessedFrame(
+                            frame.sourceFilePath,
+                            frame.sourceFilePath,
+                            document.backgroundTolerance))
+                    {
+                        warnings++;
+                        continue;
+                    }
+
+                    temporaryBackgroundProcessedPaths.Add(frame.sourceFilePath);
+                }
+
+                if (TryStandardizeTemporaryFrame(
+                        frame.sourceFilePath,
+                        targetWidth,
+                        targetHeight,
+                        baselineY,
+                        document.canvasCenterOffsetNormalized,
+                        out bool clipped))
+                {
+                    processed++;
+                    warnings += clipped ? 1 : 0;
+                }
+                else
+                {
+                    warnings++;
+                }
+            }
+
+            document.canvasWidth = targetWidth;
+            document.canvasHeight = targetHeight;
+            temporaryFramesStandardized = processed > 0;
+            temporaryFramesBackgroundRemoved = document.removeBackground;
+            if (processed > 0)
+            {
+                RecalculateDifferenceScoresFromSelectedFrames();
+                LoadPreviewFrame(Mathf.Clamp(selectedFrameListIndex, 0, document.frames.Count - 1));
+            }
+
+            status = "已标准化 " + processed + " 张临时帧";
+            if (warnings > 0)
+            {
+                status += "，其中 " + warnings + " 张需要检查（内容过大或位置被自动修正）";
+                Debug.LogWarning("[SequenceFrameAnimationTool] 标准化完成，但有 "
+                    + warnings + " 张帧需要检查。");
+            }
+            else
+            {
+                status += "，画布和脚底位置已统一。";
+            }
+
+            Repaint();
+        }
+
+        private static bool TryStandardizeTemporaryFrame(
+            string path,
+            int targetWidth,
+            int targetHeight,
+            int baselineY,
+            Vector2 centerOffsetNormalized,
+            out bool clipped)
+        {
+            clipped = false;
+            Texture2D texture = LoadTexture(path);
+            if (texture == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                Color32[] source = texture.GetPixels32();
+                int sourceWidth = texture.width;
+                int sourceHeight = texture.height;
+                int contentBottom = sourceHeight;
+                int contentTop = -1;
+                int contentLeft = sourceWidth;
+                int contentRight = -1;
+                const byte alphaThreshold = 8;
+                for (int y = 0; y < sourceHeight; y++)
+                {
+                    for (int x = 0; x < sourceWidth; x++)
+                    {
+                        if (source[y * sourceWidth + x].a <= alphaThreshold)
+                        {
+                            continue;
+                        }
+
+                        contentBottom = Mathf.Min(contentBottom, y);
+                        contentTop = Mathf.Max(contentTop, y);
+                        contentLeft = Mathf.Min(contentLeft, x);
+                        contentRight = Mathf.Max(contentRight, x);
+                    }
+                }
+
+                if (contentTop < 0
+                    || contentBottom >= sourceHeight
+                    || contentLeft >= sourceWidth
+                    || contentRight < 0)
+                {
+                    return false;
+                }
+
+                int offsetX = Mathf.FloorToInt((targetWidth - sourceWidth) * 0.5f)
+                    + Mathf.RoundToInt(centerOffsetNormalized.x * targetWidth);
+                int offsetY = baselineY - contentBottom
+                    + Mathf.RoundToInt(centerOffsetNormalized.y * targetHeight);
+                int contentWidth = contentRight - contentLeft + 1;
+                int contentHeight = contentTop - contentBottom + 1;
+                if (contentWidth > targetWidth || contentHeight > targetHeight)
+                {
+                    clipped = true;
+                    return false;
+                }
+
+                // 先按中心/脚底线放置，再将偏移限制在“人物完整可见”的范围内。
+                // 这样源图透明边距大于目标画布时，不会误把角色脚或披风裁掉。
+                int destinationLeft = contentLeft + offsetX;
+                int destinationRight = contentRight + offsetX;
+                if (destinationLeft < 0)
+                {
+                    offsetX -= destinationLeft;
+                }
+                else if (destinationRight >= targetWidth)
+                {
+                    offsetX -= destinationRight - targetWidth + 1;
+                }
+
+                int destinationBottom = contentBottom + offsetY;
+                int destinationTop = contentTop + offsetY;
+                if (destinationBottom < 0)
+                {
+                    offsetY -= destinationBottom;
+                }
+                else if (destinationTop >= targetHeight)
+                {
+                    offsetY -= destinationTop - targetHeight + 1;
+                }
+
+                Color32[] output = new Color32[targetWidth * targetHeight];
+                for (int y = 0; y < sourceHeight; y++)
+                {
+                    for (int x = 0; x < sourceWidth; x++)
+                    {
+                        Color32 pixel = source[y * sourceWidth + x];
+                        if (pixel.a == 0)
+                        {
+                            continue;
+                        }
+
+                        int destinationX = x + offsetX;
+                        int destinationY = y + offsetY;
+                        if (destinationX < 0 || destinationX >= targetWidth
+                            || destinationY < 0 || destinationY >= targetHeight)
+                        {
+                            clipped = true;
+                            continue;
+                        }
+
+                        output[destinationY * targetWidth + destinationX] = pixel;
+                    }
+                }
+
+                Texture2D standardized = new Texture2D(
+                    targetWidth,
+                    targetHeight,
+                    TextureFormat.RGBA32,
+                    false);
+                try
+                {
+                    standardized.SetPixels32(output);
+                    standardized.Apply(false, false);
+                    File.WriteAllBytes(path, standardized.EncodeToPNG());
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(standardized);
+                }
+
+                return true;
+            }
+            finally
+            {
+                DestroyTexture(ref texture);
+            }
         }
 
         private static bool IsTemporaryExtractedFrame(string path)
