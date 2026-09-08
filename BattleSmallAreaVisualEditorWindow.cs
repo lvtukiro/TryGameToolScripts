@@ -2492,9 +2492,6 @@ namespace Game.EditorTools
                 {
                     common.LoadRefData();
                     common.ReLoadAll_OnlyForEditor();
-                    // General is a single-row generated table whose current editor
-                    // reload method is empty, so refresh it explicitly.
-                    new RefData.GeneralTable().Init();
                 }
 
                 if (!common.Inited || !common.LastInitSucceeded)

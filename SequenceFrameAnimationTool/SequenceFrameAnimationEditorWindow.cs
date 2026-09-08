@@ -31,6 +31,10 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private SequenceFrameAnimationDocument document;
         private string sourceAnimationPath = string.Empty;
         private string extractedFrameFolder = string.Empty;
+        // 只记录当前窗口实例实际创建过的拆帧目录。使用可序列化列表而不是仅保存在
+        // 托管 HashSet 中，确保 Unity 脚本重编译/Domain Reload 后仍能在真正关闭窗口时清理。
+        [SerializeField] private List<string> temporaryExtractedFrameFolders =
+            new List<string>();
         private string outputAssetFolder = "Assets/Resources/TryGameBuildRes/clip_sprite";
         private Texture2D previewTexture;
         private int selectedFrameListIndex = -1;
@@ -85,6 +89,14 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorApplication.update -= UpdatePlayback;
             isPlaying = false;
             DestroyTexture(ref previewTexture);
+        }
+
+        private void OnDestroy()
+        {
+            // OnDisable 也会在脚本重编译和进入/退出 Play Mode 时调用，不能在那里删除
+            // 正在编辑的临时帧。EditorWindow 真正销毁（用户关闭窗口或编辑器退出）时
+            // 才清理本窗口创建的目录。
+            CleanupTemporaryExtractedFrameFolders();
         }
 
         private void OnGUI()
@@ -776,8 +788,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 SequenceFrameData frame = document.frames[i];
                 float difference = ComputeFrameDifference(
-                    document.frames[lastSelected].sourceFilePath,
-                    frame.sourceFilePath);
+                    ResolveReadableFramePath(document.frames[lastSelected]),
+                    ResolveReadableFramePath(frame));
                 frame.differenceScore = difference;
                 if (difference >= autoSelectThreshold
                     && i - lastSelected >= autoSelectMinGap)
@@ -832,8 +844,8 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 else
                 {
                     frame.differenceScore = ComputeFrameDifference(
-                        document.frames[previousSelected].sourceFilePath,
-                        frame.sourceFilePath);
+                        ResolveReadableFramePath(document.frames[previousSelected]),
+                        ResolveReadableFramePath(frame));
                 }
 
                 if (frame.selected)
@@ -1289,7 +1301,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
             selectedFrameListIndex = index;
             DestroyTexture(ref previewTexture);
-            previewTexture = LoadTexture(document.frames[index].sourceFilePath);
+            previewTexture = LoadTexture(ResolveReadableFramePath(document.frames[index]));
             Repaint();
         }
 
@@ -1671,7 +1683,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 return string.Empty;
             }
 
-            return document.frames[selectedFrameListIndex].sourceFilePath;
+            return ResolveReadableFramePath(document.frames[selectedFrameListIndex]);
         }
 
         private void ResetRegionSelectionState(bool clearUndo)
@@ -1733,6 +1745,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 root,
                 safeName + "_fps" + Mathf.Clamp(extractFrameRate, 1, 30) + "_" + DateTime.Now.Ticks);
             Directory.CreateDirectory(frameFolder);
+            TrackTemporaryExtractedFrameFolder(frameFolder);
             string pattern = Path.Combine(frameFolder, "frame_%05d.png");
             ProcessStartInfo info = new ProcessStartInfo
             {
@@ -1918,12 +1931,13 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
 
             SequenceFrameData firstFrame = document.frames[0];
-            if (firstFrame == null || string.IsNullOrWhiteSpace(firstFrame.sourceFilePath))
+            string firstFramePath = ResolveReadableFramePath(firstFrame);
+            if (string.IsNullOrWhiteSpace(firstFramePath))
             {
                 return;
             }
 
-            Texture2D texture = LoadTexture(firstFrame.sourceFilePath);
+            Texture2D texture = LoadTexture(firstFramePath);
             if (texture == null)
             {
                 return;
@@ -2374,6 +2388,54 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
         }
 
+        /// <summary>
+        /// 临时源帧在工具窗口关闭后会被清理。重新读取已导出的动作 JSON 时，如果原
+        /// sourceFilePath 已不存在，则回退到 Assets 内的 exportedAssetPath，保证预览、
+        /// 差异计算和画布读取仍然可用。
+        /// </summary>
+        private static string ResolveReadableFramePath(SequenceFrameData frame)
+        {
+            if (frame == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(frame.sourceFilePath)
+                && File.Exists(frame.sourceFilePath))
+            {
+                return frame.sourceFilePath;
+            }
+
+            if (string.IsNullOrWhiteSpace(frame.exportedAssetPath)
+                || !frame.exportedAssetPath.StartsWith(
+                    "Assets/",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                string exportedPath = Path.GetFullPath(ToAbsolutePath(frame.exportedAssetPath));
+                string assetsRoot = Path.GetFullPath(Application.dataPath).TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+                bool isInsideAssets = exportedPath.StartsWith(
+                        assetsRoot + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase)
+                    || exportedPath.StartsWith(
+                        assetsRoot + Path.AltDirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase);
+                return isInsideAssets && File.Exists(exportedPath)
+                    ? exportedPath
+                    : string.Empty;
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+
         private static bool IsTemporaryExtractedFrame(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -2407,6 +2469,102 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     StringComparison.OrdinalIgnoreCase);
         }
 
+        private void TrackTemporaryExtractedFrameFolder(string folder)
+        {
+            if (!TryNormalizeTemporaryExtractedFrameFolder(folder, out string normalizedFolder))
+            {
+                return;
+            }
+
+            if (temporaryExtractedFrameFolders == null)
+            {
+                temporaryExtractedFrameFolders = new List<string>();
+            }
+
+            for (int index = 0; index < temporaryExtractedFrameFolders.Count; index++)
+            {
+                if (string.Equals(
+                        temporaryExtractedFrameFolders[index],
+                        normalizedFolder,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            temporaryExtractedFrameFolders.Add(normalizedFolder);
+        }
+
+        private void CleanupTemporaryExtractedFrameFolders()
+        {
+            if (temporaryExtractedFrameFolders == null)
+            {
+                return;
+            }
+
+            for (int index = 0; index < temporaryExtractedFrameFolders.Count; index++)
+            {
+                string folder = temporaryExtractedFrameFolders[index];
+                if (!TryNormalizeTemporaryExtractedFrameFolder(
+                        folder,
+                        out string normalizedFolder)
+                    || !Directory.Exists(normalizedFolder))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Directory.Delete(normalizedFolder, true);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogWarning(
+                        "[SequenceFrameAnimationTool] 关闭窗口时清理临时拆帧失败："
+                        + normalizedFolder
+                        + "，"
+                        + exception.Message);
+                }
+            }
+
+            temporaryExtractedFrameFolders.Clear();
+        }
+
+        private static bool TryNormalizeTemporaryExtractedFrameFolder(
+            string folder,
+            out string normalizedFolder)
+        {
+            normalizedFolder = string.Empty;
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                return false;
+            }
+
+            try
+            {
+                normalizedFolder = Path.GetFullPath(folder).TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+                string temporaryRoot = Path.GetFullPath(Path.Combine(
+                        Path.GetTempPath(),
+                        "TryAiGame",
+                        "SequenceFrameAnimation",
+                        "ExtractedFrames"))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return normalizedFolder.StartsWith(
+                        temporaryRoot + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase)
+                    || normalizedFolder.StartsWith(
+                        temporaryRoot + Path.AltDirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                normalizedFolder = string.Empty;
+                return false;
+            }
+        }
+
         private string GetBackgroundSampleSourcePath()
         {
             if (document.frames == null || document.frames.Count == 0)
@@ -2417,18 +2575,20 @@ namespace Game.EditorTools.SequenceFrameAnimation
             if (selectedFrameListIndex >= 0 && selectedFrameListIndex < document.frames.Count)
             {
                 SequenceFrameData selectedFrame = document.frames[selectedFrameListIndex];
-                if (selectedFrame != null && !string.IsNullOrWhiteSpace(selectedFrame.sourceFilePath))
+                string selectedPath = ResolveReadableFramePath(selectedFrame);
+                if (!string.IsNullOrWhiteSpace(selectedPath))
                 {
-                    return selectedFrame.sourceFilePath;
+                    return selectedPath;
                 }
             }
 
             for (int i = 0; i < document.frames.Count; i++)
             {
                 SequenceFrameData frame = document.frames[i];
-                if (frame != null && !string.IsNullOrWhiteSpace(frame.sourceFilePath))
+                string framePath = ResolveReadableFramePath(frame);
+                if (!string.IsNullOrWhiteSpace(framePath))
                 {
-                    return frame.sourceFilePath;
+                    return framePath;
                 }
             }
 
@@ -2764,6 +2924,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             if (document.frames == null)
             {
                 document.frames = new List<SequenceFrameData>();
+            }
+
+            if (temporaryExtractedFrameFolders == null)
+            {
+                temporaryExtractedFrameFolders = new List<string>();
             }
         }
 
