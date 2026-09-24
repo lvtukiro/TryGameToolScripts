@@ -16,10 +16,10 @@ namespace TryGame.Tools.Editor
     internal static class TryGameWindowsBuildMenu
     {
         private const string DevelopmentBuildMenu =
-            "TryGame/Build/Windows x64/Development Build";
+            "TryGame/构建/Windows x64/开发版构建";
 
         private const string WindowSmokeBuildMenu =
-            "TryGame/Build/Windows x64/Build And Run Window Smoke";
+            "TryGame/构建/Windows x64/构建并运行窗口冒烟";
 
         private const string OutputRelativePath = "Build/Windows-x64/TryAiGameTmp.exe";
         private const string WindowSmokeArgument = "--trygame-window-smoke";

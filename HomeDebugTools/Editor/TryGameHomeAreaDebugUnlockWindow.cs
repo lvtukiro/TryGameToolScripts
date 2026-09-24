@@ -23,10 +23,10 @@ namespace TryGame.HomeDebugTools.Editor
         private MessageType foodDropCommandStatusType = MessageType.None;
         private Vector2 scrollPosition;
 
-        [MenuItem("TryGame/Home/运行时 Home 作弊工具")]
+        [MenuItem("TryGame/家园/运行时家园作弊工具")]
         public static void Open()
         {
-            TryGameHomeAreaDebugUnlockWindow window = GetWindow<TryGameHomeAreaDebugUnlockWindow>("Home 作弊工具");
+            TryGameHomeAreaDebugUnlockWindow window = GetWindow<TryGameHomeAreaDebugUnlockWindow>("家园作弊工具");
             window.minSize = new Vector2(460f, 420f);
             window.Show();
         }
@@ -124,8 +124,8 @@ namespace TryGame.HomeDebugTools.Editor
         private void DrawAreaSection()
         {
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("HomeArea 解锁", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("HomeAreaId 列表");
+            EditorGUILayout.LabelField("家园区域解锁", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("家园区域 ID 列表");
             areaIdsText = EditorGUILayout.TextArea(areaIdsText, GUILayout.MinHeight(72f));
             EditorGUILayout.HelpBox("支持逗号、空格、分号或换行分隔，例如：10002, 10003", MessageType.None);
 
@@ -293,12 +293,12 @@ namespace TryGame.HomeDebugTools.Editor
             using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
             {
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("强制 Idle"))
+                if (GUILayout.Button("强制待机"))
                 {
                     RunPetCommand(PetIntentType.Idle, false);
                 }
 
-                if (GUILayout.Button("强制 Walk"))
+                if (GUILayout.Button("强制行走"))
                 {
                     RunPetCommand(PetIntentType.Walk, false);
                 }
@@ -310,7 +310,7 @@ namespace TryGame.HomeDebugTools.Editor
                 EditorGUILayout.EndHorizontal();
 
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("强制 Rest"))
+                if (GUILayout.Button("强制休息"))
                 {
                     RunPetCommand(PetIntentType.Rest, false);
                 }
@@ -320,7 +320,7 @@ namespace TryGame.HomeDebugTools.Editor
                     RunPetCommand(PetIntentType.Sleep, true);
                 }
 
-                if (GUILayout.Button("强制 Play 电视"))
+                if (GUILayout.Button("强制播放电视"))
                 {
                     RunPetCommand(PetIntentType.Play, true);
                 }

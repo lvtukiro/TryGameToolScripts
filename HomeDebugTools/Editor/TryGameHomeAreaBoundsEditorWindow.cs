@@ -49,10 +49,10 @@ namespace TryGame.HomeDebugTools.Editor
         private int originXColumn = -1;
         private int originYColumn = -1;
 
-        [MenuItem("TryGame/Home/HomeArea 覆盖范围编辑器")]
+        [MenuItem("TryGame/家园/家园区域覆盖范围编辑器")]
         public static void Open()
         {
-            TryGameHomeAreaBoundsEditorWindow window = GetWindow<TryGameHomeAreaBoundsEditorWindow>("HomeArea 覆盖范围");
+            TryGameHomeAreaBoundsEditorWindow window = GetWindow<TryGameHomeAreaBoundsEditorWindow>("家园区域覆盖范围");
             window.minSize = new Vector2(460f, 520f);
             window.Show();
         }
@@ -87,13 +87,13 @@ namespace TryGame.HomeDebugTools.Editor
 
             using (new EditorGUI.DisabledScope(rows.Count == 0 || !dirty || !tableLoadSucceeded))
             {
-                if (GUILayout.Button("保存 HomeArea 配置", EditorStyles.toolbarButton, GUILayout.Width(132f)))
+                if (GUILayout.Button("保存家园区域配置", EditorStyles.toolbarButton, GUILayout.Width(132f)))
                 {
                     SaveConfig();
                 }
             }
 
-            if (GUILayout.Button("保存当前场景/Prefab", EditorStyles.toolbarButton, GUILayout.Width(132f)))
+            if (GUILayout.Button("保存当前场景/预制体", EditorStyles.toolbarButton, GUILayout.Width(132f)))
             {
                 SaveOpenScenesAndAssets();
             }
@@ -112,7 +112,7 @@ namespace TryGame.HomeDebugTools.Editor
 
             if (dirty)
             {
-                EditorGUILayout.HelpBox("HomeArea 配置有未保存修改。保存会更新源 Excel，再由正式导表同步 txt、bytes、JSON 和生成代码。", MessageType.Warning);
+                EditorGUILayout.HelpBox("家园区域配置有未保存修改。保存会更新源 Excel，再由正式导表同步 txt、bytes、JSON 和生成代码。", MessageType.Warning);
             }
 
             if (sourceSavedOutputStale)
@@ -144,7 +144,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
 
             EditorGUI.BeginChangeCheck();
-            selectedAreaId = EditorGUILayout.IntPopup("当前 HomeArea", selectedAreaId, labels, ids);
+            selectedAreaId = EditorGUILayout.IntPopup("当前家园区域", selectedAreaId, labels, ids);
             if (EditorGUI.EndChangeCheck())
             {
                 SceneView.RepaintAll();
@@ -195,7 +195,7 @@ namespace TryGame.HomeDebugTools.Editor
         private void DrawTablePreview()
         {
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("HomeArea 列表", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("家园区域列表", EditorStyles.boldLabel);
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
             for (int i = 0; i < rows.Count; i++)
             {

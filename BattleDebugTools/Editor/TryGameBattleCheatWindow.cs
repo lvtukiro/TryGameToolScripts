@@ -18,7 +18,7 @@ namespace TryGame.BattleDebugTools.Editor
         private MessageType commandStatusType = MessageType.None;
         private Vector2 scrollPosition;
 
-        [MenuItem("TryGame/Battle/运行时战斗作弊工具")]
+        [MenuItem("TryGame/战斗/运行时战斗作弊工具")]
         public static void Open()
         {
             TryGameBattleCheatWindow window =

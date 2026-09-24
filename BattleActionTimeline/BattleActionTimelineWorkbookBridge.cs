@@ -797,6 +797,19 @@ namespace Game.EditorTools
                 return true;
             }
 
+            // The mapping editor uses the same transactional workbook bridge.  Keep the
+            // two mapping tables and their reference-id tables in the snapshot so the
+            // editor can offer real character/weapon/skill choices without maintaining a
+            // second xlsx parser.
+            if (normalized == "battlecharacteraction" ||
+                normalized == "battleskillmultiequipment" ||
+                normalized == "battlerobot" ||
+                normalized == "robotequipment" ||
+                normalized == "battleskill")
+            {
+                return true;
+            }
+
             if (rows == null || rows.Count == 0)
             {
                 return false;

@@ -35,7 +35,7 @@ namespace TryGame.PlaceholderTools.Editor
         /// <summary>
         /// 从配表读取家具列表，为还没有 prefab 的家具生成资源。
         /// </summary>
-        [MenuItem("TryGame/Placeholder/按配表生成缺失家具 Prefab")]
+        [MenuItem("TryGame/占位资源/按配表生成缺失家具预制体")]
         public static void GenerateMissingFromConfig()
         {
             try

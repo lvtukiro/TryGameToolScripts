@@ -13,7 +13,7 @@ namespace TryGame.HomeDebugTools.Editor
     {
         private Vector2 scrollPosition;
 
-        [MenuItem("TryGame/Home/全局物品恢复区查看器")]
+        [MenuItem("TryGame/家园/全局物品恢复区查看器")]
         public static void Open()
         {
             TryGameFurnitureQuarantineWindow window =
@@ -60,7 +60,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"恢复区记录：{recovery.Count}", EditorStyles.boldLabel);
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("输出全部到 Console", GUILayout.Width(150f)))
+            if (GUILayout.Button("输出全部到控制台", GUILayout.Width(150f)))
             {
                 LogAll(save);
             }
@@ -77,7 +77,7 @@ namespace TryGame.HomeDebugTools.Editor
                 string uid = recovery[index];
                 TryResolveItem(save.itemInstances, uid, out int itemId, out string kind);
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.LabelField($"#{index + 1}  Item {itemId}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"#{index + 1}  物品 {itemId}", EditorStyles.boldLabel);
                 DrawSelectable("UID", uid);
                 DrawSelectable("实例类型", kind);
                 RefData.Item? item = TryGameConfigProvider.GetItem(itemId);

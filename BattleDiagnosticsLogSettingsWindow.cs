@@ -16,12 +16,12 @@ namespace Game.EditorTools
         private const string CategoryKeyPrefix =
             "TryGame.BattleDiagnosticsLogSettings.Category.";
 
-        [MenuItem("TryGame/Tools/Battle Diagnostics Log Settings", false, 490)]
+        [MenuItem("TryGame/工具/战斗临时日志设置", false, 490)]
         private static void Open()
         {
             BattleDiagnosticsLogSettingsWindow window =
                 GetWindow<BattleDiagnosticsLogSettingsWindow>();
-            window.titleContent = new GUIContent("Battle 临时日志");
+            window.titleContent = new GUIContent("战斗临时日志设置");
             window.minSize = new Vector2(420f, 440f);
             window.Show();
         }

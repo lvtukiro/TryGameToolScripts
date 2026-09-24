@@ -17,7 +17,7 @@ namespace Game.EditorTools
     public static class BattleWorldZoneShellPrefabBuilder
     {
         private const string MenuPath =
-            "TryGame/Battle WorldZone/Rebuild 2.0g Runtime";
+            "TryGame/战斗世界区/重建 2.0g 运行时资源";
         private const string ScenePrefabPath =
             "Assets/Resources/TryGameBuildRes/battle/runtime/battle_world_zone_shell.prefab";
         private const string UiPrefabPath =

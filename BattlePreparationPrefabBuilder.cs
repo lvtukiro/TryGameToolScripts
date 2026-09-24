@@ -17,7 +17,7 @@ namespace Game.EditorTools
     public static class BattlePreparationPrefabBuilder
     {
         private const string MenuPath =
-            "TryGame/Battle Preparation/Rebuild 2.0g Assets";
+            "TryGame/备战/重建 2.0g 资源";
         private const string ScenePrefabPath =
             "Assets/Resources/TryGameBuildRes/battle/preparation/battle_preparation_scene.prefab";
         private const string HomeMainPrefabPath =

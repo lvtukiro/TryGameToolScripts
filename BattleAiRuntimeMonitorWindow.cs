@@ -39,12 +39,12 @@ namespace Game.EditorTools
         private int actorPopupIndex = -1;
         private double lastRefreshTime;
 
-        [MenuItem("TryGame/Battle/AI Runtime Monitor", false, 434)]
+        [MenuItem("TryGame/战斗/AI 运行时监视器", false, 434)]
         private static void Open()
         {
             BattleAiRuntimeMonitorWindow window =
                 GetWindow<BattleAiRuntimeMonitorWindow>();
-            window.titleContent = new GUIContent("Battle AI Runtime Monitor");
+            window.titleContent = new GUIContent("AI 运行时监视器");
             window.minSize = new Vector2(1240f, 760f);
             window.Show();
         }
@@ -187,7 +187,7 @@ namespace Game.EditorTools
         private void DrawToolbar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-            GUILayout.Label("Battle AI Runtime Monitor", EditorStyles.toolbarButton, GUILayout.Width(190f));
+            GUILayout.Label("AI 运行时监视器", EditorStyles.toolbarButton, GUILayout.Width(150f));
             if (GUILayout.Button("刷新角色", EditorStyles.toolbarButton, GUILayout.Width(72f)))
             {
                 ResolveRuntime();
@@ -210,7 +210,7 @@ namespace Game.EditorTools
         private void DrawActorSelectionBar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-            EditorGUILayout.LabelField("Scene 角色", GUILayout.Width(72f));
+            EditorGUILayout.LabelField("场景角色", GUILayout.Width(72f));
             UnityEngine.Object next = EditorGUILayout.ObjectField(
                 selectedActor,
                 typeof(BattleWorldZoneCombatActor),
@@ -266,10 +266,10 @@ namespace Game.EditorTools
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("角色", selectedActor.name, GUILayout.Width(260f));
-            EditorGUILayout.LabelField("Profile", runtime.EnemyAiProfileId.ToString(), GUILayout.Width(120f));
+            EditorGUILayout.LabelField("行为配置", runtime.EnemyAiProfileId.ToString(), GUILayout.Width(120f));
             EditorGUILayout.LabelField("图", graphAsset != null ? graphAsset.GraphId.ToString() : "未找到", GUILayout.Width(120f));
             EditorGUILayout.LabelField("节点", currentNodeId > 0 ? currentNodeId.ToString() : "—", GUILayout.Width(110f));
-            EditorGUILayout.LabelField("Handler", blackboard.CurrentNode.ToString(), GUILayout.Width(190f));
+            EditorGUILayout.LabelField("处理器", blackboard.CurrentNode.ToString(), GUILayout.Width(190f));
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.LabelField(
@@ -284,10 +284,10 @@ namespace Game.EditorTools
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUILayout.LabelField("角色身份", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("GameObject", selectedActor.name);
-            EditorGUILayout.LabelField("RuntimeUid", selectedActor.RuntimeUid.ToString());
-            EditorGUILayout.LabelField("PersistentUid", selectedActor.PersistentUid);
-            EditorGUILayout.LabelField("Faction", selectedActor.FactionId.ToString());
+            EditorGUILayout.LabelField("场景对象", selectedActor.name);
+            EditorGUILayout.LabelField("运行时 UID", selectedActor.RuntimeUid.ToString());
+            EditorGUILayout.LabelField("持久 UID", selectedActor.PersistentUid);
+            EditorGUILayout.LabelField("阵营", selectedActor.FactionId.ToString());
             EditorGUILayout.EndVertical();
         }
 
@@ -461,8 +461,8 @@ namespace Game.EditorTools
             EditorGUILayout.LabelField("最近访问节点", runtime.LastEvaluatedGraphNodeId > 0
                 ? runtime.LastEvaluatedGraphNodeId.ToString()
                 : "—");
-            EditorGUILayout.LabelField("图 Handler", runtime.CurrentGraphHandlerType.ToString());
-            EditorGUILayout.LabelField("黑板 Handler", bb.CurrentNode.ToString());
+            EditorGUILayout.LabelField("图处理器", runtime.CurrentGraphHandlerType.ToString());
+            EditorGUILayout.LabelField("黑板处理器", bb.CurrentNode.ToString());
             EditorGUILayout.Space(4f);
             EditorGUILayout.LabelField("目标", string.IsNullOrEmpty(bb.CurrentTargetId) ? "无" : bb.CurrentTargetId);
             EditorGUILayout.LabelField("目标可见", bb.TargetInSight ? "是" : "否");

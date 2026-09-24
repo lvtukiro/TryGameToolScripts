@@ -69,7 +69,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private byte[] regionUndoPng;
 
         // 主窗口唯一入口；预制体生成从“动作预览”页进入。
-        [MenuItem("TryGame/Tools/Sequence Frame Animation Tool")]
+        [MenuItem("TryGame/工具/序列帧动画工具")]
         public static void Open()
         {
             SequenceFrameAnimationEditorWindow window =
@@ -113,7 +113,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private void DrawToolbar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-            GUILayout.Label("TryGame 序列帧动画工具", EditorStyles.boldLabel);
+            GUILayout.Label("序列帧动画工具", EditorStyles.boldLabel);
             GUILayout.FlexibleSpace();
             GUILayout.Label(status, EditorStyles.miniLabel);
             EditorGUILayout.EndHorizontal();
@@ -379,7 +379,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUILayout.LabelField("动作预览", EditorStyles.boldLabel);
             document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
             EditorGUILayout.BeginHorizontal();
-            document.actionId = EditorGUILayout.IntField("Action ID", document.actionId);
+            document.actionId = EditorGUILayout.IntField("动作 ID", document.actionId);
             if (GUILayout.Button("取下一个 ID", GUILayout.Width(96f)))
             {
                 AssignNextSequenceFrameActionId();
@@ -451,7 +451,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             using (new EditorGUI.DisabledScope(
                 document.frames == null || CountSelectedFrames() == 0))
             {
-                if (GUILayout.Button("生成正式 SequenceFrameClip.asset"))
+                if (GUILayout.Button("生成正式序列帧动作资源"))
                 {
                     ExportSequenceFrameClip();
                 }

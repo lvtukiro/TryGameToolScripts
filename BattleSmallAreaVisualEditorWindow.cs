@@ -241,11 +241,11 @@ namespace Game.EditorTools
         private bool draftRestored;
         private bool draftSaveQueued;
 
-        [MenuItem("TryGame/Battle WorldZone/SmallArea 可视化编辑器", false, 431)]
+        [MenuItem("TryGame/战斗世界区/小区域可视化编辑器", false, 431)]
         private static void Open()
         {
             BattleSmallAreaVisualEditorWindow window = GetWindow<BattleSmallAreaVisualEditorWindow>();
-            window.titleContent = new GUIContent("Battle SmallArea");
+            window.titleContent = new GUIContent("战斗小区域编辑器");
             window.minSize = new Vector2(980f, 620f);
             window.Show();
         }
@@ -461,13 +461,13 @@ namespace Game.EditorTools
             EditorGUILayout.HelpBox(workbookStatus, MessageType.None);
             using (new EditorGUI.DisabledScope(true))
             {
-                EditorGUILayout.IntField("smallAreaId（稳定）", edited.id);
+                EditorGUILayout.IntField("小区域 ID（稳定）", edited.id);
             }
-            edited.codeName = EditorGUILayout.TextField("codeName", edited.codeName);
+            edited.codeName = EditorGUILayout.TextField("配置代码名", edited.codeName);
             edited.nameLanguageKey = EditorGUILayout.TextField(
                 "nameLanguageKey",
                 edited.nameLanguageKey);
-            edited.usageType = EditorGUILayout.Popup("usageType", edited.usageType, new[] { "Normal", "Boss" });
+            edited.usageType = EditorGUILayout.Popup("用途类型", edited.usageType, new[] { "Normal", "Boss" });
             using (new EditorGUI.DisabledScope(IsLayerLocked(LayerKind.Background)))
             {
                 edited.backgroundResourceId = EditorGUILayout.IntField("背景 ResourceId", edited.backgroundResourceId);
@@ -481,7 +481,7 @@ namespace Game.EditorTools
             DrawDoorList(edited);
             DrawEnemyAreaList(edited);
             DrawPointList("物资点", ToolKind.Loot, edited.lootPoints);
-            DrawPointList("Boss 点", ToolKind.Boss, edited.bossPoints);
+            DrawPointList("首领点", ToolKind.Boss, edited.bossPoints);
             DrawPointList("撤离候选点", ToolKind.Extraction, edited.extractionPoints);
 
             if (EditorGUI.EndChangeCheck())
@@ -518,7 +518,7 @@ namespace Game.EditorTools
             EditorGUILayout.LabelField("编辑控制", EditorStyles.boldLabel);
             if (GUILayout.Button("撤销", GUILayout.Width(48f))) QueueUndoRedo(false);
             if (GUILayout.Button("重做", GUILayout.Width(48f))) QueueUndoRedo(true);
-            if (GUILayout.Button("Scene 聚焦", GUILayout.Width(76f))) FocusSceneView();
+            if (GUILayout.Button("场景聚焦", GUILayout.Width(76f))) FocusSceneView();
             EditorGUILayout.EndHorizontal();
 
             bool editedSnapEnabled = authoringState.snapEnabled;
@@ -551,13 +551,13 @@ namespace Game.EditorTools
             EditorGUILayout.EndHorizontal();
 
             LayerControl("背景", LayerKind.Background, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("Floor", LayerKind.Floor, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("Ladder", LayerKind.Ladder, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("Door", LayerKind.Door, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("EnemyArea", LayerKind.EnemyArea, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("Loot", LayerKind.Loot, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("Boss", LayerKind.Boss, ref editedVisibleLayers, ref editedLockedLayers);
-            LayerControl("Extraction", LayerKind.Extraction, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("地面", LayerKind.Floor, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("梯子", LayerKind.Ladder, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("门", LayerKind.Door, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("敌人区域", LayerKind.EnemyArea, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("搜刮点", LayerKind.Loot, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("首领点", LayerKind.Boss, ref editedVisibleLayers, ref editedLockedLayers);
+            LayerControl("撤离点", LayerKind.Extraction, ref editedVisibleLayers, ref editedLockedLayers);
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(authoringState, "修改 SmallArea 编辑器设置");
@@ -595,86 +595,86 @@ namespace Game.EditorTools
         private void DrawFloorList(Document target)
         {
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField($"Floor ({target.floors.Count})", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"地面 ({target.floors.Count})", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(IsLayerLocked(LayerKind.Floor)))
             {
             for (int index = 0; index < target.floors.Count; index++)
             {
                 FloorRow row = target.floors[index];
                 EditorGUILayout.BeginVertical("box");
-                DrawRowHeader(ToolKind.Floor, index, row, "Floor");
+                DrawRowHeader(ToolKind.Floor, index, row, "地面");
                 row.collisionType = EditorGUILayout.Popup("碰撞", row.collisionType, new[] { "SolidGround", "OneWayPlatform" });
-                row.minX = EditorGUILayout.FloatField("minX", row.minX);
-                row.maxX = EditorGUILayout.FloatField("maxX", row.maxX);
-                row.y = EditorGUILayout.FloatField("y", row.y);
-                row.isSafeSpawnFloor = EditorGUILayout.Toggle("安全 Floor", row.isSafeSpawnFloor);
-                row.styleId = EditorGUILayout.IntField("styleId", row.styleId);
+                row.minX = EditorGUILayout.FloatField("左边界", row.minX);
+                row.maxX = EditorGUILayout.FloatField("右边界", row.maxX);
+                row.y = EditorGUILayout.FloatField("高度", row.y);
+                row.isSafeSpawnFloor = EditorGUILayout.Toggle("安全地面", row.isSafeSpawnFloor);
+                row.styleId = EditorGUILayout.IntField("样式 ID", row.styleId);
                 EditorGUILayout.EndVertical();
             }
-            if (GUILayout.Button("+ Floor")) { AddAtCenter(ToolKind.Floor); GUIUtility.ExitGUI(); }
+            if (GUILayout.Button("+ 新增地面")) { AddAtCenter(ToolKind.Floor); GUIUtility.ExitGUI(); }
             }
         }
 
         private void DrawLadderList(Document target)
         {
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField($"Ladder ({target.ladders.Count})", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"梯子 ({target.ladders.Count})", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(IsLayerLocked(LayerKind.Ladder)))
             {
             for (int index = 0; index < target.ladders.Count; index++)
             {
                 LadderRow row = target.ladders[index];
                 EditorGUILayout.BeginVertical("box");
-                DrawRowHeader(ToolKind.Ladder, index, row, "Ladder");
-                row.floorId = EditorGUILayout.IntField("firstEndpoint (lowerFloorId)", row.floorId);
-                row.upperFloorId = EditorGUILayout.IntField("secondEndpoint (upperFloorId)", row.upperFloorId);
-                row.x = EditorGUILayout.FloatField("x", row.x);
-                row.interactionWidth = EditorGUILayout.FloatField("interactionWidth", row.interactionWidth);
-                row.styleId = EditorGUILayout.IntField("styleId", row.styleId);
+                DrawRowHeader(ToolKind.Ladder, index, row, "梯子");
+                row.floorId = EditorGUILayout.IntField("下端地面 ID", row.floorId);
+                row.upperFloorId = EditorGUILayout.IntField("上端地面 ID", row.upperFloorId);
+                row.x = EditorGUILayout.FloatField("横坐标", row.x);
+                row.interactionWidth = EditorGUILayout.FloatField("交互宽度", row.interactionWidth);
+                row.styleId = EditorGUILayout.IntField("样式 ID", row.styleId);
                 EditorGUILayout.EndVertical();
             }
-            if (GUILayout.Button("+ Ladder")) { AddAtCenter(ToolKind.Ladder); GUIUtility.ExitGUI(); }
+            if (GUILayout.Button("+ 新增梯子")) { AddAtCenter(ToolKind.Ladder); GUIUtility.ExitGUI(); }
             }
         }
 
         private void DrawDoorList(Document target)
         {
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField($"Door ({target.doors.Count})", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"门 ({target.doors.Count})", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(IsLayerLocked(LayerKind.Door)))
             {
             for (int index = 0; index < target.doors.Count; index++)
             {
                 DoorRow row = target.doors[index];
                 EditorGUILayout.BeginVertical("box");
-                DrawRowHeader(ToolKind.Door, index, row, "Door");
-                row.floorId = EditorGUILayout.IntField("floorId", row.floorId);
-                row.x = EditorGUILayout.FloatField("x", row.x);
-                row.styleId = EditorGUILayout.IntField("styleId", row.styleId);
+                DrawRowHeader(ToolKind.Door, index, row, "门");
+                row.floorId = EditorGUILayout.IntField("地面 ID", row.floorId);
+                row.x = EditorGUILayout.FloatField("横坐标", row.x);
+                row.styleId = EditorGUILayout.IntField("样式 ID", row.styleId);
                 EditorGUILayout.EndVertical();
             }
-            if (GUILayout.Button("+ Door")) { AddAtCenter(ToolKind.Door); GUIUtility.ExitGUI(); }
+            if (GUILayout.Button("+ 新增门")) { AddAtCenter(ToolKind.Door); GUIUtility.ExitGUI(); }
             }
         }
 
         private void DrawEnemyAreaList(Document target)
         {
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField($"Enemy 区 ({target.enemyAreas.Count})", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"敌人区域 ({target.enemyAreas.Count})", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(IsLayerLocked(LayerKind.EnemyArea)))
             {
             for (int index = 0; index < target.enemyAreas.Count; index++)
             {
                 EnemyAreaRow row = target.enemyAreas[index];
                 EditorGUILayout.BeginVertical("box");
-                DrawRowHeader(ToolKind.EnemyArea, index, row, "EnemyArea");
-                row.floorId = EditorGUILayout.IntField("floorId", row.floorId);
-                row.minX = EditorGUILayout.FloatField("minX", row.minX);
-                row.maxX = EditorGUILayout.FloatField("maxX", row.maxX);
-                row.spawnRuleId = EditorGUILayout.IntField("spawnRuleId", row.spawnRuleId);
+                DrawRowHeader(ToolKind.EnemyArea, index, row, "敌人区域");
+                row.floorId = EditorGUILayout.IntField("地面 ID", row.floorId);
+                row.minX = EditorGUILayout.FloatField("左边界", row.minX);
+                row.maxX = EditorGUILayout.FloatField("右边界", row.maxX);
+                row.spawnRuleId = EditorGUILayout.IntField("生成规则 ID", row.spawnRuleId);
                 EditorGUILayout.EndVertical();
             }
-            if (GUILayout.Button("+ EnemyArea")) { AddAtCenter(ToolKind.EnemyArea); GUIUtility.ExitGUI(); }
+            if (GUILayout.Button("+ 新增敌人区域")) { AddAtCenter(ToolKind.EnemyArea); GUIUtility.ExitGUI(); }
             }
         }
 
@@ -693,17 +693,17 @@ namespace Game.EditorTools
                 row.floorId = EditorGUILayout.IntField("floorId", row.floorId);
                 if (row is LootRow loot)
                 {
-                    loot.x = EditorGUILayout.FloatField("x", loot.x);
+                    loot.x = EditorGUILayout.FloatField("横坐标", loot.x);
                     loot.baseSpawnChance = EditorGUILayout.Slider("出现概率", loot.baseSpawnChance, 0f, 100f);
-                    loot.lootSourceId = EditorGUILayout.IntField("lootSourceId", loot.lootSourceId);
+                    loot.lootSourceId = EditorGUILayout.IntField("掉落来源 ID", loot.lootSourceId);
                 }
                 else if (row is BossRow boss)
                 {
-                    boss.x = EditorGUILayout.FloatField("x", boss.x);
+                    boss.x = EditorGUILayout.FloatField("横坐标", boss.x);
                 }
                 else if (row is ExtractionRow extraction)
                 {
-                    extraction.x = EditorGUILayout.FloatField("x", extraction.x);
+                    extraction.x = EditorGUILayout.FloatField("横坐标", extraction.x);
                 }
                 EditorGUILayout.EndVertical();
             }

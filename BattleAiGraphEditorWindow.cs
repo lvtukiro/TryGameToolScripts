@@ -42,12 +42,12 @@ namespace Game.EditorTools
         private bool showNodeDetails;
         private string status = "请选择一个 BattleAiGraphAsset。";
 
-        [MenuItem("TryGame/Battle/AI Graph Editor", false, 433)]
+        [MenuItem("TryGame/战斗/AI 行为图编辑器", false, 433)]
         private static void Open()
         {
             BattleAiGraphEditorWindow window =
                 GetWindow<BattleAiGraphEditorWindow>();
-            window.titleContent = new GUIContent("Battle AI Graph");
+            window.titleContent = new GUIContent("AI 行为图编辑器");
             window.minSize = new Vector2(1080f, 680f);
             window.Show();
         }
@@ -130,7 +130,7 @@ namespace Game.EditorTools
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(
-                "GraphId",
+                "行为图 ID",
                 graphAsset.GraphId.ToString(),
                 GUILayout.Width(180f));
             EditorGUILayout.LabelField(
@@ -148,10 +148,10 @@ namespace Game.EditorTools
             EditorGUILayout.EndHorizontal();
 
             int profileId = EditorGUILayout.IntField(
-                "BattleEnemyAiProfile ID",
+                "敌人 AI 配置 ID",
                 graphAsset.EnemyAiProfileId);
             string profileCodeName = EditorGUILayout.TextField(
-                "Profile CodeName（可选）",
+                "配置代码名（可选）",
                 graphAsset.ProfileCodeName);
             if (profileId != graphAsset.EnemyAiProfileId ||
                 !string.Equals(
@@ -182,27 +182,27 @@ namespace Game.EditorTools
         {
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("添加 Selector", GUILayout.Width(105f)))
+            if (GUILayout.Button("添加选择节点", GUILayout.Width(105f)))
             {
                 AddNode(BattleAiGraphNodeType.Selector);
             }
 
-            if (GUILayout.Button("添加 Sequence", GUILayout.Width(105f)))
+            if (GUILayout.Button("添加序列节点", GUILayout.Width(105f)))
             {
                 AddNode(BattleAiGraphNodeType.Sequence);
             }
 
-            if (GUILayout.Button("添加 Condition", GUILayout.Width(110f)))
+            if (GUILayout.Button("添加条件节点", GUILayout.Width(110f)))
             {
                 AddNode(BattleAiGraphNodeType.Condition);
             }
 
-            if (GUILayout.Button("添加 Action", GUILayout.Width(100f)))
+            if (GUILayout.Button("添加动作节点", GUILayout.Width(100f)))
             {
                 AddNode(BattleAiGraphNodeType.Action);
             }
 
-            if (GUILayout.Button("添加 Wait", GUILayout.Width(85f)))
+            if (GUILayout.Button("添加等待节点", GUILayout.Width(85f)))
             {
                 AddNode(BattleAiGraphNodeType.Wait);
             }
@@ -557,7 +557,7 @@ namespace Game.EditorTools
                 return;
             }
 
-            EditorGUILayout.LabelField("NodeId", selectedNode.nodeId.ToString());
+            EditorGUILayout.LabelField("节点 ID", selectedNode.nodeId.ToString());
             BattleAiGraphNodeType nodeType = (BattleAiGraphNodeType)EditorGUILayout.EnumPopup(
                 "节点类型",
                 selectedNode.nodeType);
@@ -573,7 +573,7 @@ namespace Game.EditorTools
             if (selectedNode.nodeType == BattleAiGraphNodeType.Condition)
             {
                 BattleAiConditionType conditionType = (BattleAiConditionType)EditorGUILayout.EnumPopup(
-                    "Condition",
+                    "条件类型",
                     selectedNode.conditionType);
                 if (conditionType != selectedNode.conditionType)
                 {
@@ -586,11 +586,11 @@ namespace Game.EditorTools
             else if (selectedNode.nodeType == BattleAiGraphNodeType.Action)
             {
                 BattleAiHandlerType handlerType = (BattleAiHandlerType)EditorGUILayout.EnumPopup(
-                    "Handler",
+                    "动作处理器",
                     selectedNode.handlerType);
                 if (handlerType != selectedNode.handlerType)
                 {
-                    Undo.RecordObject(graphAsset, "修改行为图 Handler");
+                    Undo.RecordObject(graphAsset, "修改行为图动作处理器");
                     selectedNode.handlerType = handlerType;
                     graphAsset.ClearPublishedState();
                     EditorUtility.SetDirty(graphAsset);

@@ -136,12 +136,12 @@ namespace Game.EditorTools
         private string DraftKey => DraftKeyPrefix +
             Hash128.Compute(Application.dataPath).ToString();
 
-        [MenuItem("TryGame/Battle/Action Timeline Editor", false, 432)]
+        [MenuItem("TryGame/战斗/动作时间轴编辑器", false, 432)]
         private static void Open()
         {
             BattleActionTimelineEditorWindow window =
                 GetWindow<BattleActionTimelineEditorWindow>();
-            window.titleContent = new GUIContent("Action Timeline");
+            window.titleContent = new GUIContent("动作时间轴编辑器");
             window.minSize = new Vector2(1080f, 680f);
             window.Show();
         }
@@ -386,7 +386,7 @@ namespace Game.EditorTools
             {
                 Undo.RegisterCompleteObjectUndo(
                     authoringState,
-                    "编辑 Battle Action Timeline");
+                    "编辑动作时间轴");
                 Document = edited;
                 NormalizeStepOrderForSelectedAction();
                 NormalizeKeyframeOrder();
@@ -407,7 +407,7 @@ namespace Game.EditorTools
                 MessageType.Warning);
             if (workbookSnapshot != null && workbookSnapshot.AllSheetNames.Length > 0)
             {
-                EditorGUILayout.LabelField("当前工作簿 Sheet", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("当前工作簿工作表", EditorStyles.boldLabel);
                 EditorGUILayout.SelectableLabel(
                     string.Join("、", workbookSnapshot.AllSheetNames),
                     EditorStyles.wordWrappedLabel,
@@ -447,7 +447,7 @@ namespace Game.EditorTools
             }
 
             int newIndex = EditorGUILayout.Popup(
-                "ActiveSingle（稳定 id）",
+                "单技能动作（稳定 ID）",
                 selectedIndex,
                 actions.Select(value => value.Label).ToArray());
             if (newIndex != selectedIndex ||
@@ -544,21 +544,21 @@ namespace Game.EditorTools
 
             EditorGUILayout.Space(8f);
             EditorGUILayout.LabelField(
-                "动作阶段 · " + table.sheetName + " / id=" + action.rowId,
+                "动作阶段 · " + table.sheetName + " / ID=" + action.rowId,
                 EditorStyles.boldLabel);
             BattleActionTimelinePhaseTimes phases =
                 BattleActionTimelineSchema.ReadPhases(table, action);
             double startup = EditorGUILayout.DoubleField(
-                "前摇结束 startupEndTime",
+                "前摇结束时间",
                 phases.StartupEnd);
             double switchStart = EditorGUILayout.DoubleField(
                 "共享切换窗开始",
                 phases.SwitchWindowStart);
             double recovery = EditorGUILayout.DoubleField(
-                "后摇开始 recoveryStartTime",
+                "后摇开始时间",
                 phases.RecoveryStart);
             double duration = EditorGUILayout.DoubleField(
-                "动作结束 actionDuration",
+                "动作持续时间",
                 phases.Duration);
             double currentTime = SnapNonNegative(playheadSeconds);
             EditorGUILayout.BeginHorizontal();
@@ -650,12 +650,12 @@ namespace Game.EditorTools
             }
 
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("executionStep 事件轨", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("执行步骤事件轨", EditorStyles.boldLabel);
             BattleActionTimelineTableData stepTable = edited.tables.FirstOrDefault(
                 BattleActionTimelineSchema.IsExecutionStepTable);
             if (stepTable == null)
             {
-                EditorGUILayout.HelpBox("缺少 ExecutionStep Sheet。", MessageType.Warning);
+                EditorGUILayout.HelpBox("缺少执行步骤工作表。", MessageType.Warning);
                 return;
             }
 
@@ -671,7 +671,7 @@ namespace Game.EditorTools
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.BeginHorizontal();
                 DrawSelectionButton(
-                    "Step " + step.rowId,
+                    "步骤 " + step.rowId,
                     string.Equals(
                         authoringState.selectedStepSheet,
                         stepTable.sheetName,
@@ -700,15 +700,15 @@ namespace Game.EditorTools
                     step,
                     0d,
                     BattleActionTimelineSchema.TriggerTimeAliases);
-                double editedTrigger = EditorGUILayout.DoubleField("triggerTime", trigger);
+                double editedTrigger = EditorGUILayout.DoubleField("触发时间", trigger);
                 string stepType = EditorGUILayout.TextField(
-                    "stepType",
+                    "步骤类型",
                     BattleActionTimelineSchema.Get(
                         stepTable,
                         step,
                         BattleActionTimelineSchema.StepTypeAliases));
                 int configId = EditorGUILayout.IntField(
-                    "stepConfigId",
+                    "步骤配置 ID",
                     BattleActionTimelineSchema.GetInt(
                         stepTable,
                         step,
@@ -732,7 +732,7 @@ namespace Game.EditorTools
                 EditorGUILayout.EndVertical();
             }
 
-            if (GUILayout.Button("+ 在当前帧新增 executionStep"))
+            if (GUILayout.Button("+ 在当前帧新增执行步骤"))
             {
                 BattleActionTimelineRecordData step = CreateRecord(stepTable);
                 BattleActionTimelineSchema.SetInt(
@@ -1095,7 +1095,7 @@ namespace Game.EditorTools
                     0,
                     BattleActionTimelineSchema.AttackBodyIdAliases) ==
                     resolved.Body.rowId).ToList();
-            EditorGUILayout.LabelField("组合 Shapes", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("组合形状", EditorStyles.miniBoldLabel);
             foreach (BattleActionTimelineRecordData shape in shapes)
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -1116,10 +1116,10 @@ namespace Game.EditorTools
 
                 EditorGUILayout.EndHorizontal();
                 string type = EditorGUILayout.TextField(
-                    "shapeType",
+                    "形状类型",
                     BattleActionTimelineSchema.Get(table, shape, "shapeType"));
                 Vector2 offset = EditorGUILayout.Vector2Field(
-                    "localOffset",
+                    "局部偏移",
                     new Vector2(
                         (float)BattleActionTimelineSchema.GetDouble(
                             table,
@@ -1134,7 +1134,7 @@ namespace Game.EditorTools
                             "offsetY",
                             "localOffsetY")));
                 float rotation = EditorGUILayout.FloatField(
-                    "localRotationDegrees",
+                    "局部旋转角度",
                     (float)BattleActionTimelineSchema.GetDouble(
                         table,
                         shape,
@@ -1142,7 +1142,7 @@ namespace Game.EditorTools
                         "rotationDegrees",
                         "localRotationDegrees"));
                 Vector2 size = EditorGUILayout.Vector2Field(
-                    "size (Box/Capsule)",
+                    "尺寸（矩形/胶囊）",
                     new Vector2(
                         (float)BattleActionTimelineSchema.GetDouble(
                             table,
@@ -1157,7 +1157,7 @@ namespace Game.EditorTools
                             "height",
                             "sizeY")));
                 float radius = EditorGUILayout.FloatField(
-                    "radius (Circle)",
+                    "半径（圆形）",
                     (float)BattleActionTimelineSchema.GetDouble(
                         table,
                         shape,
@@ -1172,7 +1172,7 @@ namespace Game.EditorTools
                     type == "2")
                 {
                     capsuleDirection = EditorGUILayout.TextField(
-                        "capsuleDirection",
+                        "胶囊方向",
                         string.IsNullOrWhiteSpace(capsuleDirection)
                             ? "Vertical"
                             : capsuleDirection);
@@ -1220,19 +1220,19 @@ namespace Game.EditorTools
             }
 
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("+ Box"))
+            if (GUILayout.Button("+ 矩形"))
             {
                 AddShape(table, resolved.Body.rowId, "Box");
                 GUI.changed = true;
             }
 
-            if (GUILayout.Button("+ Circle"))
+            if (GUILayout.Button("+ 圆形"))
             {
                 AddShape(table, resolved.Body.rowId, "Circle");
                 GUI.changed = true;
             }
 
-            if (GUILayout.Button("+ Capsule"))
+            if (GUILayout.Button("+ 胶囊"))
             {
                 AddShape(table, resolved.Body.rowId, "Capsule");
                 GUI.changed = true;
@@ -1302,7 +1302,7 @@ namespace Game.EditorTools
 
             BattleActionTimelineTableData table = resolved.KeyframeTable;
             int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(table);
-            EditorGUILayout.LabelField("transform 关键帧轨", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField("变换关键帧轨", EditorStyles.miniBoldLabel);
             foreach (BattleActionTimelineRecordData keyframe in resolved.Keyframes)
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -1323,14 +1323,14 @@ namespace Game.EditorTools
 
                 EditorGUILayout.EndHorizontal();
                 double localTime = EditorGUILayout.DoubleField(
-                    "localTime",
+                    "局部时间",
                     BattleActionTimelineSchema.GetDouble(
                         table,
                         keyframe,
                         0d,
                         BattleActionTimelineSchema.LocalTimeAliases));
                 Vector2 offset = EditorGUILayout.Vector2Field(
-                    "offset",
+                    "偏移",
                     new Vector2(
                         (float)BattleActionTimelineSchema.GetDouble(
                             table,
@@ -1343,14 +1343,14 @@ namespace Game.EditorTools
                             0d,
                             BattleActionTimelineSchema.OffsetYAliases)));
                 float rotation = EditorGUILayout.FloatField(
-                    "rotationDegrees",
+                    "旋转角度",
                     (float)BattleActionTimelineSchema.GetDouble(
                         table,
                         keyframe,
                         0d,
                         BattleActionTimelineSchema.RotationAliases));
                 Vector2 scale = EditorGUILayout.Vector2Field(
-                    "scale",
+                    "缩放",
                     new Vector2(
                         (float)BattleActionTimelineSchema.GetDouble(
                             table,
@@ -1363,7 +1363,7 @@ namespace Game.EditorTools
                             1d,
                             BattleActionTimelineSchema.ScaleYAliases)));
                 string interpolation = EditorGUILayout.TextField(
-                    "interpolation",
+                    "插值方式",
                     BattleActionTimelineSchema.Get(
                         table,
                         keyframe,
@@ -1406,7 +1406,7 @@ namespace Game.EditorTools
                 EditorGUILayout.EndVertical();
             }
 
-            if (ownerColumn >= 0 && GUILayout.Button("+ 在当前帧新增 transform keyframe"))
+            if (ownerColumn >= 0 && GUILayout.Button("+ 在当前帧新增变换关键帧"))
             {
                 BattleActionTimelineRecordData keyframe = CreateRecord(table);
                 keyframe.cells[ownerColumn] = resolved.Owner.rowId.ToString(

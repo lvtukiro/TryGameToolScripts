@@ -16,7 +16,7 @@ public static class PetFoodBarPrefabBuilder
         EditorApplication.delayCall += EnsurePrefab;
     }
 
-    [MenuItem("TryGame/Pet/Rebuild Food Bar Prefab")]
+    [MenuItem("TryGame/宠物/重建食物条预制体")]
     public static void RebuildPrefab()
     {
         BuildPrefab(true);

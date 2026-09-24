@@ -24,7 +24,7 @@ namespace Game.EditorTools
         private const string LootSkillViewType =
             "Game.BattleLootSkillView";
 
-        [MenuItem("TryGame/Battle WorldZone/Rebuild 2.0i Loot UI", false, 435)]
+        [MenuItem("TryGame/战斗世界区/重建 2.0i 搜刮界面", false, 435)]
         private static void Rebuild()
         {
             GameObject root = BattlePreparationEditorUiFactory.NewUiObject(

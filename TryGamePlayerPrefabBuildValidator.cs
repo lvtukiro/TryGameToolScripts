@@ -18,7 +18,7 @@ namespace TryGame.Tools.Editor
     {
         private const string PlayerResourceRoot = "Assets/Resources/TryGameBuildRes";
         private const string ValidationMenu =
-            "TryGame/Validation/Validate Player Prefabs";
+            "TryGame/校验/校验玩家预制体";
 
         private static readonly Regex PrefabDocumentHeaderRegex = new Regex(
             @"^--- !u!\d+ &(?<id>-?\d+)(?: stripped)?\s*$",

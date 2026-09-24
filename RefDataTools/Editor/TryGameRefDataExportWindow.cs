@@ -18,10 +18,10 @@ namespace TryGame.RefDataTools.Editor
         /// <summary>
         /// 打开 TryGame 配表导出窗口。
         /// </summary>
-        [MenuItem("TryGame/RefData/打开导表窗口")]
+        [MenuItem("TryGame/配置表/打开导表窗口")]
         public static void Open()
         {
-            TryGameRefDataExportWindow window = GetWindow<TryGameRefDataExportWindow>("TryGame 配表导出");
+            TryGameRefDataExportWindow window = GetWindow<TryGameRefDataExportWindow>("配置表导出");
             window.minSize = new Vector2(680f, 420f);
             window.Show();
         }
@@ -29,7 +29,7 @@ namespace TryGame.RefDataTools.Editor
         /// <summary>
         /// 从菜单直接导出默认目录下的全部配表。
         /// </summary>
-        [MenuItem("TryGame/RefData/导出全部配表并生成入口")]
+        [MenuItem("TryGame/配置表/导出全部配表并生成入口")]
         public static void ExportAllByMenu()
         {
             string excelRoot = TryGameRefDataPaths.DefaultExcelRootAssetPath;
@@ -63,7 +63,7 @@ namespace TryGame.RefDataTools.Editor
         private void DrawPathBar()
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-            EditorGUILayout.LabelField("Excel Root", GUILayout.Width(80f));
+            EditorGUILayout.LabelField("配表目录", GUILayout.Width(80f));
             EditorGUILayout.LabelField(excelRootAssetPath);
 
             if (GUILayout.Button("刷新", EditorStyles.toolbarButton, GUILayout.Width(56f)))
@@ -102,7 +102,7 @@ namespace TryGame.RefDataTools.Editor
             EditorGUILayout.Space(4f);
             EditorGUILayout.HelpBox(
                 "单项/选中项导出是增量模式，不会删除旧表产物。删除或重命名表后，" +
-                "请使用菜单 TryGame/RefData/导出全部配表并生成入口 执行全量清洁重建。",
+                "请使用菜单“配置表/导出全部配表并生成入口”执行全量清洁重建。",
                 MessageType.Info);
         }
 

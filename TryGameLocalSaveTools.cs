@@ -14,8 +14,8 @@ namespace TryGame.Tools.Editor
     internal static class TryGameLocalSaveTools
     {
         private const string SaveFolderName = "saves";
-        private const string OpenSaveFolderMenu = "TryGame/Save/Open Local Save Folder";
-        private const string ArchiveLocalSavesMenu = "TryGame/Save/Archive Local Saves";
+        private const string OpenSaveFolderMenu = "TryGame/存档/打开本地存档文件夹";
+        private const string ArchiveLocalSavesMenu = "TryGame/存档/归档本地存档";
 
         [MenuItem(OpenSaveFolderMenu, false, 300)]
         private static void OpenLocalSaveFolder()
