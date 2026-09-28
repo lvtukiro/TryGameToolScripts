@@ -17,10 +17,10 @@ using UnityEngine;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// SmallArea 编辑器专用的 OpenXML 桥。源表写回只改八个 SmallArea Sheet 并保留其它
     /// Sheet/样式/关系；写回并导表时会为源表及四个正式发布目录建立完整恢复快照。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class BattleSmallAreaWorkbookBridge
     {
         internal sealed class Snapshot
@@ -100,18 +100,15 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryLoad：执行当前模块的TryLoad逻辑。
+        /// 加载`snapshot`；成功时写出 `snapshot` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryLoad(out Snapshot snapshot, out string error)
         {
-            /// <summary>
-            /// TryLoad：执行当前模块的TryLoad逻辑。
-            /// </summary>
             return TryLoad(DefaultWorkbookPath, out snapshot, out error);
         }
         /// <summary>
-        /// TryLoad：执行当前模块的TryLoad逻辑。
+        /// 根据 `path` 加载`snapshot`；成功时写出 `snapshot` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryLoad(
@@ -155,7 +152,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryWriteTemplate：执行当前模块的TryWriteTemplate逻辑。
+        /// 根据 `snapshot`、`smallAreaId`、`sourceRows` 写入`Template`；成功时写出 `backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryWriteTemplate(
@@ -175,7 +172,7 @@ namespace Game.EditorTools
                 out error);
         }
         /// <summary>
-        /// TryWriteTemplates：执行当前模块的TryWriteTemplates逻辑。
+        /// 根据 `snapshot`、`sourceRowsBySmallAreaId` 写入`Templates`；成功时写出 `backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryWriteTemplates(
@@ -209,7 +206,7 @@ namespace Game.EditorTools
             return false;
         }
         /// <summary>
-        /// TryWriteTemplatesCore：执行当前模块的TryWriteTemplatesCore逻辑。
+        /// 根据 `snapshot`、`sourceRowsBySmallAreaId`、`refreshAssets` 写入`Templates Core`；成功时写出 `workbookMayHaveChanged`、`backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         private static bool TryWriteTemplatesCore(
@@ -374,7 +371,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryWriteTemplatesAndExport：执行当前模块的TryWriteTemplatesAndExport逻辑。
+        /// 根据 `snapshot`、`sourceRowsBySmallAreaId` 写入`Templates`及导出；成功时写出 `backupPath`、`sourceSavedOutputStale` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryWriteTemplatesAndExport(
@@ -393,7 +390,7 @@ namespace Game.EditorTools
                 out error);
         }
         /// <summary>
-        /// TryWriteTemplatesAndExport：执行当前模块的TryWriteTemplatesAndExport逻辑。
+        /// 根据 `snapshot`、`sourceRowsBySmallAreaId`、`context` 写入`Templates`及导出；成功时写出 `backupPath`、`sourceSavedOutputStale` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryWriteTemplatesAndExport(
@@ -532,7 +529,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// CreateDefaultExportContext：执行当前模块的CreateDefaultExportContext逻辑。
+        /// 创建默认导出上下文。
         /// </summary>
 
         private static ExportContext CreateDefaultExportContext()
@@ -567,7 +564,7 @@ namespace Game.EditorTools
             };
         }
         /// <summary>
-        /// TryValidateExportContext：执行当前模块的TryValidateExportContext逻辑。
+        /// 校验 导出上下文 的结构与业务约束，通过时返回 `true`；校验失败时通过 `error` 返回原因。
         /// </summary>
 
         private static bool TryValidateExportContext(
@@ -592,7 +589,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// TryFailAndRestorePublishedState：执行当前模块的TryFailAndRestorePublishedState逻辑。
+        /// 根据 `stateSnapshot`、`failure`、`refreshAssets` 完成`Fail`及`Restore Published`状态；操作完成时返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         private static bool TryFailAndRestorePublishedState(
@@ -622,7 +619,7 @@ namespace Game.EditorTools
             return false;
         }
         /// <summary>
-        /// TryRefreshAssetsAfterRecovery：执行当前模块的TryRefreshAssetsAfterRecovery逻辑。
+        /// 根据 `refreshAssets` 刷新`Assets`之后恢复；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static string TryRefreshAssetsAfterRecovery(Action refreshAssets)
@@ -641,7 +638,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryRestoreWorkbookFromBackup：执行当前模块的TryRestoreWorkbookFromBackup逻辑。
+        /// 根据 `workbookPath`、`backupPath` 恢复工作簿来源`Backup`；操作完成时返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         private static bool TryRestoreWorkbookFromBackup(
@@ -717,7 +714,7 @@ namespace Game.EditorTools
             private bool preserveForRecovery;
             private bool cleaned;
             /// <summary>
-            /// PublishedStateSnapshot：执行当前模块的PublishedStateSnapshot逻辑。
+            /// 创建 `PublishedStateSnapshot`，记录`transactionParent`（事务Parent）和`transactionRoot`（事务Root）字段，形成可供后续流程传递的只读快照。
             /// </summary>
 
             private PublishedStateSnapshot(
@@ -728,7 +725,7 @@ namespace Game.EditorTools
                 this.transactionRoot = transactionRoot;
             }
             /// <summary>
-            /// TryCapture：执行当前模块的TryCapture逻辑。
+            /// 根据 `workbookPath`、`publishedDirectories`、`transactionParent` 捕获`snapshot`；成功时写出 `snapshot` 并返回 `true`，失败时通过 `error` 返回原因。
             /// </summary>
 
             public static bool TryCapture(
@@ -816,7 +813,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// Commit：执行当前模块的Commit逻辑。
+            /// 提交当前 `Entry` 实例。
             /// </summary>
 
             public void Commit()
@@ -824,7 +821,7 @@ namespace Game.EditorTools
                 Cleanup();
             }
             /// <summary>
-            /// TryRestore：执行当前模块的TryRestore逻辑。
+            /// 恢复`Entry` 的当前操作；操作完成时返回 `true`，失败时通过 `error` 返回原因。
             /// </summary>
 
             public bool TryRestore(out string error)
@@ -855,7 +852,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// Dispose：执行当前模块的Dispose逻辑。
+            /// 释放当前 `Entry` 实例持有的资源，使其不再参与后续运行。
             /// </summary>
 
             public void Dispose()
@@ -866,7 +863,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// AddEntry：执行当前模块的AddEntry逻辑。
+            /// 添加条目。
             /// </summary>
 
             private void AddEntry(
@@ -923,7 +920,7 @@ namespace Game.EditorTools
                 });
             }
             /// <summary>
-            /// ValidateSnapshotsBeforeRestore：执行当前模块的ValidateSnapshotsBeforeRestore逻辑。
+            /// 校验快照之前恢复。
             /// </summary>
 
             private void ValidateSnapshotsBeforeRestore()
@@ -943,7 +940,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// MoveCurrentToFailedNew：执行当前模块的MoveCurrentToFailedNew逻辑。
+            /// 移动当前到失败新文件。
             /// </summary>
 
             private static void MoveCurrentToFailedNew(Entry entry)
@@ -970,7 +967,7 @@ namespace Game.EditorTools
                 entry.CurrentMoved = true;
             }
             /// <summary>
-            /// MoveOriginalToTarget：执行当前模块的MoveOriginalToTarget逻辑。
+            /// 移动原文件到目标。
             /// </summary>
 
             private static void MoveOriginalToTarget(Entry entry)
@@ -985,7 +982,7 @@ namespace Game.EditorTools
                 entry.OriginalMoved = true;
             }
             /// <summary>
-            /// TryUndoRestore：执行当前模块的TryUndoRestore逻辑。
+            /// 尝试撤销恢复；操作完成时返回 `true`，失败时通过 `error` 返回原因。
             /// </summary>
 
             private bool TryUndoRestore(out string error)
@@ -1028,7 +1025,7 @@ namespace Game.EditorTools
                 return failures.Count == 0;
             }
             /// <summary>
-            /// Cleanup：执行当前模块的Cleanup逻辑。
+            /// 清理相关临时状态。
             /// </summary>
 
             private void Cleanup()
@@ -1062,7 +1059,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// MovePath：执行当前模块的MovePath逻辑。
+            /// 移动路径。
             /// </summary>
 
             private static void MovePath(
@@ -1072,9 +1069,6 @@ namespace Game.EditorTools
             {
                 if (File.Exists(destination) || Directory.Exists(destination))
                 {
-                    /// <summary>
-                    /// IOException：执行当前模块的IOException逻辑。
-                    /// </summary>
                     throw new IOException($"事务移动目标已存在：{destination}。");
                 }
 
@@ -1088,7 +1082,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// CopyDirectorySnapshot：执行当前模块的CopyDirectorySnapshot逻辑。
+            /// 复制目录快照。
             /// </summary>
 
             private static void CopyDirectorySnapshot(
@@ -1126,7 +1120,7 @@ namespace Game.EditorTools
                 }
             }
             /// <summary>
-            /// IsSameOrChild：执行当前模块的IsSameOrChild逻辑。
+            /// 检查 `path`、`parent` 是否满足“相同`Or`子路径”条件。
             /// </summary>
 
             private static bool IsSameOrChild(string path, string parent)
@@ -1144,7 +1138,7 @@ namespace Game.EditorTools
                         StringComparison.OrdinalIgnoreCase);
             }
             /// <summary>
-            /// IsStrictChild：执行当前模块的IsStrictChild逻辑。
+            /// 检查 `path`、`parent` 是否满足“严格子路径”条件。
             /// </summary>
 
             private static bool IsStrictChild(string path, string parent)
@@ -1158,7 +1152,7 @@ namespace Game.EditorTools
                     StringComparison.OrdinalIgnoreCase);
             }
             /// <summary>
-            /// TryDeleteTransactionDirectory：执行当前模块的TryDeleteTransactionDirectory逻辑。
+            /// 根据 `path`、`parent` 删除事务`Directory`；操作完成时返回 `true`，前置条件不满足时返回 `false`。
             /// </summary>
 
             private static void TryDeleteTransactionDirectory(
@@ -1180,7 +1174,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ReadWorkbook：执行当前模块的ReadWorkbook逻辑。
+        /// 读取工作簿。
         /// </summary>
 
         private static WorkbookData ReadWorkbook(string path)
@@ -1196,14 +1190,11 @@ namespace Game.EditorTools
                 false,
                 Encoding.UTF8))
             {
-                /// <summary>
-                /// ReadWorkbook：执行当前模块的ReadWorkbook逻辑。
-                /// </summary>
                 return ReadWorkbook(archive);
             }
         }
         /// <summary>
-        /// ReadWorkbook：执行当前模块的ReadWorkbook逻辑。
+        /// 读取工作簿。
         /// </summary>
 
         private static WorkbookData ReadWorkbook(ZipArchive archive)
@@ -1260,6 +1251,9 @@ namespace Game.EditorTools
             }
             return result;
         }
+        /// <summary>
+        /// 构建模板源数据行并返回生成结果。
+        /// </summary>
 
         private static SortedDictionary<int, string> BuildTemplateSourceRows(
             WorkbookData workbook)
@@ -1297,7 +1291,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ParseSectionRows：执行当前模块的ParseSectionRows逻辑。
+        /// 解析区段行。
         /// </summary>
 
         private static ParsedTemplateRows ParseSectionRows(
@@ -1317,23 +1311,14 @@ namespace Game.EditorTools
                 {
                     current = trimmed.Substring(1, trimmed.Length - 2);
                     if (!EditableSheets.Contains(current))
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException($"源行包含不允许写回的 Sheet：{current}。" );
                     if (result.Rows.ContainsKey(current))
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException($"源行重复包含 Sheet：{current}。" );
                     result.Rows[current] = new List<string[]>();
                     awaitingHeader = true;
                     continue;
                 }
                 if (string.IsNullOrWhiteSpace(current))
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("源行在首个 [Sheet] 之前包含数据。" );
                 if (awaitingHeader)
                 {
@@ -1347,7 +1332,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ValidateReplacementSchema：执行当前模块的ValidateReplacementSchema逻辑。
+        /// 校验替换结构。
         /// </summary>
 
         private static void ValidateReplacementSchema(
@@ -1395,7 +1380,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// RowsExactlyEqual：执行当前模块的RowsExactlyEqual逻辑。
+        /// 判断行完全相等是否满足当前条件。
         /// </summary>
 
         private static bool RowsExactlyEqual(
@@ -1421,7 +1406,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// ValidateReplacementShape：执行当前模块的ValidateReplacementShape逻辑。
+        /// 校验替换形状。
         /// </summary>
 
         private static void ValidateReplacementShape(
@@ -1432,14 +1417,8 @@ namespace Game.EditorTools
             {
                 string sheet = EditableSheets[index];
                 if (!replacement.TryGetValue(sheet, out List<string[]> rows))
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException($"写回源行缺少 [{sheet}]。" );
                 if (sheet == "BattleSmallArea" && rows.Count != 1)
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("BattleSmallArea 必须且只能有一行当前模板。" );
                 HashSet<int> rowIds = new HashSet<int>();
                 for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -1460,7 +1439,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateWorkbookRowIdsUnique：执行当前模块的ValidateWorkbookRowIdsUnique逻辑。
+        /// 校验工作簿数据行标识唯一。
         /// </summary>
 
         private static void ValidateWorkbookRowIdsUnique(
@@ -1528,7 +1507,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// AddWorkbookRowId：执行当前模块的AddWorkbookRowId逻辑。
+        /// 添加工作簿数据行标识。
         /// </summary>
 
         private static void AddWorkbookRowId(
@@ -1556,7 +1535,7 @@ namespace Game.EditorTools
             ownersByRowId.Add(rowId, ownerId);
         }
         /// <summary>
-        /// ValidateCrossReferences：执行当前模块的ValidateCrossReferences逻辑。
+        /// 校验交叉引用。
         /// </summary>
 
         private static void ValidateCrossReferences(
@@ -1575,15 +1554,12 @@ namespace Game.EditorTools
             ValidateColumnReferences(replacement["BattleSmallAreaLootSpawnPoint"], 6, lootSources, "lootSourceId");
         }
         /// <summary>
-        /// ReadIdSet：执行当前模块的ReadIdSet逻辑。
+        /// 读取标识集合。
         /// </summary>
 
         private static HashSet<int> ReadIdSet(WorkbookData workbook, string sheetName)
         {
             if (!workbook.Sheets.TryGetValue(sheetName, out SheetData sheet))
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException($"引用目标 Sheet 不存在：{sheetName}。" );
             HashSet<int> result = new HashSet<int>();
             for (int index = 4; index < sheet.Rows.Count; index++)
@@ -1591,7 +1567,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ValidateColumnReferences：执行当前模块的ValidateColumnReferences逻辑。
+        /// 校验列引用。
         /// </summary>
 
         private static void ValidateColumnReferences(
@@ -1605,7 +1581,7 @@ namespace Game.EditorTools
                     throw new InvalidDataException($"{label} 断链：row={index + 1}, id={Cell(rows[index], column)}。" );
         }
         /// <summary>
-        /// ReplaceAreaRowsBatch：执行当前模块的ReplaceAreaRowsBatch逻辑。
+        /// 替换区域行批次。
         /// </summary>
 
         private static void ReplaceAreaRowsBatch(
@@ -1686,7 +1662,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TemplateRowsEqual：执行当前模块的TemplateRowsEqual逻辑。
+        /// 判断模板行相等是否满足当前条件。
         /// </summary>
 
         private static bool TemplateRowsEqual(string expected, string actual)
@@ -1743,7 +1719,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// CanonicalCell：执行当前模块的CanonicalCell逻辑。
+        /// 根据 `value` 构建`Canonical Cell`并返回结果。
         /// </summary>
 
         private static string CanonicalCell(string value)
@@ -1766,7 +1742,7 @@ namespace Game.EditorTools
             return trimmed;
         }
         /// <summary>
-        /// TryValidateExportedTemplates：执行当前模块的TryValidateExportedTemplates逻辑。
+        /// 校验 `Exported Templates` 的结构与业务约束，通过时返回 `true`；校验失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryValidateExportedTemplates(
@@ -1916,7 +1892,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// SplitCltabtoyHeader：执行当前模块的SplitCltabtoyHeader逻辑。
+        /// 根据 `line` 拆分cltabtoy表头并返回结果。
         /// </summary>
 
         private static string[] SplitCltabtoyHeader(string line)
@@ -1942,7 +1918,7 @@ namespace Game.EditorTools
             return values;
         }
         /// <summary>
-        /// TrySplitCltabtoyLine：执行当前模块的TrySplitCltabtoyLine逻辑。
+        /// 根据 `line`、`expectedColumns` 尝试拆分cltabtoy行；成功时写出 `values`、`actualColumns` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TrySplitCltabtoyLine(
@@ -1974,7 +1950,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// LastMeaningfulColumn：执行当前模块的LastMeaningfulColumn逻辑。
+        /// 根据 `row` 构建最后有效列并返回结果。
         /// </summary>
 
         private static int LastMeaningfulColumn(IReadOnlyList<string> row)
@@ -1995,7 +1971,7 @@ namespace Game.EditorTools
             return -1;
         }
         /// <summary>
-        /// CreateRow：执行当前模块的CreateRow逻辑。
+        /// 创建数据行。
         /// </summary>
 
         private static XElement CreateRow(
@@ -2043,7 +2019,7 @@ namespace Game.EditorTools
             return row;
         }
         /// <summary>
-        /// ReadRows：执行当前模块的ReadRows逻辑。
+        /// 读取行。
         /// </summary>
 
         private static List<string[]> ReadRows(
@@ -2071,7 +2047,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ReadTemplateStyles：执行当前模块的ReadTemplateStyles逻辑。
+        /// 读取模板样式。
         /// </summary>
 
         private static string[] ReadTemplateStyles(XDocument document)
@@ -2096,7 +2072,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ReadCellValue：执行当前模块的ReadCellValue逻辑。
+        /// 读取格子值。
         /// </summary>
 
         private static string ReadCellValue(
@@ -2114,7 +2090,7 @@ namespace Game.EditorTools
             return raw;
         }
         /// <summary>
-        /// ResolveFirstTableEntryPath：执行当前模块的ResolveFirstTableEntryPath逻辑。
+        /// 解析首个数据表条目路径。
         /// </summary>
 
         private static string ResolveFirstTableEntryPath(
@@ -2143,32 +2119,26 @@ namespace Game.EditorTools
                 : NormalizeZipPath(directory, (string)relationship.Attribute("Target"));
         }
         /// <summary>
-        /// ValidateRequiredSheets：执行当前模块的ValidateRequiredSheets逻辑。
+        /// 校验必需`Sheets`。
         /// </summary>
 
         private static void ValidateRequiredSheets(WorkbookData workbook)
         {
             for (int index = 0; index < EditableSheets.Length; index++)
                 if (!workbook.Sheets.ContainsKey(EditableSheets[index]))
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException($"正式源工作簿缺少 Sheet：{EditableSheets[index]}。" );
         }
         /// <summary>
-        /// RequireEntry：执行当前模块的RequireEntry逻辑。
+        /// 根据 `archive`、`path` 获取必需`Entry`并返回结果。
         /// </summary>
 
         private static ZipArchiveEntry RequireEntry(ZipArchive archive, string path)
         {
             return archive.GetEntry(path)
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 ?? throw new InvalidDataException($"xlsx 内部文件不存在：{path}。" );
         }
         /// <summary>
-        /// LoadXml：执行当前模块的LoadXml逻辑。
+        /// 加载XML。
         /// </summary>
 
         private static XDocument LoadXml(ZipArchiveEntry entry)
@@ -2176,7 +2146,7 @@ namespace Game.EditorTools
             using (Stream stream = entry.Open()) return XDocument.Load(stream, LoadOptions.PreserveWhitespace);
         }
         /// <summary>
-        /// ReplaceXmlEntry：执行当前模块的ReplaceXmlEntry逻辑。
+        /// 替换XML条目。
         /// </summary>
 
         private static void ReplaceXmlEntry(
@@ -2193,7 +2163,7 @@ namespace Game.EditorTools
                 document.Save(writer, SaveOptions.DisableFormatting);
         }
         /// <summary>
-        /// NormalizeZipPath：执行当前模块的NormalizeZipPath逻辑。
+        /// 规范化`Zip`路径。
         /// </summary>
 
         private static string NormalizeZipPath(string baseDirectory, string target)
@@ -2211,7 +2181,7 @@ namespace Game.EditorTools
             return string.Join("/", parts.Reverse());
         }
         /// <summary>
-        /// ParseColumnIndex：执行当前模块的ParseColumnIndex逻辑。
+        /// 解析列索引。
         /// </summary>
 
         private static int ParseColumnIndex(string reference)
@@ -2228,7 +2198,7 @@ namespace Game.EditorTools
             return letters == 0 ? -1 : value - 1;
         }
         /// <summary>
-        /// ColumnName：执行当前模块的ColumnName逻辑。
+        /// 根据 `oneBasedColumn` 构建列名称并返回结果。
         /// </summary>
 
         private static string ColumnName(int oneBasedColumn)
@@ -2238,7 +2208,7 @@ namespace Game.EditorTools
             return name.ToString();
         }
         /// <summary>
-        /// Cell：执行当前模块的Cell逻辑。
+        /// 根据 `row`、`index` 构建`Cell`并返回结果。
         /// </summary>
 
         private static string Cell(IReadOnlyList<string> row, int index)
@@ -2248,7 +2218,7 @@ namespace Game.EditorTools
                 : string.Empty;
         }
         /// <summary>
-        /// TryParseInt：执行当前模块的TryParseInt逻辑。
+        /// 根据 `value` 解析整数；成功时写出 `result` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryParseInt(string value, out int result)
@@ -2256,7 +2226,7 @@ namespace Game.EditorTools
             return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
         }
         /// <summary>
-        /// ParseIntOrMaximum：执行当前模块的ParseIntOrMaximum逻辑。
+        /// 解析整数或最大值。
         /// </summary>
 
         private static int ParseIntOrMaximum(string value)
@@ -2264,7 +2234,7 @@ namespace Game.EditorTools
             return TryParseInt(value, out int parsed) ? parsed : int.MaxValue;
         }
         /// <summary>
-        /// ComputeHash：执行当前模块的ComputeHash逻辑。
+        /// 计算`Hash`。
         /// </summary>
 
         private static string ComputeHash(string path)

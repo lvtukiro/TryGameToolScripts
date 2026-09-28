@@ -16,7 +16,7 @@ namespace TryGame.RefDataTools.Editor
         private readonly string csharpOutputPath;
         private readonly string luaOutputPath;
         /// <summary>
-        /// TryGameCLTabtoyProcess：执行当前模块的TryGameCLTabtoyProcess逻辑。
+        /// 创建 `TryGameCLTabtoyProcess` 实例，并保存 `outputAssetPath`、`csharpOutputAssetPath`、`luaOutputAssetPath` 提供的初始状态。
         /// </summary>
 
         public TryGameCLTabtoyProcess(string outputAssetPath, string csharpOutputAssetPath, string luaOutputAssetPath)
@@ -27,7 +27,7 @@ namespace TryGame.RefDataTools.Editor
             luaOutputPath = TryGameRefDataPaths.ToFullPath(luaOutputAssetPath);
         }
         /// <summary>
-        /// Export：执行当前模块的Export逻辑。
+        /// 判断导出是否满足当前条件。
         /// </summary>
 
         public bool Export(IReadOnlyList<string> excelFullPaths)
@@ -126,7 +126,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// RunProcess：执行当前模块的RunProcess逻辑。
+        /// 根据 `arguments` 运行处理；完成预期变更时返回 `true`，条件不足或执行失败时返回 `false`。
         /// </summary>
 
         private bool RunProcess(string arguments)
@@ -182,7 +182,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// Quote：执行当前模块的Quote逻辑。
+        /// 根据 `value` 构建`Quote`并返回结果。
         /// </summary>
 
         private static string Quote(string value)
@@ -191,11 +191,11 @@ namespace TryGame.RefDataTools.Editor
         }
     }
 
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// Excel 的工作表标签最多只能有 31 个字符，而 cltabtoy 0.3.0.0 又直接把标签当作
     /// 逻辑表名。正式源表使用可由 Excel 正常打开的短标签；仅在导出临时副本中恢复
     /// 完整逻辑名，避免生成类名和资源名发生变化。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class TryGameCLTabtoyExcelCompatibility
     {
         private const string WorkbookEntryPath = "xl/workbook.xml";
@@ -213,7 +213,7 @@ namespace TryGame.RefDataTools.Editor
                 { "RobotLowHealthDamageReductionEf", "RobotLowHealthDamageReductionEffect" }
             };
         /// <summary>
-        /// CreateExportCopies：执行当前模块的CreateExportCopies逻辑。
+        /// 创建导出复制。
         /// </summary>
 
         public static IReadOnlyList<string> CreateExportCopies(
@@ -222,9 +222,6 @@ namespace TryGame.RefDataTools.Editor
         {
             if (sourceExcelPaths == null || sourceExcelPaths.Count == 0)
             {
-                /// <summary>
-                /// ArgumentException：执行当前模块的ArgumentException逻辑。
-                /// </summary>
                 throw new ArgumentException("没有可复制的 Excel 配表。", nameof(sourceExcelPaths));
             }
 
@@ -278,7 +275,7 @@ namespace TryGame.RefDataTools.Editor
             return copiedPaths;
         }
         /// <summary>
-        /// Cleanup：执行当前模块的Cleanup逻辑。
+        /// 清理相关临时状态。
         /// </summary>
 
         public static void Cleanup(string compatibilityDirectory)
@@ -315,7 +312,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// RestoreLogicalSheetNames：执行当前模块的RestoreLogicalSheetNames逻辑。
+        /// 恢复`Logical`表页`Names`。
         /// </summary>
 
         internal static void RestoreLogicalSheetNames(string excelPath)

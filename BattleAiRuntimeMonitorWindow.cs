@@ -6,14 +6,14 @@ using UnityEngine;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 战斗中行为图只读监视器。
     ///
     /// 运行方式：打开窗口后，在 Scene 中选中带有 BattleWorldZoneCombatActor
     /// 的角色。窗口会从当前战斗协调器找到对应的 BattleAiRuntime，并用和行为图
     /// 编辑器相同的节点/连线样式显示最近一次运行到的节点。这个工具只读运行时
     /// 状态，不修改行为图资产，也不把当前游标写入存档。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public sealed class BattleAiRuntimeMonitorWindow : EditorWindow
     {
         private const string GraphResourcesPath = "TryGameRefdataRes/AiGraph";
@@ -39,7 +39,7 @@ namespace Game.EditorTools
         private int actorPopupIndex = -1;
         private double lastRefreshTime;
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开当前 `BattleAiRuntimeMonitorWindow` 实例。
         /// </summary>
 
         [MenuItem("TryGame/战斗/AI 运行时监视器", false, 434)]
@@ -52,7 +52,7 @@ namespace Game.EditorTools
             window.Show();
         }
         /// <summary>
-        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// 组件启用时注册监听并刷新当前状态。
         /// </summary>
 
         private void OnEnable()
@@ -62,7 +62,7 @@ namespace Game.EditorTools
             OnSelectionChanged();
         }
         /// <summary>
-        /// OnDisable：执行当前模块的OnDisable逻辑。
+        /// 组件停用时注销监听并释放临时状态。
         /// </summary>
 
         private void OnDisable()
@@ -71,7 +71,7 @@ namespace Game.EditorTools
             EditorApplication.update -= OnEditorUpdate;
         }
         /// <summary>
-        /// OnEditorUpdate：执行当前模块的OnEditorUpdate逻辑。
+        /// 响应编辑器更新事件，并同步当前组件状态。
         /// </summary>
 
         private void OnEditorUpdate()
@@ -86,7 +86,7 @@ namespace Game.EditorTools
             Repaint();
         }
         /// <summary>
-        /// OnSelectionChanged：执行当前模块的OnSelectionChanged逻辑。
+        /// 响应选择变化事件，并同步当前组件状态。
         /// </summary>
 
         private void OnSelectionChanged()
@@ -100,7 +100,7 @@ namespace Game.EditorTools
             Repaint();
         }
         /// <summary>
-        /// ResolveRuntime：执行当前模块的ResolveRuntime逻辑。
+        /// 解析运行时。
         /// </summary>
 
         private void ResolveRuntime()
@@ -123,7 +123,7 @@ namespace Game.EditorTools
             RefreshSceneActors();
         }
         /// <summary>
-        /// FindGraphAsset：执行当前模块的FindGraphAsset逻辑。
+        /// 查找行为图资源。
         /// </summary>
 
         private static BattleAiGraphAsset FindGraphAsset(int profileId)
@@ -156,7 +156,7 @@ namespace Game.EditorTools
             return published;
         }
         /// <summary>
-        /// RefreshSceneActors：执行当前模块的RefreshSceneActors逻辑。
+        /// 刷新场景`Actors`。
         /// </summary>
 
         private void RefreshSceneActors()
@@ -171,7 +171,7 @@ namespace Game.EditorTools
             actorPopupIndex = Array.IndexOf(sceneActors, selectedActor);
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -211,7 +211,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndHorizontal();
         }
         /// <summary>
-        /// DrawToolbar：执行当前模块的DrawToolbar逻辑。
+        /// 绘制工具栏。
         /// </summary>
 
         private void DrawToolbar()
@@ -237,7 +237,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndHorizontal();
         }
         /// <summary>
-        /// DrawActorSelectionBar：执行当前模块的DrawActorSelectionBar逻辑。
+        /// 绘制角色选择栏。
         /// </summary>
 
         private void DrawActorSelectionBar()
@@ -292,7 +292,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndHorizontal();
         }
         /// <summary>
-        /// DrawRuntimeHeader：执行当前模块的DrawRuntimeHeader逻辑。
+        /// 绘制运行时标题栏。
         /// </summary>
 
         private void DrawRuntimeHeader()
@@ -316,7 +316,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// DrawActorIdentityOnly：执行当前模块的DrawActorIdentityOnly逻辑。
+        /// 绘制角色身份仅。
         /// </summary>
 
         private void DrawActorIdentityOnly()
@@ -330,7 +330,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// DrawGraphPanel：执行当前模块的DrawGraphPanel逻辑。
+        /// 绘制行为图面板。
         /// </summary>
 
         private void DrawGraphPanel()
@@ -361,7 +361,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// DrawGraphCanvas：执行当前模块的DrawGraphCanvas逻辑。
+        /// 绘制行为图画布。
         /// </summary>
 
         private void DrawGraphCanvas(Rect canvasRect)
@@ -413,7 +413,7 @@ namespace Game.EditorTools
             HandleCanvasEvents(canvasRect);
         }
         /// <summary>
-        /// DrawGrid：执行当前模块的DrawGrid逻辑。
+        /// 绘制网格。
         /// </summary>
 
         private void DrawGrid(Vector2 size)
@@ -440,7 +440,7 @@ namespace Game.EditorTools
             Handles.EndGUI();
         }
         /// <summary>
-        /// DrawGraphNode：执行当前模块的DrawGraphNode逻辑。
+        /// 绘制行为图节点。
         /// </summary>
 
         private void DrawGraphNode(BattleAiGraphAssetNode node)
@@ -489,7 +489,7 @@ namespace Game.EditorTools
             GUI.color = previous;
         }
         /// <summary>
-        /// DrawBlackboardPanel：执行当前模块的DrawBlackboardPanel逻辑。
+        /// 绘制黑板面板。
         /// </summary>
 
         private void DrawBlackboardPanel()
@@ -539,7 +539,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// GetDisplayedNodeId：执行当前模块的GetDisplayedNodeId逻辑。
+        /// 获取`Displayed`节点标识。
         /// </summary>
 
         private int GetDisplayedNodeId()
@@ -554,7 +554,7 @@ namespace Game.EditorTools
                 : runtime.LastEvaluatedGraphNodeId;
         }
         /// <summary>
-        /// FindNode：执行当前模块的FindNode逻辑。
+        /// 查找节点。
         /// </summary>
 
         private BattleAiGraphAssetNode FindNode(int nodeId)
@@ -576,7 +576,7 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// GetOutputPortCount：执行当前模块的GetOutputPortCount逻辑。
+        /// 获取输出端口数量。
         /// </summary>
 
         private static int GetOutputPortCount(BattleAiGraphAssetNode node)
@@ -591,7 +591,7 @@ namespace Game.EditorTools
             return node.childNodeIds == null ? 0 : node.childNodeIds.Count;
         }
         /// <summary>
-        /// GetNodeRect：执行当前模块的GetNodeRect逻辑。
+        /// 获取节点矩形。
         /// </summary>
 
         private Rect GetNodeRect(BattleAiGraphAssetNode node)
@@ -604,7 +604,7 @@ namespace Game.EditorTools
                 new Vector2(NodeWidth, NodeHeight) * canvasZoom);
         }
         /// <summary>
-        /// GetInputCenter：执行当前模块的GetInputCenter逻辑。
+        /// 获取输入中心。
         /// </summary>
 
         private Vector2 GetInputCenter(BattleAiGraphAssetNode node)
@@ -613,7 +613,7 @@ namespace Game.EditorTools
             return new Vector2(rect.x, rect.y + rect.height * 0.5f);
         }
         /// <summary>
-        /// GetOutputCenter：执行当前模块的GetOutputCenter逻辑。
+        /// 获取输出中心。
         /// </summary>
 
         private Vector2 GetOutputCenter(BattleAiGraphAssetNode node, int childIndex)
@@ -632,7 +632,7 @@ namespace Game.EditorTools
                 Mathf.Lerp(top, bottom, Mathf.Clamp01(childIndex / (float)(count - 1))));
         }
         /// <summary>
-        /// GetPortRect：执行当前模块的GetPortRect逻辑。
+        /// 获取端口矩形。
         /// </summary>
 
         private static Rect GetPortRect(Vector2 center)
@@ -642,7 +642,7 @@ namespace Game.EditorTools
                 Vector2.one * PortSize);
         }
         /// <summary>
-        /// CanvasToScreen：执行当前模块的CanvasToScreen逻辑。
+        /// 将画布转换为屏幕。
         /// </summary>
 
         private Vector2 CanvasToScreen(Vector2 point)
@@ -651,7 +651,7 @@ namespace Game.EditorTools
             return pivot + (point + canvasPan - pivot) * canvasZoom;
         }
         /// <summary>
-        /// HandleCanvasEvents：执行当前模块的HandleCanvasEvents逻辑。
+        /// 处理画布事件。
         /// </summary>
 
         private void HandleCanvasEvents(Rect canvasRect)
@@ -711,7 +711,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// IsNodeAt：执行当前模块的IsNodeAt逻辑。
+        /// 检查 `localMouse` 是否满足“节点在”条件。
         /// </summary>
 
         private bool IsNodeAt(Vector2 localMouse)
@@ -733,7 +733,7 @@ namespace Game.EditorTools
             return false;
         }
         /// <summary>
-        /// FormatDouble：执行当前模块的FormatDouble逻辑。
+        /// 格式化`Double`。
         /// </summary>
 
         private static string FormatDouble(double value)

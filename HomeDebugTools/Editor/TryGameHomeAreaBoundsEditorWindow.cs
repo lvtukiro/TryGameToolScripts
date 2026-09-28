@@ -13,10 +13,10 @@ using UnityEngine;
 
 namespace TryGame.HomeDebugTools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// SceneView HomeArea 覆盖范围编辑工具。
     /// 用于在场景或 prefab 视图里对照配表范围调整场景资源，并把 HomeArea 中心和尺寸写回导出配置。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public sealed class TryGameHomeAreaBoundsEditorWindow : EditorWindow
     {
         private static readonly string HomeAreaTxtAssetPath = TryGameRefDataPaths.DefaultOutputAssetPath + "/txt_data/HomeArea.txt";
@@ -49,7 +49,7 @@ namespace TryGame.HomeDebugTools.Editor
         private int originXColumn = -1;
         private int originYColumn = -1;
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开当前 `TryGameHomeAreaBoundsEditorWindow` 实例。
         /// </summary>
 
         [MenuItem("TryGame/家园/家园区域覆盖范围编辑器")]
@@ -60,7 +60,7 @@ namespace TryGame.HomeDebugTools.Editor
             window.Show();
         }
         /// <summary>
-        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// 组件启用时注册监听并刷新当前状态。
         /// </summary>
 
         private void OnEnable()
@@ -70,7 +70,7 @@ namespace TryGame.HomeDebugTools.Editor
             SceneView.duringSceneGui += OnSceneGUI;
         }
         /// <summary>
-        /// OnDisable：执行当前模块的OnDisable逻辑。
+        /// 组件停用时注销监听并释放临时状态。
         /// </summary>
 
         private void OnDisable()
@@ -78,7 +78,7 @@ namespace TryGame.HomeDebugTools.Editor
             SceneView.duringSceneGui -= OnSceneGUI;
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -88,7 +88,7 @@ namespace TryGame.HomeDebugTools.Editor
             DrawTablePreview();
         }
         /// <summary>
-        /// DrawToolbar：执行当前模块的DrawToolbar逻辑。
+        /// 绘制工具栏。
         /// </summary>
 
         private void DrawToolbar()
@@ -136,7 +136,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawSelectedAreaEditor：执行当前模块的DrawSelectedAreaEditor逻辑。
+        /// 绘制已选区域编辑器。
         /// </summary>
 
         private void DrawSelectedAreaEditor()
@@ -210,7 +210,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.EndHorizontal();
         }
         /// <summary>
-        /// DrawTablePreview：执行当前模块的DrawTablePreview逻辑。
+        /// 绘制数据表预览。
         /// </summary>
 
         private void DrawTablePreview()
@@ -238,7 +238,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.EndScrollView();
         }
         /// <summary>
-        /// OnSceneGUI：执行当前模块的OnSceneGUI逻辑。
+        /// 响应场景界面事件，并同步当前组件状态。
         /// </summary>
 
         private void OnSceneGUI(SceneView sceneView)
@@ -262,7 +262,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawArea：执行当前模块的DrawArea逻辑。
+        /// 绘制区域。
         /// </summary>
 
         private void DrawArea(HomeAreaRow row, bool selected)
@@ -293,7 +293,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawGridLines：执行当前模块的DrawGridLines逻辑。
+        /// 绘制网格`Lines`。
         /// </summary>
 
         private void DrawGridLines(HomeAreaRow row, Rect rect)
@@ -321,7 +321,7 @@ namespace TryGame.HomeDebugTools.Editor
             Handles.color = oldColor;
         }
         /// <summary>
-        /// DrawEditableHandles：执行当前模块的DrawEditableHandles逻辑。
+        /// 绘制`Editable`控制柄。
         /// </summary>
 
         private void DrawEditableHandles(HomeAreaRow row, Rect rect)
@@ -344,7 +344,7 @@ namespace TryGame.HomeDebugTools.Editor
             DrawEdgeHandle(row, rect, Edge.Top, handleSize);
         }
         /// <summary>
-        /// DrawEdgeHandle：执行当前模块的DrawEdgeHandle逻辑。
+        /// 绘制边界处理。
         /// </summary>
 
         private void DrawEdgeHandle(HomeAreaRow row, Rect rect, Edge edge, float handleSize)
@@ -382,7 +382,7 @@ namespace TryGame.HomeDebugTools.Editor
             MarkDirty();
         }
         /// <summary>
-        /// ApplyEdgeDrag：执行当前模块的ApplyEdgeDrag逻辑。
+        /// 应用边界拖拽。
         /// </summary>
 
         private static void ApplyEdgeDrag(HomeAreaRow row, Rect rect, Edge edge, Vector3 newPosition)
@@ -416,7 +416,7 @@ namespace TryGame.HomeDebugTools.Editor
             row.GridHeight = Mathf.Max(2, Mathf.RoundToInt(size.y / row.CellSize));
         }
         /// <summary>
-        /// ApplySelectionBounds：执行当前模块的ApplySelectionBounds逻辑。
+        /// 应用选择边界。
         /// </summary>
 
         private void ApplySelectionBounds(HomeAreaRow row)
@@ -434,7 +434,7 @@ namespace TryGame.HomeDebugTools.Editor
             SceneView.RepaintAll();
         }
         /// <summary>
-        /// ResetCurrentFieldsFromTable：执行当前模块的ResetCurrentFieldsFromTable逻辑。
+        /// 重置当前字段从数据表。
         /// </summary>
 
         private void ResetCurrentFieldsFromTable(HomeAreaRow row)
@@ -468,7 +468,7 @@ namespace TryGame.HomeDebugTools.Editor
             SceneView.RepaintAll();
         }
         /// <summary>
-        /// TryGetSelectionBounds：执行当前模块的TryGetSelectionBounds逻辑。
+        /// 获取选择边界；命中时写出 `bounds` 并返回 `true`，未找到时返回 `false`。
         /// </summary>
 
         private static bool TryGetSelectionBounds(out Bounds bounds)
@@ -494,7 +494,7 @@ namespace TryGame.HomeDebugTools.Editor
             return hasBounds;
         }
         /// <summary>
-        /// EncapsulateBounds：执行当前模块的EncapsulateBounds逻辑。
+        /// 更新`Encapsulate Bounds`。
         /// </summary>
 
         private static void EncapsulateBounds(Bounds source, ref Bounds bounds, ref bool hasBounds)
@@ -509,7 +509,7 @@ namespace TryGame.HomeDebugTools.Editor
             bounds.Encapsulate(source);
         }
         /// <summary>
-        /// FrameSelectedArea：执行当前模块的FrameSelectedArea逻辑。
+        /// 更新帧已选区域。
         /// </summary>
 
         private void FrameSelectedArea(HomeAreaRow row)
@@ -525,7 +525,7 @@ namespace TryGame.HomeDebugTools.Editor
             sceneView.Frame(bounds, false);
         }
         /// <summary>
-        /// LoadTable：执行当前模块的LoadTable逻辑。
+        /// 加载数据表。
         /// </summary>
 
         private void LoadTable()
@@ -630,7 +630,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// TryLoadWorldZones：执行当前模块的TryLoadWorldZones逻辑。
+        /// 加载世界`Zones`；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private bool TryLoadWorldZones()
@@ -722,7 +722,7 @@ namespace TryGame.HomeDebugTools.Editor
             return !parseFailed;
         }
         /// <summary>
-        /// ValidateDefaultHomeAreas：执行当前模块的ValidateDefaultHomeAreas逻辑。
+        /// 校验`Default`家园`Areas`所需的结构、引用和状态约束；全部满足时返回 `true`，否则返回 `false`。
         /// </summary>
 
         private bool ValidateDefaultHomeAreas()
@@ -765,7 +765,7 @@ namespace TryGame.HomeDebugTools.Editor
             return valid;
         }
         /// <summary>
-        /// ValidateColumns：执行当前模块的ValidateColumns逻辑。
+        /// 校验`Columns`所需的结构、引用和状态约束；全部满足时返回 `true`，否则返回 `false`。
         /// </summary>
 
         private bool ValidateColumns()
@@ -792,7 +792,7 @@ namespace TryGame.HomeDebugTools.Editor
             return valid;
         }
         /// <summary>
-        /// TryParseRow：执行当前模块的TryParseRow逻辑。
+        /// 根据 `lineIndex`、`columns` 解析数据行；成功时写出 `row` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private bool TryParseRow(int lineIndex, string[] columns, out HomeAreaRow row)
@@ -872,7 +872,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// SaveConfig：执行当前模块的SaveConfig逻辑。
+        /// 保存配置。
         /// </summary>
 
         private void SaveConfig()
@@ -950,7 +950,7 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log("[TryGameHomeAreaBoundsEditorWindow] HomeArea 源 Excel 与正式导出结果已同步完成。");
         }
         /// <summary>
-        /// ValidateExportedRows：执行当前模块的ValidateExportedRows逻辑。
+        /// 根据 `expectedRows` 校验`Exported``Rows`所需的结构、引用和状态约束；全部满足时返回 `true`，否则返回 `false`。
         /// </summary>
 
         private bool ValidateExportedRows(List<HomeAreaRow> expectedRows)
@@ -996,7 +996,7 @@ namespace TryGame.HomeDebugTools.Editor
             return valid;
         }
         /// <summary>
-        /// CloneRows：执行当前模块的CloneRows逻辑。
+        /// 复制行。
         /// </summary>
 
         private static List<HomeAreaRow> CloneRows(List<HomeAreaRow> source)
@@ -1019,7 +1019,7 @@ namespace TryGame.HomeDebugTools.Editor
             return clones;
         }
         /// <summary>
-        /// RestoreRows：执行当前模块的RestoreRows逻辑。
+        /// 恢复行。
         /// </summary>
 
         private void RestoreRows(List<HomeAreaRow> expectedRows)
@@ -1039,7 +1039,7 @@ namespace TryGame.HomeDebugTools.Editor
             SceneView.RepaintAll();
         }
         /// <summary>
-        /// ValidateRowsForSave：执行当前模块的ValidateRowsForSave逻辑。
+        /// 校验`Rows``For`保存所需的结构、引用和状态约束；全部满足时返回 `true`，否则返回 `false`。
         /// </summary>
 
         private bool ValidateRowsForSave()
@@ -1078,7 +1078,7 @@ namespace TryGame.HomeDebugTools.Editor
             return valid && ValidateDefaultHomeAreas();
         }
         /// <summary>
-        /// TryWriteHomeAreaExcel：执行当前模块的TryWriteHomeAreaExcel逻辑。
+        /// 写入家园区域`Excel`；成功时写出 `excelFullPath` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private bool TryWriteHomeAreaExcel(out string excelFullPath)
@@ -1131,7 +1131,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// UpdateHomeAreaExcelSheet：执行当前模块的UpdateHomeAreaExcelSheet逻辑。
+        /// 更新家园区域`Excel`表页。
         /// </summary>
 
         private void UpdateHomeAreaExcelSheet(ZipArchive archive)
@@ -1175,7 +1175,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// ValidateHomeAreaExcelSheet：执行当前模块的ValidateHomeAreaExcelSheet逻辑。
+        /// 校验家园区域`Excel`表页。
         /// </summary>
 
         private void ValidateHomeAreaExcelSheet(ZipArchive archive)
@@ -1215,7 +1215,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// LoadHomeAreaSheet：执行当前模块的LoadHomeAreaSheet逻辑。
+        /// 加载家园区域表页。
         /// </summary>
 
         private static void LoadHomeAreaSheet(ZipArchive archive, out ZipArchiveEntry sheetEntry, out XmlDocument sheetDocument, out XmlNamespaceManager sheetNs, out List<string> sharedStrings)
@@ -1238,9 +1238,6 @@ namespace TryGame.HomeDebugTools.Editor
             XmlAttribute targetAttribute = relationship?.Attributes?["Target"];
             if (targetAttribute == null)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException("无法解析 HomeArea sheet 的目标 XML。");
             }
 
@@ -1256,7 +1253,7 @@ namespace TryGame.HomeDebugTools.Editor
             sheetNs.AddNamespace("x", "http://schemas.openxmlformats.org/spreadsheetml/2006/main");
         }
         /// <summary>
-        /// FindHeaderRow：执行当前模块的FindHeaderRow逻辑。
+        /// 查找标题栏数据行。
         /// </summary>
 
         private static XmlNode FindHeaderRow(XmlNodeList rowNodes, List<string> sharedStrings, XmlNamespaceManager sheetNs, out Dictionary<string, int> columns)
@@ -1281,14 +1278,11 @@ namespace TryGame.HomeDebugTools.Editor
                     return rowNodes[i];
                 }
             }
-            /// <summary>
-            /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-            /// </summary>
 
             throw new InvalidDataException("HomeArea sheet 未找到包含必要字段的表头行。");
         }
         /// <summary>
-        /// RequireExcelColumns：执行当前模块的RequireExcelColumns逻辑。
+        /// 更新要求`Excel Columns`。
         /// </summary>
 
         private static void RequireExcelColumns(Dictionary<string, int> columns)
@@ -1309,15 +1303,12 @@ namespace TryGame.HomeDebugTools.Editor
             {
                 if (columns == null || !columns.ContainsKey(required[i]))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("HomeArea sheet 缺少必要列：" + required[i]);
                 }
             }
         }
         /// <summary>
-        /// ValidateExcelReadOnlyColumns：执行当前模块的ValidateExcelReadOnlyColumns逻辑。
+        /// 校验`Excel`读取仅`Columns`。
         /// </summary>
 
         private static void ValidateExcelReadOnlyColumns(
@@ -1356,7 +1347,7 @@ namespace TryGame.HomeDebugTools.Editor
                 $"expectedHomeAreaSceneId={expected?.HomeAreaSceneId ?? 0}, expectedIsDefault={expected?.IsDefault ?? false}");
         }
         /// <summary>
-        /// FindCell：执行当前模块的FindCell逻辑。
+        /// 查找格子。
         /// </summary>
 
         private static XmlNode FindCell(XmlNode rowNode, int columnIndex)
@@ -1371,7 +1362,7 @@ namespace TryGame.HomeDebugTools.Editor
             return null;
         }
         /// <summary>
-        /// SetNumericCell：执行当前模块的SetNumericCell逻辑。
+        /// 设置`Numeric`格子。
         /// </summary>
 
         private static void SetNumericCell(XmlNode rowNode, int columnIndex, string value, XmlDocument document, XmlNamespaceManager sheetNs)
@@ -1396,7 +1387,7 @@ namespace TryGame.HomeDebugTools.Editor
             valueNode.InnerText = value;
         }
         /// <summary>
-        /// ReadCellValue：执行当前模块的ReadCellValue逻辑。
+        /// 读取格子值。
         /// </summary>
 
         private static string ReadCellValue(XmlNode cellNode, List<string> sharedStrings, XmlNamespaceManager sheetNs)
@@ -1410,7 +1401,7 @@ namespace TryGame.HomeDebugTools.Editor
             return valueNode.InnerText;
         }
         /// <summary>
-        /// ReadExcelSharedStrings：执行当前模块的ReadExcelSharedStrings逻辑。
+        /// 读取`Excel`共享字符串。
         /// </summary>
 
         private static List<string> ReadExcelSharedStrings(ZipArchive archive)
@@ -1433,7 +1424,7 @@ namespace TryGame.HomeDebugTools.Editor
             return result;
         }
         /// <summary>
-        /// LoadExcelXml：执行当前模块的LoadExcelXml逻辑。
+        /// 加载`Excel`XML。
         /// </summary>
 
         private static XmlDocument LoadExcelXml(ZipArchiveEntry entry, string label)
@@ -1444,7 +1435,7 @@ namespace TryGame.HomeDebugTools.Editor
             return document;
         }
         /// <summary>
-        /// GetExcelColumnIndex：执行当前模块的GetExcelColumnIndex逻辑。
+        /// 获取`Excel`列索引。
         /// </summary>
 
         private static int GetExcelColumnIndex(string cellReference)
@@ -1461,16 +1452,16 @@ namespace TryGame.HomeDebugTools.Editor
             return result - 1;
         }
         /// <summary>
-        /// TryParseExcelInt：执行当前模块的TryParseExcelInt逻辑。
+        /// 根据 `value` 解析`Excel`整数；成功时写出 `result` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryParseExcelInt(string value, out int result) => int.TryParse(value, NumberStyles.Integer, InvariantCulture, out result);
         /// <summary>
-        /// TryParseExcelFloat：执行当前模块的TryParseExcelFloat逻辑。
+        /// 根据 `value` 解析`Excel Float`；成功时写出 `result` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
         private static bool TryParseExcelFloat(string value, out float result) => float.TryParse(value, NumberStyles.Float, InvariantCulture, out result);
         /// <summary>
-        /// TryDeleteExcelBackup：执行当前模块的TryDeleteExcelBackup逻辑。
+        /// 根据 `backupPath` 删除`Excel Backup`；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static void TryDeleteExcelBackup(string backupPath)
@@ -1485,7 +1476,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// SaveOpenScenesAndAssets：执行当前模块的SaveOpenScenesAndAssets逻辑。
+        /// 保存`Open Scenes`并资源。
         /// </summary>
 
         private void SaveOpenScenesAndAssets()
@@ -1495,7 +1486,7 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log("[TryGameHomeAreaBoundsEditorWindow] 已保存当前打开的场景、Prefab 和资源。");
         }
         /// <summary>
-        /// GetSelectedRow：执行当前模块的GetSelectedRow逻辑。
+        /// 获取已选数据行。
         /// </summary>
 
         private HomeAreaRow GetSelectedRow()
@@ -1504,7 +1495,7 @@ namespace TryGame.HomeDebugTools.Editor
             return rowById.TryGetValue(selectedAreaId, out row) ? row : null;
         }
         /// <summary>
-        /// MarkDirty：执行当前模块的MarkDirty逻辑。
+        /// 标记脏标记。
         /// </summary>
 
         private void MarkDirty()
@@ -1513,7 +1504,7 @@ namespace TryGame.HomeDebugTools.Editor
             Repaint();
         }
         /// <summary>
-        /// RefreshDirtyState：执行当前模块的RefreshDirtyState逻辑。
+        /// 刷新脏标记状态。
         /// </summary>
 
         private void RefreshDirtyState()
@@ -1531,7 +1522,7 @@ namespace TryGame.HomeDebugTools.Editor
             Repaint();
         }
         /// <summary>
-        /// IsSameAsTableValues：执行当前模块的IsSameAsTableValues逻辑。
+        /// 检查 `row` 是否满足“相同`As`数据表值”条件。
         /// </summary>
 
         private bool IsSameAsTableValues(HomeAreaRow row)
@@ -1562,7 +1553,7 @@ namespace TryGame.HomeDebugTools.Editor
                 && Mathf.Approximately(row.OriginY, originY);
         }
         /// <summary>
-        /// SplitLine：执行当前模块的SplitLine逻辑。
+        /// 根据 `line` 拆分行并返回结果。
         /// </summary>
 
         private static string[] SplitLine(string line)
@@ -1570,7 +1561,7 @@ namespace TryGame.HomeDebugTools.Editor
             return (line ?? string.Empty).Split('\t');
         }
         /// <summary>
-        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// 查找列。
         /// </summary>
 
         private static int FindColumn(string[] headers, string name)
@@ -1586,7 +1577,7 @@ namespace TryGame.HomeDebugTools.Editor
             return -1;
         }
         /// <summary>
-        /// TryParseInt：执行当前模块的TryParseInt逻辑。
+        /// 根据 `columns`、`index` 解析整数；成功时写出 `value` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryParseInt(string[] columns, int index, out int value)
@@ -1594,7 +1585,7 @@ namespace TryGame.HomeDebugTools.Editor
             return int.TryParse(GetColumn(columns, index), NumberStyles.Integer, InvariantCulture, out value);
         }
         /// <summary>
-        /// TryParseFloat：执行当前模块的TryParseFloat逻辑。
+        /// 根据 `columns`、`index` 解析`Float`；成功时写出 `value` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryParseFloat(string[] columns, int index, out float value)
@@ -1602,7 +1593,7 @@ namespace TryGame.HomeDebugTools.Editor
             return float.TryParse(GetColumn(columns, index), NumberStyles.Float, InvariantCulture, out value);
         }
         /// <summary>
-        /// GetColumn：执行当前模块的GetColumn逻辑。
+        /// 获取列。
         /// </summary>
 
         private static string GetColumn(string[] columns, int index)
@@ -1610,7 +1601,7 @@ namespace TryGame.HomeDebugTools.Editor
             return columns != null && index >= 0 && index < columns.Length ? columns[index] : string.Empty;
         }
         /// <summary>
-        /// FormatRect：执行当前模块的FormatRect逻辑。
+        /// 格式化矩形。
         /// </summary>
 
         private static string FormatRect(Rect rect)
@@ -1618,7 +1609,7 @@ namespace TryGame.HomeDebugTools.Editor
             return $"center=({FormatFloat(rect.center.x)}, {FormatFloat(rect.center.y)}), size={FormatFloat(rect.width)} x {FormatFloat(rect.height)}";
         }
         /// <summary>
-        /// FormatFloat：执行当前模块的FormatFloat逻辑。
+        /// 格式化`Float`。
         /// </summary>
 
         private static string FormatFloat(float value)
@@ -1626,7 +1617,7 @@ namespace TryGame.HomeDebugTools.Editor
             return value.ToString("0.###", InvariantCulture);
         }
         /// <summary>
-        /// ToFullPath：执行当前模块的ToFullPath逻辑。
+        /// 将结果转换为完整路径。
         /// </summary>
 
         private static string ToFullPath(string assetPath)
@@ -1658,7 +1649,7 @@ namespace TryGame.HomeDebugTools.Editor
             public float OriginX;
             public float OriginY;
             /// <summary>
-            /// Clone：执行当前模块的Clone逻辑。
+            /// 创建当前数据的独立副本，避免后续修改共享可变状态。
             /// </summary>
 
             public HomeAreaRow Clone()
@@ -1690,12 +1681,12 @@ namespace TryGame.HomeDebugTools.Editor
                 }
             }
             /// <summary>
-            /// WorldWidth：执行当前模块的WorldWidth逻辑。
+            /// 获取当前 `HomeAreaRow` 实例的世界宽度。
             /// </summary>
 
             public float WorldWidth => GridWidth * CellSize;
             /// <summary>
-            /// WorldHeight：执行当前模块的WorldHeight逻辑。
+            /// 获取当前 `HomeAreaRow` 实例的世界高度。
             /// </summary>
             public float WorldHeight => GridHeight * CellSize;
 
@@ -1717,7 +1708,7 @@ namespace TryGame.HomeDebugTools.Editor
             public string ZoneType;
             public int SortOrder;
             /// <summary>
-            /// IsHome：执行当前模块的IsHome逻辑。
+            /// 检查 `ZoneType`、`Home`、`OrdinalIgnoreCase` 是否满足“`Equals`”条件。
             /// </summary>
 
             public bool IsHome => string.Equals(ZoneType, "Home", StringComparison.OrdinalIgnoreCase);

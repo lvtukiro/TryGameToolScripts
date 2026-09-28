@@ -5,10 +5,10 @@ using UnityEngine;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 临时战斗诊断日志开关。设置只保存在 EditorPrefs，不进入游戏存档；
     /// 进入 Play Mode 时会重新应用到运行时日志入口。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public sealed class BattleDiagnosticsLogSettingsWindow : EditorWindow
     {
         private const string AllEnabledKey =
@@ -16,7 +16,7 @@ namespace Game.EditorTools
         private const string CategoryKeyPrefix =
             "TryGame.BattleDiagnosticsLogSettings.Category.";
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开当前 `BattleDiagnosticsLogSettingsWindow` 实例。
         /// </summary>
 
         [MenuItem("TryGame/工具/战斗临时日志设置", false, 490)]
@@ -29,7 +29,7 @@ namespace Game.EditorTools
             window.Show();
         }
         /// <summary>
-        /// InitializeEditorSettings：执行当前模块的InitializeEditorSettings逻辑。
+        /// 初始化编辑器设置。
         /// </summary>
 
         [InitializeOnLoadMethod]
@@ -38,7 +38,7 @@ namespace Game.EditorTools
             ApplyEditorPrefs();
         }
         /// <summary>
-        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// 组件启用时注册监听并刷新当前状态。
         /// </summary>
 
         private void OnEnable()
@@ -46,7 +46,7 @@ namespace Game.EditorTools
             ApplyEditorPrefs();
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -111,7 +111,7 @@ namespace Game.EditorTools
                 EditorStyles.miniLabel);
         }
         /// <summary>
-        /// ApplyEditorPrefs：执行当前模块的ApplyEditorPrefs逻辑。
+        /// 应用编辑器`Prefs`。
         /// </summary>
 
         private static void ApplyEditorPrefs()
@@ -134,7 +134,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// SaveCurrentPrefs：执行当前模块的SaveCurrentPrefs逻辑。
+        /// 保存当前`Prefs`。
         /// </summary>
 
         private static void SaveCurrentPrefs()

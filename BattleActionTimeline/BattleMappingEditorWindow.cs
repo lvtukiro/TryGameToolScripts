@@ -9,11 +9,6 @@ using UnityEngine;
 
 namespace Game.EditorTools
 {
-    /// <summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// </summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class BattleMappingEditorWindow : EditorWindow
     {
         private const string CharacterActionSheet = "BattleCharacterAction";
@@ -37,7 +32,7 @@ namespace Game.EditorTools
             public int RightWeaponId;
             public int ResultId;
             /// <summary>
-            /// Clone：执行当前模块的Clone逻辑。
+            /// 创建当前数据的独立副本，避免后续修改共享可变状态。
             /// </summary>
 
             public MappingEntry Clone()
@@ -61,7 +56,7 @@ namespace Game.EditorTools
             public List<MappingEntry> Entries = new List<MappingEntry>();
             public string ParseError = string.Empty;
             /// <summary>
-            /// Clone：执行当前模块的Clone逻辑。
+            /// 创建当前数据的独立副本，避免后续修改共享可变状态。
             /// </summary>
 
             public MappingRow Clone()
@@ -95,14 +90,14 @@ namespace Game.EditorTools
         private string rightWeaponFilterText = string.Empty;
         private string rowIdFilterText = string.Empty;
         /// <summary>
-        /// CurrentSheet：执行当前模块的CurrentSheet逻辑。
+        /// 获取当前 `MappingRow` 实例的当前`Sheet`。
         /// </summary>
 
         private string CurrentSheet => mappingKind == MappingKind.CharacterAction
             ? CharacterActionSheet
             : MultiEquipmentSheet;
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开当前 `MappingRow` 实例。
         /// </summary>
 
         [MenuItem("TryGame/战斗/技能映射编辑器", false, 433)]
@@ -115,7 +110,7 @@ namespace Game.EditorTools
             window.Show();
         }
         /// <summary>
-        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// 组件启用时注册监听并刷新当前状态。
         /// </summary>
 
         private void OnEnable()
@@ -123,7 +118,7 @@ namespace Game.EditorTools
             LoadOfficial(false);
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -153,7 +148,7 @@ namespace Game.EditorTools
             EditorGUILayout.LabelField(status, EditorStyles.miniLabel);
         }
         /// <summary>
-        /// DrawToolbar：执行当前模块的DrawToolbar逻辑。
+        /// 绘制工具栏。
         /// </summary>
 
         private void DrawToolbar()
@@ -195,7 +190,7 @@ namespace Game.EditorTools
                 MessageType.Info);
         }
         /// <summary>
-        /// DrawTabBar：执行当前模块的DrawTabBar逻辑。
+        /// 绘制标签页栏。
         /// </summary>
 
         private void DrawTabBar()
@@ -215,7 +210,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndHorizontal();
         }
         /// <summary>
-        /// DrawRowList：执行当前模块的DrawRowList逻辑。
+        /// 绘制数据行列表。
         /// </summary>
 
         private void DrawRowList(BattleActionTimelineWorkbookTable table)
@@ -294,7 +289,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// DrawMappingFilter：执行当前模块的DrawMappingFilter逻辑。
+        /// 绘制映射筛选。
         /// </summary>
 
         private void DrawMappingFilter(MappingRow row)
@@ -353,7 +348,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// GetVisibleRows：执行当前模块的GetVisibleRows逻辑。
+        /// 获取可见行。
         /// </summary>
 
         private List<BattleActionTimelineWorkbookRecord> GetVisibleRows(
@@ -383,7 +378,7 @@ namespace Game.EditorTools
                 .ToList();
         }
         /// <summary>
-        /// GetVisibleEntryIndices：执行当前模块的GetVisibleEntryIndices逻辑。
+        /// 获取可见条目索引。
         /// </summary>
 
         private List<int> GetVisibleEntryIndices(MappingRow row)
@@ -427,7 +422,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// IsFilterValueValid：执行当前模块的IsFilterValueValid逻辑。
+        /// 检查 `text` 是否满足“筛选值`Valid`”条件。
         /// </summary>
 
         private static bool IsFilterValueValid(string text)
@@ -436,7 +431,7 @@ namespace Game.EditorTools
                 int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
         }
         /// <summary>
-        /// TryParseFilterValue：执行当前模块的TryParseFilterValue逻辑。
+        /// 根据 `text` 解析筛选值；成功时写出 `value` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryParseFilterValue(string text, out int? value)
@@ -460,7 +455,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// DrawSelectedRow：执行当前模块的DrawSelectedRow逻辑。
+        /// 绘制已选数据行。
         /// </summary>
 
         private void DrawSelectedRow(BattleActionTimelineWorkbookTable table)
@@ -556,7 +551,7 @@ namespace Game.EditorTools
             EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// DrawEntry：执行当前模块的DrawEntry逻辑。
+        /// 根据 `row`、`index`、`deleted` 绘制`Entry`；完成预期变更时返回 `true`，条件不足或执行失败时返回 `false`。
         /// </summary>
 
         private bool DrawEntry(MappingRow row, int index, out bool deleted)
@@ -608,14 +603,12 @@ namespace Game.EditorTools
                     ? GetActionIds(entry.ResultId)
                     : GetKnownIds(SkillSheet, entry.ResultId, true));
 
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
             changed |= GUI.changed;
             EditorGUILayout.EndVertical();
             return changed;
         }
         /// <summary>
-        /// DrawIdPicker：执行当前模块的DrawIdPicker逻辑。
+        /// 绘制标识`Picker`。
         /// </summary>
 
         private int DrawIdPicker(string label, int value, IReadOnlyList<int> knownIds)
@@ -634,7 +627,7 @@ namespace Game.EditorTools
             return EditorGUILayout.IntField(label + "（最终值）", popupValue);
         }
         /// <summary>
-        /// AddRow：执行当前模块的AddRow逻辑。
+        /// 添加数据行。
         /// </summary>
 
         private void AddRow(BattleActionTimelineWorkbookTable table)
@@ -655,7 +648,7 @@ namespace Game.EditorTools
             dirty = true;
         }
         /// <summary>
-        /// DeleteRow：执行当前模块的DeleteRow逻辑。
+        /// 删除数据行。
         /// </summary>
 
         private void DeleteRow(BattleActionTimelineWorkbookTable table, int rowId)
@@ -674,7 +667,7 @@ namespace Game.EditorTools
             dirty = true;
         }
         /// <summary>
-        /// ReadRow：执行当前模块的ReadRow逻辑。
+        /// 读取数据行。
         /// </summary>
 
         private MappingRow ReadRow(
@@ -717,7 +710,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// SetEntries：执行当前模块的SetEntries逻辑。
+        /// 设置条目。
         /// </summary>
 
         private void SetEntries(
@@ -753,7 +746,7 @@ namespace Game.EditorTools
             SetCell(table, record, "entries", text.ToString());
         }
         /// <summary>
-        /// LoadOfficial：执行当前模块的LoadOfficial逻辑。
+        /// 加载正式。
         /// </summary>
 
         private void LoadOfficial(bool notify)
@@ -786,7 +779,7 @@ namespace Game.EditorTools
             Repaint();
         }
         /// <summary>
-        /// WriteOfficial：执行当前模块的WriteOfficial逻辑。
+        /// 写入正式。
         /// </summary>
 
         private void WriteOfficial(bool exportAfterWrite)
@@ -850,7 +843,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ExportRobotWorkbook：执行当前模块的ExportRobotWorkbook逻辑。
+        /// 导出机器人工作簿。
         /// </summary>
 
         private void ExportRobotWorkbook()
@@ -870,7 +863,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateWorking：执行当前模块的ValidateWorking逻辑。
+        /// 校验`Working`所需的结构、引用和状态约束；全部满足时返回 `true`，否则返回 `false`。
         /// </summary>
 
         private bool ValidateWorking(out string error)
@@ -947,7 +940,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// ValidateEntry：执行当前模块的ValidateEntry逻辑。
+        /// 根据 `entry`、`kind` 校验`Entry`所需的结构、引用和状态约束；全部满足时返回 `true`，否则返回 `false`。
         /// </summary>
 
         private bool ValidateEntry(
@@ -1033,7 +1026,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// CreateDefaultEntry：执行当前模块的CreateDefaultEntry逻辑。
+        /// 创建默认条目。
         /// </summary>
 
         private MappingEntry CreateDefaultEntry()
@@ -1043,7 +1036,7 @@ namespace Game.EditorTools
             return entry;
         }
         /// <summary>
-        /// ApplyMatchDefaults：执行当前模块的ApplyMatchDefaults逻辑。
+        /// 应用匹配默认值。
         /// </summary>
 
         private void ApplyMatchDefaults(MappingEntry entry)
@@ -1067,7 +1060,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// KindForSheet：执行当前模块的KindForSheet逻辑。
+        /// 根据 `sheetName` 构建种类对应表页并返回结果。
         /// </summary>
 
         private static MappingKind KindForSheet(string sheetName)
@@ -1080,7 +1073,7 @@ namespace Game.EditorTools
                 : MappingKind.MultiEquipment;
         }
         /// <summary>
-        /// BuildWriteSet：执行当前模块的BuildWriteSet逻辑。
+        /// 构建写入集合。
         /// </summary>
 
         private BattleActionTimelineWorkbookWriteSet BuildWriteSet()
@@ -1132,7 +1125,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// GetWorkingTable：执行当前模块的GetWorkingTable逻辑。
+        /// 获取`Working`数据表。
         /// </summary>
 
         private BattleActionTimelineWorkbookTable GetWorkingTable(string sheetName)
@@ -1142,7 +1135,7 @@ namespace Game.EditorTools
                 : null;
         }
         /// <summary>
-        /// FirstRowId：执行当前模块的FirstRowId逻辑。
+        /// 根据 `sheetName` 构建首个数据行`Id`并返回结果。
         /// </summary>
 
         private int FirstRowId(string sheetName)
@@ -1151,7 +1144,7 @@ namespace Game.EditorTools
             return table != null && table.Records.Count > 0 ? table.Records[0].RowId : 0;
         }
         /// <summary>
-        /// FindRecord：执行当前模块的FindRecord逻辑。
+        /// 查找记录。
         /// </summary>
 
         private static BattleActionTimelineWorkbookRecord FindRecord(
@@ -1161,7 +1154,7 @@ namespace Game.EditorTools
             return table?.Records.FirstOrDefault(record => record != null && record.RowId == rowId);
         }
         /// <summary>
-        /// GetCell：执行当前模块的GetCell逻辑。
+        /// 获取格子。
         /// </summary>
 
         private static string GetCell(
@@ -1175,7 +1168,7 @@ namespace Game.EditorTools
                 : string.Empty;
         }
         /// <summary>
-        /// SetCell：执行当前模块的SetCell逻辑。
+        /// 设置格子。
         /// </summary>
 
         private static void SetCell(
@@ -1187,7 +1180,7 @@ namespace Game.EditorTools
             SetCell(record.Cells, table.Headers, header, value);
         }
         /// <summary>
-        /// SetCell：执行当前模块的SetCell逻辑。
+        /// 设置格子。
         /// </summary>
 
         private static void SetCell(
@@ -1203,7 +1196,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// 查找列。
         /// </summary>
 
         private static int FindColumn(
@@ -1213,7 +1206,7 @@ namespace Game.EditorTools
             return FindColumn(table?.Headers, header);
         }
         /// <summary>
-        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// 查找列。
         /// </summary>
 
         private static int FindColumn(IReadOnlyList<string> headers, string header)
@@ -1230,7 +1223,7 @@ namespace Game.EditorTools
             return -1;
         }
         /// <summary>
-        /// GetKnownIds：执行当前模块的GetKnownIds逻辑。
+        /// 获取已知标识。
         /// </summary>
 
         private List<int> GetKnownIds(string sheetName, int current, bool includeSpecial)
@@ -1255,7 +1248,7 @@ namespace Game.EditorTools
             return values.Distinct().OrderBy(value => value).ToList();
         }
         /// <summary>
-        /// GetActionIds：执行当前模块的GetActionIds逻辑。
+        /// 获取动作标识。
         /// </summary>
 
         private List<int> GetActionIds(int current)
@@ -1279,7 +1272,7 @@ namespace Game.EditorTools
             return values.Distinct().OrderBy(value => value).ToList();
         }
         /// <summary>
-        /// ParseInt：执行当前模块的ParseInt逻辑。
+        /// 解析整数。
         /// </summary>
 
         private static int ParseInt(string value)
@@ -1293,7 +1286,7 @@ namespace Game.EditorTools
                 : 0;
         }
         /// <summary>
-        /// GetValue：执行当前模块的GetValue逻辑。
+        /// 从映射记录中读取指定字段值；记录或字段不存在时返回空字符串。
         /// </summary>
 
         private static string GetValue(
@@ -1306,7 +1299,7 @@ namespace Game.EditorTools
                 : fallback;
         }
         /// <summary>
-        /// Normalize：执行当前模块的Normalize逻辑。
+        /// 规范化当前 `MappingRow` 实例。
         /// </summary>
 
         private static string Normalize(string value)
@@ -1314,7 +1307,7 @@ namespace Game.EditorTools
             return (value ?? string.Empty).Trim().Replace("_", string.Empty).ToLowerInvariant();
         }
         /// <summary>
-        /// DisplaySheetName：执行当前模块的DisplaySheetName逻辑。
+        /// 根据 `sheetName` 构建显示表页名称并返回结果。
         /// </summary>
 
         private static string DisplaySheetName(string sheetName)
@@ -1332,7 +1325,7 @@ namespace Game.EditorTools
             return sheetName ?? string.Empty;
         }
         /// <summary>
-        /// DisplayMatchType：执行当前模块的DisplayMatchType逻辑。
+        /// 根据 `matchType` 构建显示匹配`Type`并返回结果。
         /// </summary>
 
         private static string DisplayMatchType(string matchType)
@@ -1350,7 +1343,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// CloneSnapshot：执行当前模块的CloneSnapshot逻辑。
+        /// 复制快照。
         /// </summary>
 
         private static BattleActionTimelineWorkbookSnapshot CloneSnapshot(

@@ -11,7 +11,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
     public static class SequenceFrameAnimationPrefabBuilder
     {
         /// <summary>
-        /// CreatePrefabInteractive：执行当前模块的CreatePrefabInteractive逻辑。
+        /// 创建预制体`Interactive`。
         /// </summary>
         public static void CreatePrefabInteractive()
         {
@@ -49,7 +49,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             CreatePrefab(document, outputAbsolutePath);
         }
         /// <summary>
-        /// CreatePrefab：执行当前模块的CreatePrefab逻辑。
+        /// 创建预制体。
         /// </summary>
 
         public static void CreatePrefab(
@@ -133,7 +133,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 "确定");
         }
         /// <summary>
-        /// LoadSprites：执行当前模块的LoadSprites逻辑。
+        /// 加载精灵。
         /// </summary>
 
         private static List<Sprite> LoadSprites(List<SequenceFrameData> frames)
@@ -146,14 +146,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     paths.Add(frames[i].exportedAssetPath);
                 }
             }
-            /// <summary>
-            /// LoadSprites：执行当前模块的LoadSprites逻辑。
-            /// </summary>
 
             return LoadSprites(paths);
         }
         /// <summary>
-        /// LoadSprites：执行当前模块的LoadSprites逻辑。
+        /// 加载精灵。
         /// </summary>
 
         private static List<Sprite> LoadSprites(List<string> assetPaths)
@@ -173,7 +170,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             return result;
         }
         /// <summary>
-        /// SetSpriteArray：执行当前模块的SetSpriteArray逻辑。
+        /// 设置精灵数组。
         /// </summary>
 
         private static void SetSpriteArray(SerializedProperty property, List<Sprite> sprites)
@@ -185,7 +182,7 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
         }
         /// <summary>
-        /// TryGetProjectAssetPath：执行当前模块的TryGetProjectAssetPath逻辑。
+        /// 按 `absolutePath` 获取投影资源路径；命中时写出 `assetPath` 并返回 `true`，未找到时返回 `false`。
         /// </summary>
 
         private static bool TryGetProjectAssetPath(string absolutePath, out string assetPath)

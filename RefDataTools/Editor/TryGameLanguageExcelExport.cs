@@ -9,10 +9,10 @@ using UnityEngine;
 
 namespace TryGame.RefDataTools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 语言表专用导出，不走 cltabtoy。
     /// 原项目语言表第 2 行是字段名，第 3 行开始是数据。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class TryGameLanguageExcelExport
     {
         private const string LanguageSheetName = "Language";
@@ -100,7 +100,7 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// ValidateRequiredColumns：执行当前模块的ValidateRequiredColumns逻辑。
+        /// 校验必需`Columns`。
         /// </summary>
 
         private static bool ValidateRequiredColumns(List<string> headerRow, string excelFullPath)
@@ -118,7 +118,7 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// ValidateLanguageRows：执行当前模块的ValidateLanguageRows逻辑。
+        /// 校验语言行。
         /// </summary>
 
         private static bool ValidateLanguageRows(List<List<string>> rows, string excelFullPath)
@@ -150,7 +150,7 @@ namespace TryGame.RefDataTools.Editor
             return valid;
         }
         /// <summary>
-        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// 查找列。
         /// </summary>
 
         private static int FindColumn(List<string> headerRow, string columnName)
@@ -166,7 +166,7 @@ namespace TryGame.RefDataTools.Editor
             return -1;
         }
         /// <summary>
-        /// WriteAllTextAtomic：执行当前模块的WriteAllTextAtomic逻辑。
+        /// 写入全部文本`Atomic`。
         /// </summary>
 
         private static void WriteAllTextAtomic(string outputPath, string content)

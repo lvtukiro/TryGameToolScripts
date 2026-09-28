@@ -12,7 +12,7 @@ namespace TryGame.RefDataTools.Editor
     {
         private static readonly UTF8Encoding Utf8NoBomStrict = new UTF8Encoding(false, true);
         /// <summary>
-        /// NormalizeDirectory：执行当前模块的NormalizeDirectory逻辑。
+        /// 规范化目录。
         /// </summary>
 
         public static int NormalizeDirectory(string root, params string[] extensions)
@@ -48,7 +48,7 @@ namespace TryGame.RefDataTools.Editor
             return changedCount;
         }
         /// <summary>
-        /// NormalizeDirectoryAgainstBaseline：执行当前模块的NormalizeDirectoryAgainstBaseline逻辑。
+        /// 规范化目录`Against Baseline`。
         /// </summary>
 
         public static int NormalizeDirectoryAgainstBaseline(
@@ -63,7 +63,7 @@ namespace TryGame.RefDataTools.Editor
                 extensions);
         }
         /// <summary>
-        /// NormalizeCodeDirectoryAgainstBaseline：执行当前模块的NormalizeCodeDirectoryAgainstBaseline逻辑。
+        /// 规范化代码目录`Against Baseline`。
         /// </summary>
 
         public static int NormalizeCodeDirectoryAgainstBaseline(
@@ -77,7 +77,7 @@ namespace TryGame.RefDataTools.Editor
                 new[] { ".cs" });
         }
         /// <summary>
-        /// NormalizeDirectoryAgainstBaselineInternal：执行当前模块的NormalizeDirectoryAgainstBaselineInternal逻辑。
+        /// 规范化目录`Against Baseline Internal`。
         /// </summary>
 
         private static int NormalizeDirectoryAgainstBaselineInternal(
@@ -117,7 +117,7 @@ namespace TryGame.RefDataTools.Editor
             return changedCount;
         }
         /// <summary>
-        /// NormalizeFile：执行当前模块的NormalizeFile逻辑。
+        /// 规范化文件。
         /// </summary>
 
         public static bool NormalizeFile(string path)
@@ -138,18 +138,15 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// NormalizeFileAgainstBaseline：执行当前模块的NormalizeFileAgainstBaseline逻辑。
+        /// 规范化文件`Against Baseline`。
         /// </summary>
 
         public static bool NormalizeFileAgainstBaseline(string generatedPath, string baselinePath)
         {
-            /// <summary>
-            /// NormalizeFileAgainstBaseline：执行当前模块的NormalizeFileAgainstBaseline逻辑。
-            /// </summary>
             return NormalizeFileAgainstBaseline(generatedPath, baselinePath, false);
         }
         /// <summary>
-        /// NormalizeFileAgainstBaseline：执行当前模块的NormalizeFileAgainstBaseline逻辑。
+        /// 规范化文件`Against Baseline`。
         /// </summary>
 
         private static bool NormalizeFileAgainstBaseline(
@@ -186,7 +183,7 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// NormalizeLineEndings：执行当前模块的NormalizeLineEndings逻辑。
+        /// 规范化行`Endings`。
         /// </summary>
 
         public static string NormalizeLineEndings(string content)
@@ -222,7 +219,7 @@ namespace TryGame.RefDataTools.Editor
             return result.ToString();
         }
         /// <summary>
-        /// BuildExtensionSet：执行当前模块的BuildExtensionSet逻辑。
+        /// 构建`Extension`集合。
         /// </summary>
 
         private static HashSet<string> BuildExtensionSet(string[] extensions)
@@ -241,7 +238,7 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
         /// <summary>
-        /// BuildNormalizedBytes：执行当前模块的BuildNormalizedBytes逻辑。
+        /// 构建规范化`Bytes`。
         /// </summary>
 
         private static byte[] BuildNormalizedBytes(byte[] originalBytes)
@@ -263,7 +260,7 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
         /// <summary>
-        /// DecodeUtf8：执行当前模块的DecodeUtf8逻辑。
+        /// 根据 `bytes` 解码UTF`8`并返回结果。
         /// </summary>
 
         private static string DecodeUtf8(byte[] bytes)
@@ -272,7 +269,7 @@ namespace TryGame.RefDataTools.Editor
             return Utf8NoBomStrict.GetString(bytes, offset, bytes.Length - offset);
         }
         /// <summary>
-        /// HasUtf8Bom：执行当前模块的HasUtf8Bom逻辑。
+        /// 判断当前 `TryGameRefDataTextNormalizer` 实例是否包含`Utf 8 Bom`。
         /// </summary>
 
         private static bool HasUtf8Bom(byte[] bytes)
@@ -280,7 +277,7 @@ namespace TryGame.RefDataTools.Editor
             return bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
         }
         /// <summary>
-        /// EquivalentIgnoringTrailingWhitespace：执行当前模块的EquivalentIgnoringTrailingWhitespace逻辑。
+        /// 判断`Equivalent Ignoring Trailing`空白字符是否满足当前条件。
         /// </summary>
 
         private static bool EquivalentIgnoringTrailingWhitespace(
@@ -306,7 +303,7 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// BuildComparisonLines：执行当前模块的BuildComparisonLines逻辑。
+        /// 构建对比`Lines`。
         /// </summary>
 
         private static List<string> BuildComparisonLines(string content, bool ignoreBlankLines)
@@ -325,7 +322,7 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
         /// <summary>
-        /// BytesEqual：执行当前模块的BytesEqual逻辑。
+        /// 判断`Bytes`相等是否满足当前条件。
         /// </summary>
 
         private static bool BytesEqual(byte[] left, byte[] right)

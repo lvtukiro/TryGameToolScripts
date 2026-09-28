@@ -6,10 +6,10 @@ using UnityEngine;
 
 namespace TryGame.HomeDebugTools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// Home 运行时作弊工具。
     /// 只在 Play Mode 中修改当前运行存档，用于测试区域解锁、物品数量和商店刷新。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public sealed class TryGameHomeAreaDebugUnlockWindow : EditorWindow
     {
         private string areaIdsText = HomeAreaDebugUnlocks.DefaultAreaIdsText;
@@ -23,7 +23,7 @@ namespace TryGame.HomeDebugTools.Editor
         private MessageType foodDropCommandStatusType = MessageType.None;
         private Vector2 scrollPosition;
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开家园运行时作弊窗口，并设置便于操作的最小窗口尺寸。
         /// </summary>
 
         [MenuItem("TryGame/家园/运行时家园作弊工具")]
@@ -34,7 +34,7 @@ namespace TryGame.HomeDebugTools.Editor
             window.Show();
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -59,7 +59,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.EndScrollView();
         }
         /// <summary>
-        /// DrawBattleRobotSection：执行当前模块的DrawBattleRobotSection逻辑。
+        /// 展示当前存档中的机器人，并提供损毁与恢复可战斗状态的调试按钮。
         /// </summary>
 
         private static void DrawBattleRobotSection()
@@ -130,7 +130,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawAreaSection：执行当前模块的DrawAreaSection逻辑。
+        /// 绘制家园区域解锁输入、预览以及解锁和锁定操作。
         /// </summary>
 
         private void DrawAreaSection()
@@ -164,7 +164,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawItemSection：执行当前模块的DrawItemSection逻辑。
+        /// 绘制金币或家具物品的数量修改输入和操作按钮。
         /// </summary>
 
         private void DrawItemSection()
@@ -195,7 +195,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawShopSection：执行当前模块的DrawShopSection逻辑。
+        /// 绘制商店实例输入，并允许按正式商店配置触发随机刷新。
         /// </summary>
 
         private void DrawShopSection()
@@ -222,7 +222,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// DrawFoodDropSection：执行当前模块的DrawFoodDropSection逻辑。
+        /// 绘制宠物食物生成和食物栏重复格显示的调试操作。
         /// </summary>
 
         private void DrawFoodDropSection()
@@ -269,7 +269,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.HelpBox(foodDropCommandStatus, foodDropCommandStatusType);
         }
         /// <summary>
-        /// RunFoodDropCommand：执行当前模块的RunFoodDropCommand逻辑。
+        /// 向当前存档的待收取池生成指定数量的随机宠物食物，并更新执行提示。
         /// </summary>
 
         private void RunFoodDropCommand(int count)
@@ -289,7 +289,7 @@ namespace TryGame.HomeDebugTools.Editor
                 : MessageType.Warning;
         }
         /// <summary>
-        /// RunFoodBarRepeatCommand：执行当前模块的RunFoodBarRepeatCommand逻辑。
+        /// 设置食物栏的临时重复格数量；该操作只影响滚动显示，不修改存档。
         /// </summary>
 
         private void RunFoodBarRepeatCommand(int repeatCount)
@@ -307,7 +307,7 @@ namespace TryGame.HomeDebugTools.Editor
                 : MessageType.Warning;
         }
         /// <summary>
-        /// DrawPetSection：执行当前模块的DrawPetSection逻辑。
+        /// 绘制宠物自主行为的强制触发按钮和最近一次命令结果。
         /// </summary>
 
         private void DrawPetSection()
@@ -360,7 +360,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.HelpBox(petCommandStatus, petCommandStatusType);
         }
         /// <summary>
-        /// RunPetCommand：执行当前模块的RunPetCommand逻辑。
+        /// 通过当前主宠物控制器提交指定行为，并保留正式资格、寻路、预占和状态机校验。
         /// </summary>
 
         private void RunPetCommand(
@@ -401,7 +401,7 @@ namespace TryGame.HomeDebugTools.Editor
             petCommandStatusType = MessageType.Info;
         }
         /// <summary>
-        /// DrawAreaPreview：执行当前模块的DrawAreaPreview逻辑。
+        /// 解析区域输入文本，并显示去重后的有效区域标识预览。
         /// </summary>
 
         private void DrawAreaPreview()
@@ -413,7 +413,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.LabelField("输入区域", preview);
         }
         /// <summary>
-        /// ApplyUnlock：执行当前模块的ApplyUnlock逻辑。
+        /// 校验当前家园世界及区域归属后，批量解锁或锁定输入的家园区域。
         /// </summary>
 
         private void ApplyUnlock(bool unlock)
@@ -475,7 +475,7 @@ namespace TryGame.HomeDebugTools.Editor
                 $"worldZoneId={homeWorldZoneId}, areas={string.Join(", ", areaIds)}");
         }
         /// <summary>
-        /// ApplyItemCountChange：执行当前模块的ApplyItemCountChange逻辑。
+        /// 读取并校验物品编号与数量，根据 `add` 参数增加或移除对应物品。
         /// </summary>
 
         private void ApplyItemCountChange(bool add)
@@ -502,7 +502,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// UnlockArea：执行当前模块的UnlockArea逻辑。
+        /// 将指定家园区域加入存档的已解锁集合；区域已经解锁时不重复写入并返回 `false`。
         /// </summary>
 
         private static bool UnlockArea(SaveData save, int homeAreaId)
@@ -516,7 +516,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// LockArea：执行当前模块的LockArea逻辑。
+        /// 从存档中移除指定家园区域；若锁定的是最后使用区域，则记录回退提示。
         /// </summary>
 
         private static bool LockArea(SaveData save, int homeAreaId)
@@ -532,7 +532,7 @@ namespace TryGame.HomeDebugTools.Editor
             return removed;
         }
         /// <summary>
-        /// TryResolveCurrentHomeWorldZone：执行当前模块的TryResolveCurrentHomeWorldZone逻辑。
+        /// 尝试从当前存档解析家园世界区域，并通过输出参数返回有效区域标识。
         /// </summary>
 
         private static bool TryResolveCurrentHomeWorldZone(SaveData save, out int homeWorldZoneId)
@@ -603,7 +603,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// ValidateAreasBelongToHomeWorldZone：执行当前模块的ValidateAreasBelongToHomeWorldZone逻辑。
+        /// 校验所有区域都存在且属于指定家园世界区域；任一项不匹配时整批拒绝。
         /// </summary>
 
         private static bool ValidateAreasBelongToHomeWorldZone(List<int> areaIds, int homeWorldZoneId)

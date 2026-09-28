@@ -15,7 +15,7 @@ namespace Game.EditorTools
         IEquatable<BattleActionTimelineRecordKey>
     {
         /// <summary>
-        /// BattleActionTimelineRecordKey：执行当前模块的BattleActionTimelineRecordKey逻辑。
+        /// 创建 `BattleActionTimelineRecordKey`，记录`sheetName`（表页名称）和`rowId`（数据行标识）字段，形成可供后续流程传递的用于索引和身份比较的值对象。
         /// </summary>
         public BattleActionTimelineRecordKey(string sheetName, int rowId)
         {
@@ -23,16 +23,16 @@ namespace Game.EditorTools
             RowId = rowId;
         }
         /// <summary>
-        /// SheetName：执行当前模块的SheetName逻辑。
+        /// 获取当前 `BattleActionTimelineRecordKey` 实例的`Sheet`名称。
         /// </summary>
 
         public string SheetName { get; }
         /// <summary>
-        /// RowId：执行当前模块的RowId逻辑。
+        /// 获取当前 `BattleActionTimelineRecordKey` 实例的数据行标识。
         /// </summary>
         public int RowId { get; }
         /// <summary>
-        /// Equals：执行当前模块的Equals逻辑。
+        /// 比较两个值对象的身份字段是否一致。
         /// </summary>
 
         public bool Equals(BattleActionTimelineRecordKey other)
@@ -43,7 +43,7 @@ namespace Game.EditorTools
                 StringComparison.Ordinal);
         }
         /// <summary>
-        /// Equals：执行当前模块的Equals逻辑。
+        /// 比较两个值对象的身份字段是否一致。
         /// </summary>
 
         public override bool Equals(object obj)
@@ -51,7 +51,7 @@ namespace Game.EditorTools
             return obj is BattleActionTimelineRecordKey other && Equals(other);
         }
         /// <summary>
-        /// GetHashCode：执行当前模块的GetHashCode逻辑。
+        /// 根据参与相等性比较的字段计算哈希值。
         /// </summary>
 
         public override int GetHashCode()
@@ -64,7 +64,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ToString：执行当前模块的ToString逻辑。
+        /// 返回当前 `BattleActionTimelineRecordKey` 实例便于日志和调试显示的文本表示。
         /// </summary>
 
         public override string ToString()
@@ -78,7 +78,7 @@ namespace Game.EditorTools
         public int RowId;
         public string[] Cells = Array.Empty<string>();
         /// <summary>
-        /// Clone：执行当前模块的Clone逻辑。
+        /// 创建当前数据的独立副本，避免后续修改共享可变状态。
         /// </summary>
 
         public BattleActionTimelineWorkbookRecord Clone()
@@ -100,7 +100,7 @@ namespace Game.EditorTools
         public readonly List<BattleActionTimelineWorkbookRecord> Records =
             new List<BattleActionTimelineWorkbookRecord>();
         /// <summary>
-        /// Clone：执行当前模块的Clone逻辑。
+        /// 创建当前数据的独立副本，避免后续修改共享可变状态。
         /// </summary>
 
         public BattleActionTimelineWorkbookTable Clone()
@@ -121,7 +121,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// TryGet：执行当前模块的TryGet逻辑。
+        /// 按 `rowId` 获取`record`；命中时写出 `record` 并返回 `true`，未找到时返回 `false`。
         /// </summary>
 
         public bool TryGet(int rowId, out BattleActionTimelineWorkbookRecord record)
@@ -149,13 +149,13 @@ namespace Game.EditorTools
             new SortedDictionary<string, BattleActionTimelineWorkbookTable>(
                 StringComparer.Ordinal);
         /// <summary>
-        /// HasActionStructure：执行当前模块的HasActionStructure逻辑。
+        /// 判断当前 `BattleActionTimelineWorkbookSnapshot` 实例是否包含动作结构。
         /// </summary>
 
         public bool HasActionStructure => Tables.Values.Any(
             BattleActionTimelineWorkbookBridge.IsActiveSingleTable);
         /// <summary>
-        /// TryGetTable：执行当前模块的TryGetTable逻辑。
+        /// 按 `sheetName` 获取数据表；命中时写出 `table` 并返回 `true`，未找到时返回 `false`。
         /// </summary>
 
         public bool TryGetTable(
@@ -173,17 +173,12 @@ namespace Game.EditorTools
         public readonly HashSet<BattleActionTimelineRecordKey> Deletions =
             new HashSet<BattleActionTimelineRecordKey>();
         /// <summary>
-        /// IsEmpty：执行当前模块的IsEmpty逻辑。
+        /// 指示当前 `BattleActionTimelineWorkbookWriteSet` 实例是否处于“为空”状态。
         /// </summary>
 
         public bool IsEmpty => Replacements.Count == 0 && Deletions.Count == 0;
     }
 
-    /// <summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// </summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class BattleActionTimelineWorkbookBridge
     {
         private sealed class SheetData
@@ -224,20 +219,17 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryLoad：执行当前模块的TryLoad逻辑。
+        /// 加载`snapshot`；成功时写出 `snapshot` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryLoad(
             out BattleActionTimelineWorkbookSnapshot snapshot,
             out string error)
         {
-            /// <summary>
-            /// TryLoad：执行当前模块的TryLoad逻辑。
-            /// </summary>
             return TryLoad(DefaultWorkbookPath, out snapshot, out error);
         }
         /// <summary>
-        /// TryLoad：执行当前模块的TryLoad逻辑。
+        /// 根据 `workbookPath` 加载`snapshot`；成功时写出 `snapshot` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryLoad(
@@ -328,7 +320,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryWrite：执行当前模块的TryWrite逻辑。
+        /// 根据 `snapshot`、`writeSet` 写入`backup`路径；成功时写出 `backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryWrite(
@@ -344,11 +336,10 @@ namespace Game.EditorTools
                 out backupPath,
                 out error);
         }
-
         /// <summary>
-        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+        /// 根据 `snapshot`、`writeSet`、`temporaryValidator` 写入`backup`路径；成功时写出 `backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
-        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+
         internal static bool TryWrite(
             BattleActionTimelineWorkbookSnapshot snapshot,
             BattleActionTimelineWorkbookWriteSet writeSet,
@@ -428,9 +419,6 @@ namespace Game.EditorTools
                 ValidateReadback(snapshot, temporarySnapshot, writeSet);
                 if (temporaryValidator != null && !temporaryValidator(temporarySnapshot))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("临时工作簿附加回读校验失败。");
                 }
 
@@ -499,7 +487,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// IsActiveSingleTable：执行当前模块的IsActiveSingleTable逻辑。
+        /// 检查 `table` 是否满足“主动单体数据表”条件。
         /// </summary>
 
         internal static bool IsActiveSingleTable(
@@ -513,7 +501,7 @@ namespace Game.EditorTools
                 "actionDuration");
         }
         /// <summary>
-        /// HeadersEqual：执行当前模块的HeadersEqual逻辑。
+        /// 判断表头相等是否满足当前条件。
         /// </summary>
 
         internal static bool HeadersEqual(
@@ -539,7 +527,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// CellsEqual：执行当前模块的CellsEqual逻辑。
+        /// 判断单元格相等是否满足当前条件。
         /// </summary>
 
         internal static bool CellsEqual(
@@ -565,7 +553,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// AffectedSheets：执行当前模块的AffectedSheets逻辑。
+        /// 枚举本次工作簿修改会影响的表页名称。
         /// </summary>
 
         private static IEnumerable<string> AffectedSheets(
@@ -578,7 +566,7 @@ namespace Game.EditorTools
                 .OrderBy(value => value, StringComparer.Ordinal);
         }
         /// <summary>
-        /// ValidateWriteSet：执行当前模块的ValidateWriteSet逻辑。
+        /// 校验写入集合。
         /// </summary>
 
         private static void ValidateWriteSet(
@@ -593,9 +581,6 @@ namespace Game.EditorTools
                         key.SheetName,
                         out BattleActionTimelineWorkbookTable table))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("待写回记录不属于快照工作集：" + key);
                 }
 
@@ -620,15 +605,12 @@ namespace Game.EditorTools
                 if (key.RowId <= 0 ||
                     !snapshot.Tables.TryGetValue(key.SheetName, out _) )
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("待删除记录不属于快照工作集：" + key);
                 }
             }
         }
         /// <summary>
-        /// ValidateReadback：执行当前模块的ValidateReadback逻辑。
+        /// 校验`Readback`。
         /// </summary>
 
         private static void ValidateReadback(
@@ -664,9 +646,6 @@ namespace Game.EditorTools
                     {
                         if (actualTable.TryGet(expectedRecord.RowId, out _))
                         {
-                            /// <summary>
-                            /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                            /// </summary>
                             throw new InvalidDataException("回读仍包含待删除记录：" + key);
                         }
 
@@ -683,9 +662,6 @@ namespace Game.EditorTools
                             out BattleActionTimelineWorkbookRecord actualRecord) ||
                         !CellsEqual(expectedCells, actualRecord.Cells))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException("回读记录不一致：" + key);
                     }
                 }
@@ -708,7 +684,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ReplaceRows：执行当前模块的ReplaceRows逻辑。
+        /// 替换行。
         /// </summary>
 
         private static void ReplaceRows(
@@ -814,7 +790,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// TryRestoreWorkbook：执行当前模块的TryRestoreWorkbook逻辑。
+        /// 根据 `workbookPath`、`backupPath` 恢复工作簿；操作完成时返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
 
         private static bool TryRestoreWorkbook(
@@ -866,7 +842,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// IsWorksetSheet：执行当前模块的IsWorksetSheet逻辑。
+        /// 检查 `sheetName`、`rows` 是否满足“工作集表页”条件。
         /// </summary>
 
         private static bool IsWorksetSheet(string sheetName, List<string[]> rows)
@@ -890,10 +866,6 @@ namespace Game.EditorTools
                 return true;
             }
 
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
             if (normalized == "battlecharacteraction" ||
                 normalized == "battleskillmultiequipment" ||
                 normalized == "battlerobot" ||
@@ -924,7 +896,7 @@ namespace Game.EditorTools
                 HasAllHeaders(header, "initialSpeed", "gravityScale");
         }
         /// <summary>
-        /// HasAllHeaders：执行当前模块的HasAllHeaders逻辑。
+        /// 判断当前 `WorkbookData` 实例是否包含全部表头。
         /// </summary>
 
         private static bool HasAllHeaders(
@@ -950,7 +922,7 @@ namespace Game.EditorTools
             return true;
         }
         /// <summary>
-        /// NormalizeHeader：执行当前模块的NormalizeHeader逻辑。
+        /// 规范化标题栏。
         /// </summary>
 
         private static string NormalizeHeader(string value)
@@ -961,7 +933,7 @@ namespace Game.EditorTools
                 .ToLowerInvariant();
         }
         /// <summary>
-        /// ReadWorkbook：执行当前模块的ReadWorkbook逻辑。
+        /// 读取工作簿。
         /// </summary>
 
         private static WorkbookData ReadWorkbook(string path)
@@ -977,14 +949,11 @@ namespace Game.EditorTools
                 false,
                 Encoding.UTF8))
             {
-                /// <summary>
-                /// ReadWorkbook：执行当前模块的ReadWorkbook逻辑。
-                /// </summary>
                 return ReadWorkbook(archive);
             }
         }
         /// <summary>
-        /// ReadWorkbook：执行当前模块的ReadWorkbook逻辑。
+        /// 读取工作簿。
         /// </summary>
 
         private static WorkbookData ReadWorkbook(ZipArchive archive)
@@ -1048,7 +1017,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ReadRows：执行当前模块的ReadRows逻辑。
+        /// 读取行。
         /// </summary>
 
         private static List<string[]> ReadRows(
@@ -1087,7 +1056,7 @@ namespace Game.EditorTools
             return rows;
         }
         /// <summary>
-        /// ReadTemplateStyles：执行当前模块的ReadTemplateStyles逻辑。
+        /// 读取模板样式。
         /// </summary>
 
         private static string[] ReadTemplateStyles(XDocument document)
@@ -1122,7 +1091,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// ReadCellValue：执行当前模块的ReadCellValue逻辑。
+        /// 读取格子值。
         /// </summary>
 
         private static string ReadCellValue(
@@ -1157,7 +1126,7 @@ namespace Game.EditorTools
             return raw;
         }
         /// <summary>
-        /// CreateRow：执行当前模块的CreateRow逻辑。
+        /// 创建数据行。
         /// </summary>
 
         private static XElement CreateRow(
@@ -1219,7 +1188,7 @@ namespace Game.EditorTools
             return row;
         }
         /// <summary>
-        /// ResolveFirstTableEntryPath：执行当前模块的ResolveFirstTableEntryPath逻辑。
+        /// 解析首个数据表条目路径。
         /// </summary>
 
         private static string ResolveFirstTableEntryPath(
@@ -1259,7 +1228,7 @@ namespace Game.EditorTools
                 : NormalizeZipPath(directory, target);
         }
         /// <summary>
-        /// NormalizeWidth：执行当前模块的NormalizeWidth逻辑。
+        /// 规范化宽度。
         /// </summary>
 
         private static string[] NormalizeWidth(string[] values, int width)
@@ -1278,7 +1247,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// CanonicalCell：执行当前模块的CanonicalCell逻辑。
+        /// 根据 `value` 构建`Canonical Cell`并返回结果。
         /// </summary>
 
         private static string CanonicalCell(string value)
@@ -1302,7 +1271,7 @@ namespace Game.EditorTools
             return trimmed;
         }
         /// <summary>
-        /// TryParsePositiveInt：执行当前模块的TryParsePositiveInt逻辑。
+        /// 根据 `value` 解析正数整数；成功时写出 `result` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryParsePositiveInt(string value, out int result)
@@ -1314,7 +1283,7 @@ namespace Game.EditorTools
                     out result) && result > 0;
         }
         /// <summary>
-        /// Cell：执行当前模块的Cell逻辑。
+        /// 根据 `row`、`index` 构建`Cell`并返回结果。
         /// </summary>
 
         private static string Cell(IReadOnlyList<string> row, int index)
@@ -1324,7 +1293,7 @@ namespace Game.EditorTools
                 : string.Empty;
         }
         /// <summary>
-        /// ParseColumnIndex：执行当前模块的ParseColumnIndex逻辑。
+        /// 解析列索引。
         /// </summary>
 
         private static int ParseColumnIndex(string reference)
@@ -1346,7 +1315,7 @@ namespace Game.EditorTools
             return Math.Max(0, value - 1);
         }
         /// <summary>
-        /// ColumnName：执行当前模块的ColumnName逻辑。
+        /// 根据 `oneBasedColumn` 构建列名称并返回结果。
         /// </summary>
 
         private static string ColumnName(int oneBasedColumn)
@@ -1363,7 +1332,7 @@ namespace Game.EditorTools
             return result.ToString();
         }
         /// <summary>
-        /// NormalizeZipPath：执行当前模块的NormalizeZipPath逻辑。
+        /// 规范化`Zip`路径。
         /// </summary>
 
         private static string NormalizeZipPath(string baseDirectory, string target)
@@ -1381,19 +1350,16 @@ namespace Game.EditorTools
             return Uri.UnescapeDataString(resolved.AbsolutePath.TrimStart('/'));
         }
         /// <summary>
-        /// RequireEntry：执行当前模块的RequireEntry逻辑。
+        /// 根据 `archive`、`path` 获取必需`Entry`并返回结果。
         /// </summary>
 
         private static ZipArchiveEntry RequireEntry(ZipArchive archive, string path)
         {
             return archive.GetEntry(path)
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 ?? throw new InvalidDataException("xlsx 缺少 OpenXML 项：" + path);
         }
         /// <summary>
-        /// LoadXml：执行当前模块的LoadXml逻辑。
+        /// 加载XML。
         /// </summary>
 
         private static XDocument LoadXml(ZipArchiveEntry entry)
@@ -1404,7 +1370,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ReplaceXmlEntry：执行当前模块的ReplaceXmlEntry逻辑。
+        /// 替换XML条目。
         /// </summary>
 
         private static void ReplaceXmlEntry(
@@ -1426,7 +1392,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ComputeHash：执行当前模块的ComputeHash逻辑。
+        /// 计算`Hash`。
         /// </summary>
 
         private static string ComputeHash(string path)

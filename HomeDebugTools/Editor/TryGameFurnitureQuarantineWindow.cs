@@ -5,15 +5,15 @@ using UnityEngine;
 
 namespace TryGame.HomeDebugTools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// v20 全局 ItemRecovery 只读查看器。保留旧类名和源文件路径，避免 Unity 菜单缓存
     /// 与现有 csproj 在导入刷新前丢失引用。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public sealed class TryGameFurnitureQuarantineWindow : EditorWindow
     {
         private Vector2 scrollPosition;
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开当前 `TryGameFurnitureQuarantineWindow` 实例。
         /// </summary>
 
         [MenuItem("TryGame/家园/全局物品恢复区查看器")]
@@ -25,7 +25,7 @@ namespace TryGame.HomeDebugTools.Editor
             window.Show();
         }
         /// <summary>
-        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// 组件启用时注册监听并刷新当前状态。
         /// </summary>
 
         private void OnEnable()
@@ -33,7 +33,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
         /// <summary>
-        /// OnDisable：执行当前模块的OnDisable逻辑。
+        /// 组件停用时注销监听并释放临时状态。
         /// </summary>
 
         private void OnDisable()
@@ -41,7 +41,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         }
         /// <summary>
-        /// OnPlayModeStateChanged：执行当前模块的OnPlayModeStateChanged逻辑。
+        /// 响应播放模式状态变化事件，并同步当前组件状态。
         /// </summary>
 
         private void OnPlayModeStateChanged(PlayModeStateChange state)
@@ -49,7 +49,7 @@ namespace TryGame.HomeDebugTools.Editor
             Repaint();
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -106,7 +106,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.EndScrollView();
         }
         /// <summary>
-        /// DrawSelectable：执行当前模块的DrawSelectable逻辑。
+        /// 绘制`Selectable`。
         /// </summary>
 
         private static void DrawSelectable(string label, string value)
@@ -120,7 +120,7 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.EndHorizontal();
         }
         /// <summary>
-        /// LogAll：执行当前模块的LogAll逻辑。
+        /// 记录全部。
         /// </summary>
 
         private static void LogAll(SaveData save)
@@ -145,7 +145,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// TryResolveItem：执行当前模块的TryResolveItem逻辑。
+        /// 根据 `registry`、`uid` 解析物品；成功时写出 `itemId`、`kind` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryResolveItem(
@@ -176,6 +176,9 @@ namespace TryGame.HomeDebugTools.Editor
 
             return false;
         }
+        /// <summary>
+        /// 按 `source`、`uid` 查找`item`标识；命中时写出 `itemId` 并返回 `true`，未找到时返回 `false`。
+        /// </summary>
 
         private static bool TryFind<T>(
             IReadOnlyList<T> source,

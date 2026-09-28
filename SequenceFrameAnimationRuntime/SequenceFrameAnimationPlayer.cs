@@ -2,10 +2,6 @@ using UnityEngine;
 
 namespace Game.SequenceFrameAnimation
 {
-    /// <summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// </summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class SequenceFrameAnimationPlayer : MonoBehaviour
     {
         [SerializeField] private SpriteRenderer frameRenderer;
@@ -18,16 +14,16 @@ namespace Game.SequenceFrameAnimation
         private int frameIndex;
         private bool playing;
         /// <summary>
-        /// FrameIndex：执行当前模块的FrameIndex逻辑。
+        /// 获取当前 `SequenceFrameAnimationPlayer` 实例的帧索引。
         /// </summary>
 
         public int FrameIndex => frameIndex;
         /// <summary>
-        /// FrameCount：执行当前模块的FrameCount逻辑。
+        /// 获取当前 `SequenceFrameAnimationPlayer` 实例的帧数量。
         /// </summary>
         public int FrameCount => frames == null ? 0 : frames.Length;
         /// <summary>
-        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// 组件启用时注册监听并刷新当前状态。
         /// </summary>
 
         private void OnEnable()
@@ -38,7 +34,7 @@ namespace Game.SequenceFrameAnimation
             ApplyFrame();
         }
         /// <summary>
-        /// Update：执行当前模块的Update逻辑。
+        /// 在每个有效帧推进当前组件的运行状态。
         /// </summary>
 
         private void Update()
@@ -75,7 +71,7 @@ namespace Game.SequenceFrameAnimation
             }
         }
         /// <summary>
-        /// Play：执行当前模块的Play逻辑。
+        /// 开始或恢复播放。
         /// </summary>
 
         public void Play()
@@ -91,7 +87,7 @@ namespace Game.SequenceFrameAnimation
             playing = true;
         }
         /// <summary>
-        /// Pause：执行当前模块的Pause逻辑。
+        /// 更新`Pause`。
         /// </summary>
 
         public void Pause()
@@ -99,7 +95,7 @@ namespace Game.SequenceFrameAnimation
             playing = false;
         }
         /// <summary>
-        /// Stop：执行当前模块的Stop逻辑。
+        /// 停止。
         /// </summary>
 
         public void Stop()
@@ -110,7 +106,7 @@ namespace Game.SequenceFrameAnimation
             ApplyFrame();
         }
         /// <summary>
-        /// SetFrame：执行当前模块的SetFrame逻辑。
+        /// 设置帧。
         /// </summary>
 
         public void SetFrame(int index)
@@ -125,7 +121,7 @@ namespace Game.SequenceFrameAnimation
             ApplyFrame();
         }
         /// <summary>
-        /// ApplyFrame：执行当前模块的ApplyFrame逻辑。
+        /// 应用帧。
         /// </summary>
 
         private void ApplyFrame()

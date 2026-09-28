@@ -4,11 +4,6 @@ using UnityEngine;
 
 namespace TryGame.BattleDebugTools.Editor
 {
-    /// <summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// </summary>
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class TryGameBattleCheatWindow : EditorWindow
     {
         private string enemyIdText = "102";
@@ -18,7 +13,7 @@ namespace TryGame.BattleDebugTools.Editor
         private MessageType commandStatusType = MessageType.None;
         private Vector2 scrollPosition;
         /// <summary>
-        /// Open：执行当前模块的Open逻辑。
+        /// 打开当前 `TryGameBattleCheatWindow` 实例。
         /// </summary>
 
         [MenuItem("TryGame/战斗/运行时战斗作弊工具")]
@@ -30,7 +25,7 @@ namespace TryGame.BattleDebugTools.Editor
             window.Show();
         }
         /// <summary>
-        /// OnInspectorUpdate：执行当前模块的OnInspectorUpdate逻辑。
+        /// 响应检视面板更新事件，并同步当前组件状态。
         /// </summary>
 
         private void OnInspectorUpdate()
@@ -38,7 +33,7 @@ namespace TryGame.BattleDebugTools.Editor
             Repaint();
         }
         /// <summary>
-        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// 绘制编辑器窗口内容并处理当前交互。
         /// </summary>
 
         private void OnGUI()
@@ -72,7 +67,7 @@ namespace TryGame.BattleDebugTools.Editor
             EditorGUILayout.EndScrollView();
         }
         /// <summary>
-        /// DrawEnemySpawnSection：执行当前模块的DrawEnemySpawnSection逻辑。
+        /// 绘制敌人生成区段。
         /// </summary>
 
         private void DrawEnemySpawnSection(BattleWorldZoneSceneRuntime runtime)
@@ -99,7 +94,7 @@ namespace TryGame.BattleDebugTools.Editor
             EditorGUILayout.HelpBox(commandStatus, commandStatusType);
         }
         /// <summary>
-        /// DrawPlayerNoDamageSection：执行当前模块的DrawPlayerNoDamageSection逻辑。
+        /// 绘制玩家无伤害区段。
         /// </summary>
 
         private void DrawPlayerNoDamageSection(BattleWorldZoneSceneRuntime runtime)
@@ -132,7 +127,7 @@ namespace TryGame.BattleDebugTools.Editor
             }
         }
         /// <summary>
-        /// RunSpawnEnemyCommand：执行当前模块的RunSpawnEnemyCommand逻辑。
+        /// 运行生成敌人命令。
         /// </summary>
 
         private void RunSpawnEnemyCommand(BattleWorldZoneSceneRuntime runtime)
@@ -172,7 +167,7 @@ namespace TryGame.BattleDebugTools.Editor
             }
         }
         /// <summary>
-        /// TryParseInt：执行当前模块的TryParseInt逻辑。
+        /// 根据 `text`、`fieldName`、`allowZero` 解析整数；成功时写出 `value` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private bool TryParseInt(
@@ -194,7 +189,7 @@ namespace TryGame.BattleDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// SetCommandStatus：执行当前模块的SetCommandStatus逻辑。
+        /// 设置命令状态。
         /// </summary>
 
         private void SetCommandStatus(string message, MessageType type)

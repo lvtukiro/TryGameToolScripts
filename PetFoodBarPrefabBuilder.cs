@@ -9,7 +9,7 @@ public static class PetFoodBarPrefabBuilder
     private const string PrefabPath =
         "Assets/Resources/TryGameBuildRes/gui/ui_game/sub_home_pet_food_bar.prefab";
     /// <summary>
-    /// ScheduleEnsurePrefab：执行当前模块的ScheduleEnsurePrefab逻辑。
+    /// 调度确保预制体。
     /// </summary>
 
     [InitializeOnLoadMethod]
@@ -19,7 +19,7 @@ public static class PetFoodBarPrefabBuilder
         EditorApplication.delayCall += EnsurePrefab;
     }
     /// <summary>
-    /// RebuildPrefab：执行当前模块的RebuildPrefab逻辑。
+    /// 重建预制体。
     /// </summary>
 
     [MenuItem("TryGame/宠物/重建食物条预制体")]
@@ -28,7 +28,7 @@ public static class PetFoodBarPrefabBuilder
         BuildPrefab(true);
     }
     /// <summary>
-    /// EnsurePrefab：执行当前模块的EnsurePrefab逻辑。
+    /// 确保预制体。
     /// </summary>
 
     private static void EnsurePrefab()
@@ -39,7 +39,7 @@ public static class PetFoodBarPrefabBuilder
         }
     }
     /// <summary>
-    /// BuildPrefab：执行当前模块的BuildPrefab逻辑。
+    /// 构建预制体。
     /// </summary>
 
     private static void BuildPrefab(bool log)
@@ -140,7 +140,7 @@ public static class PetFoodBarPrefabBuilder
         }
     }
     /// <summary>
-    /// BuildFoodItemTemplate：执行当前模块的BuildFoodItemTemplate逻辑。
+    /// 构建食物物品模板。
     /// </summary>
 
     private static GameObject BuildFoodItemTemplate(RectTransform parent)
@@ -184,7 +184,7 @@ public static class PetFoodBarPrefabBuilder
         return item;
     }
     /// <summary>
-    /// BuildEmptySlotTemplate：执行当前模块的BuildEmptySlotTemplate逻辑。
+    /// 构建空槽位模板。
     /// </summary>
 
     private static GameObject BuildEmptySlotTemplate(RectTransform parent)
@@ -202,7 +202,7 @@ public static class PetFoodBarPrefabBuilder
         return item;
     }
     /// <summary>
-    /// NewUiObject：执行当前模块的NewUiObject逻辑。
+    /// 创建并配置新文件界面对象，然后返回生成的界面对象。
     /// </summary>
 
     private static GameObject NewUiObject(string name, Transform parent)
@@ -212,7 +212,7 @@ public static class PetFoodBarPrefabBuilder
         return value;
     }
     /// <summary>
-    /// Center：执行当前模块的Center逻辑。
+    /// 更新中心。
     /// </summary>
 
     private static void Center(RectTransform rect)
@@ -222,7 +222,7 @@ public static class PetFoodBarPrefabBuilder
         rect.pivot = new Vector2(0.5f, 0.5f);
     }
     /// <summary>
-    /// Stretch：执行当前模块的Stretch逻辑。
+    /// 更新`Stretch`。
     /// </summary>
 
     private static void Stretch(
@@ -236,7 +236,7 @@ public static class PetFoodBarPrefabBuilder
         rect.offsetMax = offsetMax;
     }
     /// <summary>
-    /// ResolveFont：执行当前模块的ResolveFont逻辑。
+    /// 解析`Font`。
     /// </summary>
 
     private static Font ResolveFont()

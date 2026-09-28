@@ -8,10 +8,10 @@ using UnityEngine;
 
 namespace TryGame.HomeDebugTools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// Home 调试工具的编辑器运行时辅助方法。
     /// 这些方法只修改当前 Play Mode 中的运行存档，方便测试，不参与正式解锁或经济流程。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class HomeAreaDebugUnlocks
     {
         public const string DefaultAreaIdsText = "10002";
@@ -21,7 +21,7 @@ namespace TryGame.HomeDebugTools.Editor
 
         private static readonly Regex SplitRegex = new Regex(@"[,\s;，；]+", RegexOptions.Compiled);
         /// <summary>
-        /// ParseAreaIds：执行当前模块的ParseAreaIds逻辑。
+        /// 解析区域标识。
         /// </summary>
 
         public static bool ParseAreaIds(string text, List<int> result, bool logErrors = true)
@@ -62,7 +62,7 @@ namespace TryGame.HomeDebugTools.Editor
             return hasAny;
         }
         /// <summary>
-        /// TryParsePositiveInt：执行当前模块的TryParsePositiveInt逻辑。
+        /// 根据 `text`、`fieldName` 解析正数整数；成功时写出 `value` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         public static bool TryParsePositiveInt(string text, string fieldName, out int value)
@@ -78,29 +78,23 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// TryAddItem：执行当前模块的TryAddItem逻辑。
+        /// 根据 `itemId`、`count` 添加物品；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         public static bool TryAddItem(int itemId, int count)
         {
-            /// <summary>
-            /// TryChangeItemCount：执行当前模块的TryChangeItemCount逻辑。
-            /// </summary>
             return TryChangeItemCount(itemId, count, true);
         }
         /// <summary>
-        /// TryRemoveItem：执行当前模块的TryRemoveItem逻辑。
+        /// 根据 `itemId`、`count` 移除物品；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         public static bool TryRemoveItem(int itemId, int count)
         {
-            /// <summary>
-            /// TryChangeItemCount：执行当前模块的TryChangeItemCount逻辑。
-            /// </summary>
             return TryChangeItemCount(itemId, count, false);
         }
         /// <summary>
-        /// RandomRefreshHomeShop：执行当前模块的RandomRefreshHomeShop逻辑。
+        /// 判断`Random`刷新家园商店是否满足当前条件。
         /// </summary>
 
         public static bool RandomRefreshHomeShop(int shopInstanceId)
@@ -121,7 +115,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// TryGenerateRandomPendingPetFood：执行当前模块的TryGenerateRandomPendingPetFood逻辑。
+        /// 根据 `count` 尝试生成随机待处理宠物食物；成功时写出 `summary` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         public static bool TryGenerateRandomPendingPetFood(
@@ -168,7 +162,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// TrySetBattleRobotDamaged：执行当前模块的TrySetBattleRobotDamaged逻辑。
+        /// 根据 `robotUid`、`damaged` 设置战斗机器人`Damaged`；成功时写出 `summary` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         public static bool TrySetBattleRobotDamaged(
@@ -222,7 +216,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// TryChangeItemCount：执行当前模块的TryChangeItemCount逻辑。
+        /// 根据 `itemId`、`count`、`add` 完成变更物品数量；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryChangeItemCount(int itemId, int count, bool add)
@@ -250,9 +244,6 @@ namespace TryGame.HomeDebugTools.Editor
             switch (itemConfig.Value.ItemType)
             {
                 case EnumItemType.Gold:
-                    /// <summary>
-                    /// TryChangeGold：执行当前模块的TryChangeGold逻辑。
-                    /// </summary>
                     return TryChangeGold(save, count, add);
                 case EnumItemType.Furniture:
                     return TryChangeFurniture(save, itemConfig.Value, count, add);
@@ -262,7 +253,7 @@ namespace TryGame.HomeDebugTools.Editor
             }
         }
         /// <summary>
-        /// TryChangeGold：执行当前模块的TryChangeGold逻辑。
+        /// 根据 `save`、`count`、`add` 完成变更金币；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryChangeGold(SaveData save, int count, bool add)
@@ -296,7 +287,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// TryChangeFurniture：执行当前模块的TryChangeFurniture逻辑。
+        /// 根据 `save`、`itemConfig`、`count` 完成变更家具；操作完成时返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         private static bool TryChangeFurniture(SaveData save, Item itemConfig, int count, bool add)
@@ -481,7 +472,7 @@ namespace TryGame.HomeDebugTools.Editor
             return true;
         }
         /// <summary>
-        /// CreateOwnershipCandidate：执行当前模块的CreateOwnershipCandidate逻辑。
+        /// 创建所有权候选项。
         /// </summary>
 
         private static SaveData CreateOwnershipCandidate(

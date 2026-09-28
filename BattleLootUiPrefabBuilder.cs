@@ -6,10 +6,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 生成 2.0i 三栏搜刮 Addition 预制体。格子只是界面实例，
     /// 工具不会创建、复制或修改任何正式物品数据。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class BattleLootUiPrefabBuilder
     {
         private const string PrefabPath =
@@ -24,7 +24,7 @@ namespace Game.EditorTools
         private const string LootSkillViewType =
             "Game.BattleLootSkillView";
         /// <summary>
-        /// Rebuild：执行当前模块的Rebuild逻辑。
+        /// 重建当前 `BattleLootUiPrefabBuilder` 实例。
         /// </summary>
 
         [MenuItem("TryGame/战斗世界区/重建 2.0i 搜刮界面", false, 435)]
@@ -662,7 +662,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// CreateContainerRoot：执行当前模块的CreateContainerRoot逻辑。
+        /// 创建容器根节点。
         /// </summary>
 
         private static GameObject CreateContainerRoot(
@@ -672,7 +672,6 @@ namespace Game.EditorTools
             Vector2 anchorMax)
         {
             // 这里直接复用仓库 BuildContainerGrid 的滚动容器结构：
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
             // 搜刮格仍然使用自己的 BattleLootRobotContainerCellView，
             // 这样可以在同一套仓库布局上增加搜索遮罩和搜刮拖拽，而不会再造
             // 一套容易出现锚点/ContentSizeFitter 尺寸问题的容器。
@@ -719,10 +718,10 @@ namespace Game.EditorTools
             return scroll.Content.gameObject;
         }
 
-        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+        /// <summary>
         /// 创建右栏统一滚动内容中的一个固定段。段高度由运行时按容器容量
         /// 微调，标题和格子都留在同一 Content 下，避免嵌套 ScrollRect 抢夺滚轮。
-        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+        /// </summary>
         private static RectTransform CreateRightSection(
             Transform parent,
             string name,
@@ -760,7 +759,7 @@ namespace Game.EditorTools
             return sectionRect;
         }
         /// <summary>
-        /// CreateSectionGridRoot：执行当前模块的CreateSectionGridRoot逻辑。
+        /// 创建区段网格根节点。
         /// </summary>
 
         private static RectTransform CreateSectionGridRoot(
@@ -788,7 +787,7 @@ namespace Game.EditorTools
             return rect;
         }
         /// <summary>
-        /// CreateEquipmentSlot：执行当前模块的CreateEquipmentSlot逻辑。
+        /// 创建装备槽位。
         /// </summary>
 
         private static BattleLootEquipmentSlotView CreateEquipmentSlot(
@@ -870,7 +869,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// CreateItemGridRoot：执行当前模块的CreateItemGridRoot逻辑。
+        /// 创建物品网格根节点。
         /// </summary>
 
         private static GameObject CreateItemGridRoot(
@@ -902,7 +901,7 @@ namespace Game.EditorTools
             return root;
         }
         /// <summary>
-        /// CreateContainerCellTemplate：执行当前模块的CreateContainerCellTemplate逻辑。
+        /// 创建容器格子模板。
         /// </summary>
 
         private static BattleLootRobotContainerCellView CreateContainerCellTemplate(
@@ -978,7 +977,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// CreateItemTemplate：执行当前模块的CreateItemTemplate逻辑。
+        /// 创建物品模板。
         /// </summary>
 
         private static BattleLootItemView CreateItemTemplate(
@@ -1059,7 +1058,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// CreateSkillSlotTemplate：执行当前模块的CreateSkillSlotTemplate逻辑。
+        /// 创建技能槽位模板。
         /// </summary>
 
         private static BattleLootSkillSlotView CreateSkillSlotTemplate(
@@ -1128,7 +1127,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// CreateSkillTemplate：执行当前模块的CreateSkillTemplate逻辑。
+        /// 创建技能模板。
         /// </summary>
 
         private static BattleLootSkillView CreateSkillTemplate(

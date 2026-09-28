@@ -10,10 +10,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 2.0b 备战间资源的唯一 Editor 编排入口。
     /// 幂等生成 Sprite 设置、场景/UI Prefab、HomeMain 入口以及 Home_01 运行时引用。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public static class BattlePreparationPrefabBuilder
     {
         private const string MenuPath =
@@ -54,7 +54,7 @@ namespace Game.EditorTools
             4011,
         };
         /// <summary>
-        /// ScheduleEnsureBuilt：执行当前模块的ScheduleEnsureBuilt逻辑。
+        /// 调度确保`Built`。
         /// </summary>
 
         [InitializeOnLoadMethod]
@@ -66,7 +66,7 @@ namespace Game.EditorTools
             EditorApplication.delayCall += EnsureBuiltAfterReload;
         }
         /// <summary>
-        /// OnPlayModeStateChanged：执行当前模块的OnPlayModeStateChanged逻辑。
+        /// 响应播放模式状态变化事件，并同步当前组件状态。
         /// </summary>
 
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
@@ -80,7 +80,7 @@ namespace Game.EditorTools
             EditorApplication.delayCall += EnsureBuiltAfterReload;
         }
         /// <summary>
-        /// RebuildAll：执行当前模块的RebuildAll逻辑。
+        /// 重建全部。
         /// </summary>
 
         [MenuItem(MenuPath, false, 420)]
@@ -89,7 +89,7 @@ namespace Game.EditorTools
             BuildAll(true);
         }
         /// <summary>
-        /// ValidateRebuildAll：执行当前模块的ValidateRebuildAll逻辑。
+        /// 校验`Rebuild`全部。
         /// </summary>
 
         [MenuItem(MenuPath, true)]
@@ -100,7 +100,7 @@ namespace Game.EditorTools
                 && !EditorApplication.isUpdating;
         }
         /// <summary>
-        /// EnsureBuiltAfterReload：执行当前模块的EnsureBuiltAfterReload逻辑。
+        /// 确保`Built`之后重载。
         /// </summary>
 
         private static void EnsureBuiltAfterReload()
@@ -110,9 +110,6 @@ namespace Game.EditorTools
                 return;
             }
 
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
                 EditorApplication.delayCall -= EnsureBuiltAfterReload;
@@ -142,7 +139,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildAll：执行当前模块的BuildAll逻辑。
+        /// 构建全部。
         /// </summary>
 
         private static void BuildAll(bool logSuccess)
@@ -170,7 +167,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// RuntimeTypesAreReady：执行当前模块的RuntimeTypesAreReady逻辑。
+        /// 判断运行时类型是否就绪是否满足当前条件。
         /// </summary>
 
         private static bool RuntimeTypesAreReady()
@@ -192,7 +189,7 @@ namespace Game.EditorTools
             return BattlePreparationEditorUiFactory.AreRuntimeTypesAvailable(sceneTypes);
         }
         /// <summary>
-        /// NeedsBuild：执行当前模块的NeedsBuild逻辑。
+        /// 判断`Needs`构建是否满足当前条件。
         /// </summary>
 
         private static bool NeedsBuild()
@@ -231,7 +228,7 @@ namespace Game.EditorTools
                     HomeMainBuilderMarker);
         }
         /// <summary>
-        /// GetExpectedUiPrefabMarker：执行当前模块的GetExpectedUiPrefabMarker逻辑。
+        /// 获取预期界面预制体标记。
         /// </summary>
 
         private static string GetExpectedUiPrefabMarker(string path)
@@ -244,7 +241,7 @@ namespace Game.EditorTools
                 : BattlePreparationUiPrefabBuilder.BuilderMarker;
         }
         /// <summary>
-        /// ConfigureAndLoadSprites：执行当前模块的ConfigureAndLoadSprites逻辑。
+        /// 配置并加载精灵。
         /// </summary>
 
         private static Dictionary<int, Sprite> ConfigureAndLoadSprites()
@@ -370,16 +367,13 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// BuildScenePrefab：执行当前模块的BuildScenePrefab逻辑。
+        /// 构建场景预制体。
         /// </summary>
 
         private static void BuildScenePrefab(Sprite backgroundSprite)
         {
             if (backgroundSprite == null)
             {
-                /// <summary>
-                /// ArgumentNullException：执行当前模块的ArgumentNullException逻辑。
-                /// </summary>
                 throw new ArgumentNullException(nameof(backgroundSprite));
             }
 
@@ -469,7 +463,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// CreateSceneUiAnchor：执行当前模块的CreateSceneUiAnchor逻辑。
+        /// 创建场景界面`Anchor`。
         /// </summary>
 
         private static Transform CreateSceneUiAnchor(
@@ -499,7 +493,7 @@ namespace Game.EditorTools
             return anchor;
         }
         /// <summary>
-        /// BindHomeMainEntry：执行当前模块的BindHomeMainEntry逻辑。
+        /// 绑定家园主界面条目。
         /// </summary>
 
         private static void BindHomeMainEntry(Sprite icon)
@@ -568,7 +562,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BindHomeSceneRuntime：执行当前模块的BindHomeSceneRuntime逻辑。
+        /// 绑定家园场景运行时。
         /// </summary>
 
         private static void BindHomeSceneRuntime()
@@ -644,9 +638,6 @@ namespace Game.EditorTools
                 EditorSceneManager.MarkSceneDirty(scene);
                 if (!EditorSceneManager.SaveScene(scene))
                 {
-                    /// <summary>
-                    /// IOException：执行当前模块的IOException逻辑。
-                    /// </summary>
                     throw new IOException($"Failed to save scene: {HomeScenePath}");
                 }
             }
@@ -664,7 +655,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// RemoveDuplicateComponents：执行当前模块的RemoveDuplicateComponents逻辑。
+        /// 移除重复`Components`。
         /// </summary>
 
         private static void RemoveDuplicateComponents(
@@ -683,7 +674,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateGeneratedAssets：执行当前模块的ValidateGeneratedAssets逻辑。
+        /// 校验已生成资源。
         /// </summary>
 
         private static void ValidateGeneratedAssets()
@@ -734,7 +725,7 @@ namespace Game.EditorTools
             ValidateSpriteImports();
         }
         /// <summary>
-        /// ValidateScenePrefabBindings：执行当前模块的ValidateScenePrefabBindings逻辑。
+        /// 校验场景预制体绑定。
         /// </summary>
 
         private static void ValidateScenePrefabBindings()
@@ -781,7 +772,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateMainOverlayBindings：执行当前模块的ValidateMainOverlayBindings逻辑。
+        /// 校验主界面覆盖窗口绑定。
         /// </summary>
 
         private static void ValidateMainOverlayBindings()
@@ -833,7 +824,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateRobotDetailUiBindings：执行当前模块的ValidateRobotDetailUiBindings逻辑。
+        /// 校验机器人详情界面绑定。
         /// </summary>
 
         private static void ValidateRobotDetailUiBindings()
@@ -1101,7 +1092,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateItemDetailUiBindings：执行当前模块的ValidateItemDetailUiBindings逻辑。
+        /// 校验物品详情界面绑定。
         /// </summary>
 
         private static void ValidateItemDetailUiBindings()
@@ -1181,7 +1172,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateComparisonSide：执行当前模块的ValidateComparisonSide逻辑。
+        /// 校验对比`Side`。
         /// </summary>
 
         private static void ValidateComparisonSide(Component side, string context)
@@ -1238,7 +1229,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateEffectList：执行当前模块的ValidateEffectList逻辑。
+        /// 校验效果列表。
         /// </summary>
 
         private static void ValidateEffectList(Component view, string context)
@@ -1254,7 +1245,7 @@ namespace Game.EditorTools
             ValidateRequiredReferences(view, fields, context);
         }
         /// <summary>
-        /// ValidateMajorAffix：执行当前模块的ValidateMajorAffix逻辑。
+        /// 校验主要词缀。
         /// </summary>
 
         private static void ValidateMajorAffix(Component view, string context)
@@ -1275,7 +1266,7 @@ namespace Game.EditorTools
             ValidateRequiredReferences(view, fields, context);
         }
         /// <summary>
-        /// ValidateEquipmentSkillStrip：执行当前模块的ValidateEquipmentSkillStrip逻辑。
+        /// 校验装备技能`Strip`。
         /// </summary>
 
         private static void ValidateEquipmentSkillStrip(
@@ -1335,7 +1326,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateSkillIcon：执行当前模块的ValidateSkillIcon逻辑。
+        /// 校验技能图标。
         /// </summary>
 
         private static void ValidateSkillIcon(Component icon, string context)
@@ -1374,7 +1365,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateSkillList：执行当前模块的ValidateSkillList逻辑。
+        /// 校验技能列表。
         /// </summary>
 
         private static void ValidateSkillList(Component list, string context)
@@ -1406,7 +1397,7 @@ namespace Game.EditorTools
             ValidateRequiredReferences(template, fields, $"{context} entry template");
         }
         /// <summary>
-        /// ValidateRequiredReferences：执行当前模块的ValidateRequiredReferences逻辑。
+        /// 校验必需引用。
         /// </summary>
 
         private static void ValidateRequiredReferences(
@@ -1426,7 +1417,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// RequireReference：执行当前模块的RequireReference逻辑。
+        /// 根据 `component`、`propertyName`、`context` 获取必需引用并返回结果。
         /// </summary>
 
         private static UnityEngine.Object RequireReference(
@@ -1449,7 +1440,7 @@ namespace Game.EditorTools
             return value;
         }
         /// <summary>
-        /// ReferenceTransform：执行当前模块的ReferenceTransform逻辑。
+        /// 创建并配置引用变换，然后返回生成的界面对象。
         /// </summary>
 
         private static Transform ReferenceTransform(UnityEngine.Object value)
@@ -1467,7 +1458,7 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// ValidateHomeMainBindings：执行当前模块的ValidateHomeMainBindings逻辑。
+        /// 校验家园主界面绑定。
         /// </summary>
 
         private static void ValidateHomeMainBindings()
@@ -1491,7 +1482,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateHomeSceneBindings：执行当前模块的ValidateHomeSceneBindings逻辑。
+        /// 校验家园场景绑定。
         /// </summary>
 
         private static void ValidateHomeSceneBindings()
@@ -1566,7 +1557,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateSpriteImports：执行当前模块的ValidateSpriteImports逻辑。
+        /// 校验精灵`Imports`。
         /// </summary>
 
         private static void ValidateSpriteImports()
@@ -1592,7 +1583,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateYamlHasNoMissingScript：执行当前模块的ValidateYamlHasNoMissingScript逻辑。
+        /// 校验YAML包含无缺失脚本。
         /// </summary>
 
         private static void ValidateYamlHasNoMissingScript(string assetPath)
@@ -1615,7 +1606,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// FindGameObject：执行当前模块的FindGameObject逻辑。
+        /// 查找游戏对象。
         /// </summary>
 
         private static GameObject FindGameObject(Scene scene, string name)
@@ -1624,7 +1615,7 @@ namespace Game.EditorTools
             return transform != null ? transform.gameObject : null;
         }
         /// <summary>
-        /// FindTransform：执行当前模块的FindTransform逻辑。
+        /// 查找变换。
         /// </summary>
 
         private static Transform FindTransform(Scene scene, string name)
@@ -1642,7 +1633,7 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// FindTransform：执行当前模块的FindTransform逻辑。
+        /// 查找变换。
         /// </summary>
 
         private static Transform FindTransform(Transform root, string name)
@@ -1669,7 +1660,7 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// FindComponent：执行当前模块的FindComponent逻辑。
+        /// 查找组件。
         /// </summary>
 
         private static Component FindComponent(Scene scene, Type type)
@@ -1678,7 +1669,7 @@ namespace Game.EditorTools
             return all.Count > 0 ? all[0] : null;
         }
         /// <summary>
-        /// FindComponents：执行当前模块的FindComponents逻辑。
+        /// 查找`Components`。
         /// </summary>
 
         private static List<Component> FindComponents(Scene scene, Type type)
@@ -1710,7 +1701,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// SpritePath：执行当前模块的SpritePath逻辑。
+        /// 根据 `resourceId` 构建精灵路径并返回结果。
         /// </summary>
 
         private static string SpritePath(int resourceId)
@@ -1719,7 +1710,7 @@ namespace Game.EditorTools
                 $"spt_{resourceId}/spt_{resourceId}_1.png";
         }
         /// <summary>
-        /// ProjectAssetFullPath：执行当前模块的ProjectAssetFullPath逻辑。
+        /// 投影资源完整路径。
         /// </summary>
 
         private static string ProjectAssetFullPath(string assetPath)

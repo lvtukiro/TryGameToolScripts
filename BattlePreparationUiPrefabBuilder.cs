@@ -7,10 +7,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 2.0b 备战间 UI Prefab 的纯生成实现。
     /// 运行时逻辑只存在于 Presentation/Application；这里仅创建层级、布局和序列化引用。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class BattlePreparationUiPrefabBuilder
     {
         internal const string MainPrefabPath =
@@ -141,7 +141,7 @@ namespace Game.EditorTools
             new Rect(0.930f, 0.306f, 0.062f, 0.266f),
         };
         /// <summary>
-        /// BuildAll：执行当前模块的BuildAll逻辑。
+        /// 构建全部。
         /// </summary>
 
         internal static void BuildAll(IReadOnlyDictionary<int, Sprite> sprites)
@@ -155,7 +155,7 @@ namespace Game.EditorTools
             BattleStageSelectionUiPrefabBuilder.BuildAll();
         }
         /// <summary>
-        /// BuildMainPrefab：执行当前模块的BuildMainPrefab逻辑。
+        /// 构建主界面预制体。
         /// </summary>
 
         private static void BuildMainPrefab(IReadOnlyDictionary<int, Sprite> sprites)
@@ -346,7 +346,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildRosterSlot：执行当前模块的BuildRosterSlot逻辑。
+        /// 构建编队槽位。
         /// </summary>
 
         private static Component BuildRosterSlot(
@@ -502,7 +502,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildProductionPrefab：执行当前模块的BuildProductionPrefab逻辑。
+        /// 构建生产预制体。
         /// </summary>
 
         private static void BuildProductionPrefab(IReadOnlyDictionary<int, Sprite> sprites)
@@ -641,7 +641,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildProductionCard：执行当前模块的BuildProductionCard逻辑。
+        /// 构建生产`Card`。
         /// </summary>
 
         private static Component BuildProductionCard(
@@ -769,7 +769,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildNameInputPrefab：执行当前模块的BuildNameInputPrefab逻辑。
+        /// 构建名称输入预制体。
         /// </summary>
 
         private static void BuildNameInputPrefab()
@@ -916,7 +916,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildRobotDetailPrefabV5：执行当前模块的BuildRobotDetailPrefabV5逻辑。
+        /// 构建机器人详情预制体`V 5`。
         /// </summary>
 
         private static void BuildRobotDetailPrefabV5(IReadOnlyDictionary<int, Sprite> sprites)
@@ -1305,7 +1305,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildRobotDetailPrefab：执行当前模块的BuildRobotDetailPrefab逻辑。
+        /// 构建机器人详情预制体。
         /// </summary>
 
         private static void BuildRobotDetailPrefab(IReadOnlyDictionary<int, Sprite> sprites)
@@ -1614,8 +1614,6 @@ namespace Game.EditorTools
                     root,
                     BattleDevelopmentEntryMarker);
 
-                // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-                // 实现说明：该注释描述当前模块的边界条件和运行时处理。
                 itemDetailObject.transform.SetAsLastSibling();
                 skillDetail.transform.SetAsLastSibling();
                 comparison.transform.SetAsLastSibling();
@@ -1633,7 +1631,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildEquipmentSlot：执行当前模块的BuildEquipmentSlot逻辑。
+        /// 构建装备槽位。
         /// </summary>
 
         private static Component BuildEquipmentSlot(
@@ -1713,7 +1711,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildEquipmentSkillStrip：执行当前模块的BuildEquipmentSkillStrip逻辑。
+        /// 构建装备技能`Strip`。
         /// </summary>
 
         private static Component BuildEquipmentSkillStrip(
@@ -1759,7 +1757,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildSkillIcon：执行当前模块的BuildSkillIcon逻辑。
+        /// 构建技能图标。
         /// </summary>
 
         private static Component BuildSkillIcon(string name, Transform parent)
@@ -1807,7 +1805,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildSkillSlot：执行当前模块的BuildSkillSlot逻辑。
+        /// 构建技能槽位。
         /// </summary>
 
         private static Component BuildSkillSlot(
@@ -1915,7 +1913,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildSkillList：执行当前模块的BuildSkillList逻辑。
+        /// 构建技能列表。
         /// </summary>
 
         private static Component BuildSkillList(
@@ -1958,7 +1956,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildSkillListEntry：执行当前模块的BuildSkillListEntry逻辑。
+        /// 构建技能列表条目。
         /// </summary>
 
         private static Component BuildSkillListEntry(
@@ -2034,7 +2032,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildEquipmentEffectList：执行当前模块的BuildEquipmentEffectList逻辑。
+        /// 构建装备效果列表。
         /// </summary>
 
         private static Component BuildEquipmentEffectList(
@@ -2099,7 +2097,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildMajorAffixView：执行当前模块的BuildMajorAffixView逻辑。
+        /// 构建主要词缀视图。
         /// </summary>
 
         private static Component BuildMajorAffixView(
@@ -2232,7 +2230,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildComparisonSide：执行当前模块的BuildComparisonSide逻辑。
+        /// 构建对比`Side`。
         /// </summary>
 
         private static Component BuildComparisonSide(
@@ -2491,7 +2489,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildSkillDetailView：执行当前模块的BuildSkillDetailView逻辑。
+        /// 构建技能详情视图。
         /// </summary>
 
         private static Component BuildSkillDetailView(Transform parent)
@@ -2608,7 +2606,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildContainerGrid：执行当前模块的BuildContainerGrid逻辑。
+        /// 构建容器网格。
         /// </summary>
 
         private static Component BuildContainerGrid(
@@ -2685,7 +2683,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildItemCell：执行当前模块的BuildItemCell逻辑。
+        /// 构建物品格子。
         /// </summary>
 
         private static Component BuildItemCell(
@@ -2816,7 +2814,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildItemDetailPrefab：执行当前模块的BuildItemDetailPrefab逻辑。
+        /// 构建物品详情预制体。
         /// </summary>
 
         private static void BuildItemDetailPrefab()
@@ -3004,7 +3002,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildItemDetailPrefabV5：执行当前模块的BuildItemDetailPrefabV5逻辑。
+        /// 构建物品详情预制体`V 5`。
         /// </summary>
 
         private static void BuildItemDetailPrefabV5()
@@ -3170,7 +3168,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildWorkbenchPrefab：执行当前模块的BuildWorkbenchPrefab逻辑。
+        /// 构建`Workbench`预制体。
         /// </summary>
 
         private static void BuildWorkbenchPrefab()
@@ -3552,7 +3550,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// CreateWindowRoot：执行当前模块的CreateWindowRoot逻辑。
+        /// 创建窗口根节点。
         /// </summary>
 
         private static GameObject CreateWindowRoot(
@@ -3574,7 +3572,7 @@ namespace Game.EditorTools
             return root;
         }
         /// <summary>
-        /// CreatePanel：执行当前模块的CreatePanel逻辑。
+        /// 创建面板。
         /// </summary>
 
         private static GameObject CreatePanel(
@@ -3600,7 +3598,7 @@ namespace Game.EditorTools
             return panel;
         }
         /// <summary>
-        /// CreateStateRoot：执行当前模块的CreateStateRoot逻辑。
+        /// 创建状态根节点。
         /// </summary>
 
         private static GameObject CreateStateRoot(string name, Transform parent)
@@ -3610,7 +3608,7 @@ namespace Game.EditorTools
             return root;
         }
         /// <summary>
-        /// CreateTransparentHotspot：执行当前模块的CreateTransparentHotspot逻辑。
+        /// 创建`Transparent Hotspot`。
         /// </summary>
 
         private static BattlePreparationEditorUiFactory.ButtonParts CreateTransparentHotspot(
@@ -3637,7 +3635,7 @@ namespace Game.EditorTools
                 null);
         }
         /// <summary>
-        /// SetNormalizedRect：执行当前模块的SetNormalizedRect逻辑。
+        /// 设置规范化矩形。
         /// </summary>
 
         private static void SetNormalizedRect(RectTransform rect, Rect normalizedRect)
@@ -3650,7 +3648,7 @@ namespace Game.EditorTools
                 Vector2.zero);
         }
         /// <summary>
-        /// CreateLayoutText：执行当前模块的CreateLayoutText逻辑。
+        /// 创建布局文本。
         /// </summary>
 
         private static Text CreateLayoutText(
@@ -3676,7 +3674,7 @@ namespace Game.EditorTools
             return text;
         }
         /// <summary>
-        /// CreateText：执行当前模块的CreateText逻辑。
+        /// 创建文本。
         /// </summary>
 
         private static Text CreateText(
@@ -3706,7 +3704,7 @@ namespace Game.EditorTools
                 color);
         }
         /// <summary>
-        /// CreateImage：执行当前模块的CreateImage逻辑。
+        /// 创建图像。
         /// </summary>
 
         private static Image CreateImage(
@@ -3735,7 +3733,7 @@ namespace Game.EditorTools
                 preserveAspect);
         }
         /// <summary>
-        /// Runtime：执行当前模块的Runtime逻辑。
+        /// 创建并配置运行时，然后返回生成的界面对象。
         /// </summary>
 
         private static Component Runtime(GameObject target, string typeName)
@@ -3743,7 +3741,7 @@ namespace Game.EditorTools
             return BattlePreparationEditorUiFactory.AddRuntimeComponent(target, typeName);
         }
         /// <summary>
-        /// SpriteAt：执行当前模块的SpriteAt逻辑。
+        /// 根据 `sprites`、`resourceId` 构建精灵在并返回结果。
         /// </summary>
 
         private static Sprite SpriteAt(
@@ -3761,7 +3759,7 @@ namespace Game.EditorTools
                 $"Battle preparation sprite is unavailable: resourceId={resourceId}");
         }
         /// <summary>
-        /// SaveAndDestroy：执行当前模块的SaveAndDestroy逻辑。
+        /// 保存并`Destroy`。
         /// </summary>
 
         private static void SaveAndDestroy(GameObject root, string path)

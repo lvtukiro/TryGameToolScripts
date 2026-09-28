@@ -10,10 +10,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 幂等生成 2.0g Battle WorldZone 场景根、Normal HUD、Home_01 绑定和正式彩色占位 Sprite。
     /// 已存在的 Sprite 视为用户资源，绝不覆盖；后续替图不会被自动 Builder 擦掉。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     public static class BattleWorldZoneShellPrefabBuilder
     {
         private const string MenuPath =
@@ -77,7 +77,7 @@ namespace Game.EditorTools
             BootstrapType,
         };
         /// <summary>
-        /// ScheduleEnsureBuilt：执行当前模块的ScheduleEnsureBuilt逻辑。
+        /// 调度确保`Built`。
         /// </summary>
 
         [InitializeOnLoadMethod]
@@ -89,7 +89,7 @@ namespace Game.EditorTools
             EditorApplication.delayCall += EnsureBuiltAfterReload;
         }
         /// <summary>
-        /// OnPlayModeStateChanged：执行当前模块的OnPlayModeStateChanged逻辑。
+        /// 响应播放模式状态变化事件，并同步当前组件状态。
         /// </summary>
 
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
@@ -101,7 +101,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// RebuildAll：执行当前模块的RebuildAll逻辑。
+        /// 重建全部。
         /// </summary>
 
         [MenuItem(MenuPath, false, 430)]
@@ -110,7 +110,7 @@ namespace Game.EditorTools
             BuildAll(true);
         }
         /// <summary>
-        /// ValidateRebuildAll：执行当前模块的ValidateRebuildAll逻辑。
+        /// 校验`Rebuild`全部。
         /// </summary>
 
         [MenuItem(MenuPath, true)]
@@ -121,7 +121,7 @@ namespace Game.EditorTools
                 && !EditorApplication.isUpdating;
         }
         /// <summary>
-        /// EnsureBuiltAfterReload：执行当前模块的EnsureBuiltAfterReload逻辑。
+        /// 确保`Built`之后重载。
         /// </summary>
 
         private static void EnsureBuiltAfterReload()
@@ -152,7 +152,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// RuntimeTypesAreReady：执行当前模块的RuntimeTypesAreReady逻辑。
+        /// 判断运行时类型是否就绪是否满足当前条件。
         /// </summary>
 
         private static bool RuntimeTypesAreReady()
@@ -161,7 +161,7 @@ namespace Game.EditorTools
                 RequiredRuntimeTypes);
         }
         /// <summary>
-        /// NeedsBuild：执行当前模块的NeedsBuild逻辑。
+        /// 判断`Needs`构建是否满足当前条件。
         /// </summary>
 
         private static bool NeedsBuild()
@@ -199,7 +199,7 @@ namespace Game.EditorTools
             return false;
         }
         /// <summary>
-        /// BuildAll：执行当前模块的BuildAll逻辑。
+        /// 构建全部。
         /// </summary>
 
         private static void BuildAll(bool logSuccess)
@@ -225,7 +225,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// EnsurePlaceholderSpriteAssets：执行当前模块的EnsurePlaceholderSpriteAssets逻辑。
+        /// 确保`Placeholder`精灵资源。
         /// </summary>
 
         private static void EnsurePlaceholderSpriteAssets()
@@ -246,7 +246,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// CreatePlaceholderPng：执行当前模块的CreatePlaceholderPng逻辑。
+        /// 创建`Placeholder Png`。
         /// </summary>
 
         private static void CreatePlaceholderPng(int resourceId, string assetPath)
@@ -264,7 +264,7 @@ namespace Game.EditorTools
             UnityEngine.Object.DestroyImmediate(texture);
         }
         /// <summary>
-        /// BuildPixels：执行当前模块的BuildPixels逻辑。
+        /// 构建像素。
         /// </summary>
 
         private static Color32[] BuildPixels(int resourceId, int width, int height)
@@ -316,7 +316,7 @@ namespace Game.EditorTools
             return pixels;
         }
         /// <summary>
-        /// DrawGradientBackground：执行当前模块的DrawGradientBackground逻辑。
+        /// 绘制`Gradient`后台。
         /// </summary>
 
         private static void DrawGradientBackground(
@@ -350,7 +350,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// DrawFloorTile：执行当前模块的DrawFloorTile逻辑。
+        /// 绘制楼层`Tile`。
         /// </summary>
 
         private static void DrawFloorTile(Color32[] p, int w, int h, Color baseColor, Color accent)
@@ -362,7 +362,7 @@ namespace Game.EditorTools
             DrawRect(p, w, h, w / 2 - 2, 0, 4, h, Color.Lerp(baseColor, Color.black, 0.55f));
         }
         /// <summary>
-        /// DrawFloorFillTile：执行当前模块的DrawFloorFillTile逻辑。
+        /// 绘制楼层`Fill Tile`。
         /// </summary>
 
         private static void DrawFloorFillTile(
@@ -386,7 +386,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// DrawLadder：执行当前模块的DrawLadder逻辑。
+        /// 绘制梯子。
         /// </summary>
 
         private static void DrawLadder(Color32[] p, int w, int h, Color baseColor, Color accent)
@@ -398,7 +398,7 @@ namespace Game.EditorTools
                 DrawRect(p, w, h, w / 5, y, w * 3 / 5, rail, accent);
         }
         /// <summary>
-        /// DrawDoor：执行当前模块的DrawDoor逻辑。
+        /// 绘制门。
         /// </summary>
 
         private static void DrawDoor(Color32[] p, int w, int h, Color baseColor, Color accent)
@@ -412,7 +412,7 @@ namespace Game.EditorTools
                 DrawRect(p, w, h, w / 2 - 2, y, 4, border, accent);
         }
         /// <summary>
-        /// DrawCrate：执行当前模块的DrawCrate逻辑。
+        /// 绘制`Crate`。
         /// </summary>
 
         private static void DrawCrate(Color32[] p, int w, int h, Color baseColor, Color accent, int variant)
@@ -428,7 +428,7 @@ namespace Game.EditorTools
                 DrawCircle(p, w, h, w / 2, h / 2, Mathf.Min(w, h) / 5, accent);
         }
         /// <summary>
-        /// DrawExtraction：执行当前模块的DrawExtraction逻辑。
+        /// 绘制撤离。
         /// </summary>
 
         private static void DrawExtraction(Color32[] p, int w, int h, Color baseColor, Color accent, bool red)
@@ -440,7 +440,7 @@ namespace Game.EditorTools
             DrawRect(p, w, h, w / 2 - 5, 10, 10, h - 20, baseColor);
         }
         /// <summary>
-        /// DrawRobot：执行当前模块的DrawRobot逻辑。
+        /// 绘制机器人。
         /// </summary>
 
         private static void DrawRobot(Color32[] p, int w, int h, Color baseColor, Color accent, bool boss)
@@ -457,7 +457,7 @@ namespace Game.EditorTools
             DrawRect(p, w, h, x + bodyW * 3 / 5, 4, bodyW / 5, h / 5, baseColor);
         }
         /// <summary>
-        /// DrawUiBadge：执行当前模块的DrawUiBadge逻辑。
+        /// 绘制界面`Badge`。
         /// </summary>
 
         private static void DrawUiBadge(Color32[] p, int w, int h, Color baseColor, Color accent, int id)
@@ -473,7 +473,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// Palette：执行当前模块的Palette逻辑。
+        /// 根据 `id`、`channel` 构建调色板并返回结果。
         /// </summary>
 
         private static Color Palette(int id, int channel)
@@ -484,7 +484,7 @@ namespace Game.EditorTools
             return Color.HSVToRGB(hue, saturation, value);
         }
         /// <summary>
-        /// Fill：执行当前模块的Fill逻辑。
+        /// 更新填充。
         /// </summary>
 
         private static void Fill(Color32[] pixels, Color color)
@@ -493,7 +493,7 @@ namespace Game.EditorTools
             for (int i = 0; i < pixels.Length; i++) pixels[i] = value;
         }
         /// <summary>
-        /// DrawRect：执行当前模块的DrawRect逻辑。
+        /// 绘制矩形。
         /// </summary>
 
         private static void DrawRect(Color32[] p, int w, int h, int x, int y, int width, int height, Color color)
@@ -505,7 +505,7 @@ namespace Game.EditorTools
                 for (int px = minX; px < maxX; px++) p[py * w + px] = value;
         }
         /// <summary>
-        /// DrawCircle：执行当前模块的DrawCircle逻辑。
+        /// 绘制`Circle`。
         /// </summary>
 
         private static void DrawCircle(Color32[] p, int w, int h, int cx, int cy, int radius, Color color)
@@ -516,7 +516,7 @@ namespace Game.EditorTools
                     if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= rr) p[y * w + x] = value;
         }
         /// <summary>
-        /// DrawRing：执行当前模块的DrawRing逻辑。
+        /// 绘制`Ring`。
         /// </summary>
 
         private static void DrawRing(Color32[] p, int w, int h, int cx, int cy, int radius, int thickness, Color color)
@@ -527,7 +527,7 @@ namespace Game.EditorTools
                 { int d = (x - cx) * (x - cx) + (y - cy) * (y - cy); if (d <= outer && d >= inner) p[y * w + x] = value; }
         }
         /// <summary>
-        /// ResolveTextureSize：执行当前模块的ResolveTextureSize逻辑。
+        /// 解析`Texture`尺寸。
         /// </summary>
 
         private static void ResolveTextureSize(int id, out int width, out int height)
@@ -542,7 +542,7 @@ namespace Game.EditorTools
             else { width = 128; height = 128; }
         }
         /// <summary>
-        /// ConfigureSpriteImporter：执行当前模块的ConfigureSpriteImporter逻辑。
+        /// 配置精灵`Importer`。
         /// </summary>
 
         private static void ConfigureSpriteImporter(int resourceId, string assetPath)
@@ -564,7 +564,7 @@ namespace Game.EditorTools
             importer.SaveAndReimport();
         }
         /// <summary>
-        /// GetSpriteAssetPath：执行当前模块的GetSpriteAssetPath逻辑。
+        /// 获取精灵资源路径。
         /// </summary>
 
         private static string GetSpriteAssetPath(int resourceId)
@@ -572,7 +572,7 @@ namespace Game.EditorTools
             return $"{SpriteRoot}/spt_{resourceId}/spt_{resourceId}_1.png";
         }
         /// <summary>
-        /// ToAbsoluteProjectPath：执行当前模块的ToAbsoluteProjectPath逻辑。
+        /// 将结果转换为绝对路径投影路径。
         /// </summary>
 
         private static string ToAbsoluteProjectPath(string assetPath)
@@ -581,7 +581,7 @@ namespace Game.EditorTools
             return Path.Combine(projectRoot, assetPath.Replace('/', Path.DirectorySeparatorChar));
         }
         /// <summary>
-        /// BuildScenePrefab：执行当前模块的BuildScenePrefab逻辑。
+        /// 构建场景预制体。
         /// </summary>
 
         private static void BuildScenePrefab()
@@ -625,7 +625,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildUiPrefab：执行当前模块的BuildUiPrefab逻辑。
+        /// 构建界面预制体。
         /// </summary>
 
         private static void BuildUiPrefab()
@@ -1046,7 +1046,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildAreaMapUiPrefab：执行当前模块的BuildAreaMapUiPrefab逻辑。
+        /// 构建区域地图界面预制体。
         /// </summary>
 
         private static void BuildAreaMapUiPrefab()
@@ -1359,7 +1359,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// AddCenteredMapNodeImage：执行当前模块的AddCenteredMapNodeImage逻辑。
+        /// 添加`Centered`地图节点图像。
         /// </summary>
 
         private static Image AddCenteredMapNodeImage(
@@ -1382,7 +1382,7 @@ namespace Game.EditorTools
                 false);
         }
         /// <summary>
-        /// AddTopText：执行当前模块的AddTopText逻辑。
+        /// 添加顶部文本。
         /// </summary>
 
         private static Text AddTopText(
@@ -1399,7 +1399,7 @@ namespace Game.EditorTools
             return BattlePreparationEditorUiFactory.AddText(objectValue, value, fontSize, TextAnchor.MiddleLeft);
         }
         /// <summary>
-        /// AddCombatStatusBar：执行当前模块的AddCombatStatusBar逻辑。
+        /// 添加战斗状态栏。
         /// </summary>
 
         private static CombatStatusBarParts AddCombatStatusBar(
@@ -1452,16 +1452,13 @@ namespace Game.EditorTools
                 Color.white,
                 4f);
             valueText.fontStyle = FontStyle.Bold;
-            /// <summary>
-            /// CombatStatusBarParts：执行当前模块的CombatStatusBarParts逻辑。
-            /// </summary>
             return new CombatStatusBarParts(fill, valueText);
         }
 
         private readonly struct CombatStatusBarParts
         {
             /// <summary>
-            /// CombatStatusBarParts：执行当前模块的CombatStatusBarParts逻辑。
+            /// 创建 `CombatStatusBarParts`，记录`fill`（fill）和`valueText`（值文本）字段，形成可供后续流程传递的数据对象。
             /// </summary>
             public CombatStatusBarParts(Image fill, Text valueText)
             {
@@ -1469,17 +1466,17 @@ namespace Game.EditorTools
                 ValueText = valueText;
             }
             /// <summary>
-            /// Fill：执行当前模块的Fill逻辑。
+            /// 获取当前 `CombatStatusBarParts` 实例的填充。
             /// </summary>
 
             public Image Fill { get; }
             /// <summary>
-            /// ValueText：执行当前模块的ValueText逻辑。
+            /// 获取当前 `CombatStatusBarParts` 实例的值文本。
             /// </summary>
             public Text ValueText { get; }
         }
         /// <summary>
-        /// BindHomeSceneRuntime：执行当前模块的BindHomeSceneRuntime逻辑。
+        /// 绑定家园场景运行时。
         /// </summary>
 
         private static void BindHomeSceneRuntime()
@@ -1514,7 +1511,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ValidateGeneratedAssets：执行当前模块的ValidateGeneratedAssets逻辑。
+        /// 校验已生成资源。
         /// </summary>
 
         private static void ValidateGeneratedAssets()
@@ -1534,17 +1531,11 @@ namespace Game.EditorTools
             string[] sceneProperties = { "sceneCamera", "contentRoot", "backgroundRenderer" };
             for (int i = 0; i < sceneProperties.Length; i++)
                 if (presentation == null || BattlePreparationEditorUiFactory.FindRequiredProperty(presentation, sceneProperties[i]).objectReferenceValue == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle scene binding missing: {sceneProperties[i]}");
             Component ui = uiPrefab.GetComponent(BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(UiMonoType));
             string[] uiProperties = { "titleText", "currentAreaText", "minimapButton", "minimapView", "mapStatisticsPanelRoot", "mapStatisticsText", "skillBarRoot", "settingsButton", "settingsButtonText", "manualSaveButton", "manualSaveButtonText", "combatStatusPanelRoot", "healthBarFillImage", "healthValueText", "manaBarFillImage", "manaValueText" };
             for (int i = 0; i < uiProperties.Length; i++)
                 if (ui == null || BattlePreparationEditorUiFactory.FindRequiredProperty(ui, uiProperties[i]).objectReferenceValue == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle HUD binding missing: {uiProperties[i]}");
             Type skillSlotType = BattlePreparationEditorUiFactory.ResolveRuntimeComponentType(
                 SkillHudSlotType);
@@ -1589,9 +1580,6 @@ namespace Game.EditorTools
             };
             for (int i = 0; i < minimapProperties.Length; i++)
                 if (minimap == null || BattlePreparationEditorUiFactory.FindRequiredProperty(minimap, minimapProperties[i]).objectReferenceValue == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle minimap binding missing: {minimapProperties[i]}");
 
             Component areaMapUi = areaMapUiPrefab.GetComponent(
@@ -1610,9 +1598,6 @@ namespace Game.EditorTools
             };
             for (int i = 0; i < areaMapUiProperties.Length; i++)
                 if (areaMapUi == null || BattlePreparationEditorUiFactory.FindRequiredProperty(areaMapUi, areaMapUiProperties[i]).objectReferenceValue == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle area map UI binding missing: {areaMapUiProperties[i]}");
 
             Component areaMapView = BattlePreparationEditorUiFactory
@@ -1627,9 +1612,6 @@ namespace Game.EditorTools
             };
             for (int i = 0; i < areaMapViewProperties.Length; i++)
                 if (areaMapView == null || BattlePreparationEditorUiFactory.FindRequiredProperty(areaMapView, areaMapViewProperties[i]).objectReferenceValue == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle area map view binding missing: {areaMapViewProperties[i]}");
 
             Component areaMapNode = BattlePreparationEditorUiFactory
@@ -1647,20 +1629,14 @@ namespace Game.EditorTools
             };
             for (int i = 0; i < areaMapNodeProperties.Length; i++)
                 if (areaMapNode == null || BattlePreparationEditorUiFactory.FindRequiredProperty(areaMapNode, areaMapNodeProperties[i]).objectReferenceValue == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle area map node binding missing: {areaMapNodeProperties[i]}");
             for (int i = 0; i < PlaceholderResourceIds.Length; i++)
                 if (AssetDatabase.LoadAssetAtPath<Sprite>(GetSpriteAssetPath(PlaceholderResourceIds[i])) == null)
-                    /// <summary>
-                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
-                    /// </summary>
                     throw new InvalidOperationException($"Battle placeholder Sprite missing: {PlaceholderResourceIds[i]}");
             if (!TryValidateHomeSceneBindings(out string error)) throw new InvalidOperationException($"Battle Home_01 binding invalid: {error}");
         }
         /// <summary>
-        /// TryValidateHomeSceneBindings：执行当前模块的TryValidateHomeSceneBindings逻辑。
+        /// 校验 家园场景`Bindings` 的结构与业务约束，通过时返回 `true`；校验失败时通过 `error` 返回原因。
         /// </summary>
 
         private static bool TryValidateHomeSceneBindings(out string error)
@@ -1693,7 +1669,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// FindGameObject：执行当前模块的FindGameObject逻辑。
+        /// 查找游戏对象。
         /// </summary>
 
         private static GameObject FindGameObject(Scene scene, string name)
@@ -1703,7 +1679,7 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// FindGameObjectRecursive：执行当前模块的FindGameObjectRecursive逻辑。
+        /// 查找游戏对象`Recursive`。
         /// </summary>
         private static GameObject FindGameObjectRecursive(GameObject current, string name)
         {
@@ -1713,11 +1689,11 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// FindTransform：执行当前模块的FindTransform逻辑。
+        /// 查找变换。
         /// </summary>
         private static Transform FindTransform(Scene scene, string name) => FindGameObject(scene, name)?.transform;
         /// <summary>
-        /// FindComponent：执行当前模块的FindComponent逻辑。
+        /// 查找组件。
         /// </summary>
         private static Component FindComponent(Scene scene, Type type)
         {
@@ -1726,7 +1702,7 @@ namespace Game.EditorTools
             return null;
         }
         /// <summary>
-        /// FindComponents：执行当前模块的FindComponents逻辑。
+        /// 查找`Components`。
         /// </summary>
         private static List<Component> FindComponents(Scene scene, Type type)
         {
@@ -1735,7 +1711,7 @@ namespace Game.EditorTools
             return result;
         }
         /// <summary>
-        /// RemoveDuplicateComponents：执行当前模块的RemoveDuplicateComponents逻辑。
+        /// 移除重复`Components`。
         /// </summary>
         private static void RemoveDuplicateComponents(Scene scene, Type type, Component keep)
         {

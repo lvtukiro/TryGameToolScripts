@@ -7,10 +7,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 2.0g 关卡地图、详情、挑战矩阵和定向选择四个 Addition 的固定层级生成器。
     /// 点位和模板布局属于 Prefab；业务数据仍由 Application 快照填充。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class BattleStageSelectionUiPrefabBuilder
     {
         private const string Marker = "__BattleStageSelectionUiBuilder_v2_2_0g";
@@ -27,7 +27,7 @@ namespace Game.EditorTools
         private const string TargetSelectionMono = "Game.GUIMonoBattleTargetSelection";
         private const string TargetToggleOptionMono = "Game.BattleTargetToggleOptionView";
         /// <summary>
-        /// BuildAll：执行当前模块的BuildAll逻辑。
+        /// 构建全部。
         /// </summary>
 
         internal static void BuildAll()
@@ -38,7 +38,7 @@ namespace Game.EditorTools
             BuildTargetSelection();
         }
         /// <summary>
-        /// BuildStageMap：执行当前模块的BuildStageMap逻辑。
+        /// 构建关卡地图。
         /// </summary>
 
         private static void BuildStageMap()
@@ -94,7 +94,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildStageMapPoint：执行当前模块的BuildStageMapPoint逻辑。
+        /// 构建关卡地图点位。
         /// </summary>
 
         private static Component BuildStageMapPoint(Transform parent, int stageId, Rect rect)
@@ -148,7 +148,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildStageDetail：执行当前模块的BuildStageDetail逻辑。
+        /// 构建关卡详情。
         /// </summary>
 
         private static void BuildStageDetail()
@@ -435,7 +435,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildDeploymentRobotSlot：执行当前模块的BuildDeploymentRobotSlot逻辑。
+        /// 构建`Deployment`机器人槽位。
         /// </summary>
 
         private static Component BuildDeploymentRobotSlot(
@@ -520,7 +520,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildRestrictionTemplate：执行当前模块的BuildRestrictionTemplate逻辑。
+        /// 构建`Restriction`模板。
         /// </summary>
 
         private static Component BuildRestrictionTemplate(Transform parent, string name)
@@ -561,7 +561,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildChallengeSelection：执行当前模块的BuildChallengeSelection逻辑。
+        /// 构建挑战选择。
         /// </summary>
 
         private static void BuildChallengeSelection()
@@ -634,7 +634,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// ReplaceWithHorizontalLayout：执行当前模块的ReplaceWithHorizontalLayout逻辑。
+        /// 替换使用水平布局。
         /// </summary>
 
         private static HorizontalLayoutGroup ReplaceWithHorizontalLayout(GameObject target)
@@ -655,7 +655,7 @@ namespace Game.EditorTools
             return target.AddComponent<HorizontalLayoutGroup>();
         }
         /// <summary>
-        /// BuildChallengeColumn：执行当前模块的BuildChallengeColumn逻辑。
+        /// 构建挑战列。
         /// </summary>
 
         private static Component BuildChallengeColumn(Transform parent)
@@ -680,7 +680,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildChallengeLevelTemplate：执行当前模块的BuildChallengeLevelTemplate逻辑。
+        /// 构建挑战等级模板。
         /// </summary>
 
         private static Component BuildChallengeLevelTemplate(Transform parent)
@@ -701,7 +701,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildSelectedChallengeTemplate：执行当前模块的BuildSelectedChallengeTemplate逻辑。
+        /// 构建已选挑战模板。
         /// </summary>
 
         private static Component BuildSelectedChallengeTemplate(Transform parent)
@@ -758,7 +758,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// BuildTargetSelection：执行当前模块的BuildTargetSelection逻辑。
+        /// 构建目标选择。
         /// </summary>
 
         private static void BuildTargetSelection()
@@ -810,7 +810,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// BuildTargetOptionTemplate：执行当前模块的BuildTargetOptionTemplate逻辑。
+        /// 构建目标选项模板。
         /// </summary>
 
         private static Component BuildTargetOptionTemplate(Transform parent, string name)
@@ -834,7 +834,7 @@ namespace Game.EditorTools
             return view;
         }
         /// <summary>
-        /// CreateRoot：执行当前模块的CreateRoot逻辑。
+        /// 创建根节点。
         /// </summary>
 
         private static GameObject CreateRoot(string name)
@@ -853,7 +853,7 @@ namespace Game.EditorTools
             return root;
         }
         /// <summary>
-        /// Panel：执行当前模块的Panel逻辑。
+        /// 创建并配置面板，然后返回生成的界面对象。
         /// </summary>
 
         private static GameObject Panel(string name, Transform parent, Color color)
@@ -861,7 +861,7 @@ namespace Game.EditorTools
             return BattlePreparationEditorUiFactory.AddPanel(name, parent, color, true);
         }
         /// <summary>
-        /// State：执行当前模块的State逻辑。
+        /// 创建并配置状态，然后返回生成的界面对象。
         /// </summary>
 
         private static GameObject State(string name, Transform parent)
@@ -871,7 +871,7 @@ namespace Game.EditorTools
             return root;
         }
         /// <summary>
-        /// Text：执行当前模块的Text逻辑。
+        /// 创建并配置文本，然后返回生成的界面对象。
         /// </summary>
 
         private static Text Text(
@@ -899,7 +899,7 @@ namespace Game.EditorTools
                 color);
         }
         /// <summary>
-        /// Image：执行当前模块的Image逻辑。
+        /// 创建并配置图像，然后返回生成的界面对象。
         /// </summary>
 
         private static Image Image(
@@ -924,7 +924,7 @@ namespace Game.EditorTools
                 true);
         }
         /// <summary>
-        /// Button：执行当前模块的Button逻辑。
+        /// 根据 `name`、`parent`、`label` 构建按钮并返回结果。
         /// </summary>
 
         private static BattlePreparationEditorUiFactory.ButtonParts Button(
@@ -947,7 +947,7 @@ namespace Game.EditorTools
             return button;
         }
         /// <summary>
-        /// Runtime：执行当前模块的Runtime逻辑。
+        /// 创建并配置运行时，然后返回生成的界面对象。
         /// </summary>
 
         private static Component Runtime(GameObject target, string typeName)
@@ -955,7 +955,7 @@ namespace Game.EditorTools
             return BattlePreparationEditorUiFactory.AddRuntimeComponent(target, typeName);
         }
         /// <summary>
-        /// Set：执行当前模块的Set逻辑。
+        /// 设置当前 `BattleStageSelectionUiPrefabBuilder` 实例。
         /// </summary>
 
         private static void Set(Component component, string field, UnityEngine.Object value)
@@ -963,7 +963,7 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.SetObject(component, field, value);
         }
         /// <summary>
-        /// SetRect：执行当前模块的SetRect逻辑。
+        /// 设置矩形。
         /// </summary>
 
         private static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax)
@@ -976,7 +976,7 @@ namespace Game.EditorTools
                 Vector2.zero);
         }
         /// <summary>
-        /// Stretch：执行当前模块的Stretch逻辑。
+        /// 更新`Stretch`。
         /// </summary>
 
         private static void Stretch(RectTransform rect)
@@ -984,7 +984,7 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.Stretch(rect);
         }
         /// <summary>
-        /// Save：执行当前模块的Save逻辑。
+        /// 保存当前 `BattleStageSelectionUiPrefabBuilder` 实例。
         /// </summary>
 
         private static void Save(GameObject root, string path)
@@ -996,7 +996,7 @@ namespace Game.EditorTools
             UnityEngine.Object.DestroyImmediate(root);
         }
         /// <summary>
-        /// ValidateStageDetailPrefab：执行当前模块的ValidateStageDetailPrefab逻辑。
+        /// 校验关卡详情预制体。
         /// </summary>
 
         private static void ValidateStageDetailPrefab()
@@ -1036,7 +1036,7 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// Destroy：执行当前模块的Destroy逻辑。
+        /// 销毁当前 `BattleStageSelectionUiPrefabBuilder` 实例。
         /// </summary>
 
         private static void Destroy(GameObject root)

@@ -29,9 +29,6 @@ namespace TryGame.RefDataTools.Editor
         private const string CanonicalSourceInputRole = "canonicalSource";
         private const string ImplicitDependencyInputRole = "implicitDependency";
 
-        // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-        // 实现说明：该注释描述当前模块的边界条件和运行时处理。
-        // 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private static readonly HashSet<string> ExplicitlyAllowedEmptyTables =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -41,7 +38,7 @@ namespace TryGame.RefDataTools.Editor
                 "BattleSkillMultiEquipment",
             };
         /// <summary>
-        /// TryCaptureInputHashes：执行当前模块的TryCaptureInputHashes逻辑。
+        /// 根据 `excelFullPaths` 捕获输入`Hashes`；成功时写出 `inputHashes` 并返回 `true`，前置条件不满足时返回 `false`。
         /// </summary>
 
         public static bool TryCaptureInputHashes(
@@ -53,9 +50,6 @@ namespace TryGame.RefDataTools.Editor
             {
                 if (excelFullPaths == null || excelFullPaths.Count == 0)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("没有可记录的 Excel 输入。");
                 }
 
@@ -65,9 +59,6 @@ namespace TryGame.RefDataTools.Editor
                     EnsureFile(path, "Excel 输入");
                     if (inputHashes.ContainsKey(path))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException("本次导出包含重复 Excel 输入：" + path);
                     }
 
@@ -85,7 +76,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ValidateInputHashesUnchanged：执行当前模块的ValidateInputHashesUnchanged逻辑。
+        /// 校验输入`Hashes Unchanged`。
         /// </summary>
 
         public static bool ValidateInputHashesUnchanged(
@@ -97,9 +88,6 @@ namespace TryGame.RefDataTools.Editor
             {
                 if (inputFullPaths == null || inputFullPaths.Count == 0)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("没有可执行最终哈希门禁的 Excel 输入。");
                 }
 
@@ -117,9 +105,6 @@ namespace TryGame.RefDataTools.Editor
                     EnsureFile(path, $"{phase} Excel 输入");
                     if (!seenPaths.Add(path))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException($"{phase} 包含重复 Excel 输入：{path}");
                     }
 
@@ -146,11 +131,11 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
-        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+        /// <summary>
         /// 增量导出必须建立在一份完整、可复核的正式快照上。
         /// 未选择但已经变化的源表不能把新哈希写入 manifest 并继续保留旧产物；
         /// 源表集合或公共定义变化时必须执行全量清洁重建。
-        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+        /// </summary>
         public static bool ValidateIncrementalSourceSnapshot(
             string sourceOutput,
             string runtimeOutput,
@@ -184,33 +169,21 @@ namespace TryGame.RefDataTools.Editor
                 RefDataManifest publishedManifest = DeserializeManifest(manifestJson, Phase);
                 if (publishedManifest.inputs == null || publishedManifest.inputs.Count == 0)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("正式 manifest 没有任何源表快照输入。");
                 }
 
                 if (selectedInputFullPaths == null || selectedInputFullPaths.Count == 0)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("增量导出没有任何本次选中输入。");
                 }
 
                 if (completeInputFullPaths == null || completeInputFullPaths.Count == 0)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("增量导出无法建立完整规范源表快照。");
                 }
 
                 if (implicitDependencyFullPaths == null)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("完整源表快照的隐式依赖集合为 null。");
                 }
 
@@ -226,9 +199,6 @@ namespace TryGame.RefDataTools.Editor
                     StringComparer.OrdinalIgnoreCase);
                 if (completePaths.Count != completeInputFullPaths.Count)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("完整规范源表快照包含重复路径。");
                 }
 
@@ -237,9 +207,6 @@ namespace TryGame.RefDataTools.Editor
                     StringComparer.OrdinalIgnoreCase);
                 if (!implicitPaths.IsSubsetOf(completePaths))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("隐式依赖不属于完整规范源表快照。");
                 }
 
@@ -249,17 +216,11 @@ namespace TryGame.RefDataTools.Editor
                     string selectedPath = Path.GetFullPath(selectedInputFullPaths[i]);
                     if (!selectedPaths.Add(selectedPath))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException("增量导出包含重复选中源表：" + selectedPath);
                     }
 
                     if (!completePaths.Contains(selectedPath) || implicitPaths.Contains(selectedPath))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException("增量导出选中了规范源表集合之外的文件：" + selectedPath);
                     }
                 }
@@ -277,9 +238,6 @@ namespace TryGame.RefDataTools.Editor
                     string fullPath = ResolveManifestInputFullPath(input.path);
                     if (publishedInputs.ContainsKey(fullPath))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException("正式 manifest inputs 包含重复路径：" + fullPath);
                     }
 
@@ -330,9 +288,6 @@ namespace TryGame.RefDataTools.Editor
                     if (!currentInputHashes.TryGetValue(path, out string currentSha256) ||
                         string.IsNullOrWhiteSpace(currentSha256))
                     {
-                        /// <summary>
-                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                        /// </summary>
                         throw new InvalidDataException("当前完整源表快照缺少哈希：" + path);
                     }
 
@@ -381,7 +336,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ValidateManifestAndPayloadCopies：执行当前模块的ValidateManifestAndPayloadCopies逻辑。
+        /// 校验清单并载荷复制。
         /// </summary>
 
         public static bool ValidateManifestAndPayloadCopies(
@@ -422,7 +377,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ValidateAndWriteManifest：执行当前模块的ValidateAndWriteManifest逻辑。
+        /// 校验并写入清单。
         /// </summary>
 
         public static bool ValidateAndWriteManifest(
@@ -452,9 +407,6 @@ namespace TryGame.RefDataTools.Editor
                 SortedSet<string> bytesTables = CollectFileNames(bytesDirectory, "*.bytes");
                 if (jsonTables.Count == 0)
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("staging 没有任何客户端 JSON 表，拒绝发布。");
                 }
 
@@ -555,7 +507,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// BuildInputManifest：执行当前模块的BuildInputManifest逻辑。
+        /// 构建输入清单。
         /// </summary>
 
         private static List<RefDataInputManifest> BuildInputManifest(
@@ -565,17 +517,11 @@ namespace TryGame.RefDataTools.Editor
         {
             if (validationInputFullPaths == null || validationInputFullPaths.Count == 0)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException("manifest 没有任何完整规范源表快照输入。");
             }
 
             if (implicitDependencyFullPaths == null)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException("manifest 的隐式 Excel 依赖集合为 null。");
             }
 
@@ -604,17 +550,11 @@ namespace TryGame.RefDataTools.Editor
                 if (!extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) &&
                     !extension.Equals(".xlsm", StringComparison.OrdinalIgnoreCase))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("manifest 输入扩展名不受支持：" + path);
                 }
 
                 if (!seenPaths.Add(path))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException("完整规范源表快照包含重复 Excel 输入：" + path);
                 }
 
@@ -652,7 +592,7 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
         /// <summary>
-        /// GetManifestInputPath：执行当前模块的GetManifestInputPath逻辑。
+        /// 获取清单输入路径。
         /// </summary>
 
         private static string GetManifestInputPath(string inputPath)
@@ -666,16 +606,13 @@ namespace TryGame.RefDataTools.Editor
                 : fullPath;
         }
         /// <summary>
-        /// ResolveManifestInputFullPath：执行当前模块的ResolveManifestInputFullPath逻辑。
+        /// 解析清单输入完整路径。
         /// </summary>
 
         private static string ResolveManifestInputFullPath(string manifestInputPath)
         {
             if (string.IsNullOrWhiteSpace(manifestInputPath))
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException("manifest 输入路径为空。");
             }
 
@@ -686,7 +623,7 @@ namespace TryGame.RefDataTools.Editor
                     : Path.Combine(TryGameRefDataPaths.ProjectRoot, normalized));
         }
         /// <summary>
-        /// ValidateManifestSerialization：执行当前模块的ValidateManifestSerialization逻辑。
+        /// 校验`Manifest Serialization`。
         /// </summary>
 
         private static void ValidateManifestSerialization(
@@ -698,9 +635,6 @@ namespace TryGame.RefDataTools.Editor
             object root = MiniJsonParser.Deserialize(manifestJson);
             if (!(root is IDictionary<string, object> manifest))
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException("JsonUtility 生成的 manifest 根结构不是对象。");
             }
 
@@ -721,9 +655,6 @@ namespace TryGame.RefDataTools.Editor
             if (!manifest.TryGetValue("language", out object languageValue) ||
                 !(languageValue is IDictionary<string, object>))
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException("JsonUtility 生成的 manifest 缺少 language 对象。");
             }
 
@@ -737,7 +668,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// GetListCount：执行当前模块的GetListCount逻辑。
+        /// 获取列表数量。
         /// </summary>
 
         private static int GetListCount(object value)
@@ -745,7 +676,7 @@ namespace TryGame.RefDataTools.Editor
             return value is IList list ? list.Count : -1;
         }
         /// <summary>
-        /// ValidateManifestCopiesAgainstExpected：执行当前模块的ValidateManifestCopiesAgainstExpected逻辑。
+        /// 校验清单复制`Against`预期。
         /// </summary>
 
         private static void ValidateManifestCopiesAgainstExpected(
@@ -755,9 +686,6 @@ namespace TryGame.RefDataTools.Editor
         {
             if (string.IsNullOrEmpty(expectedManifestJson))
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException($"{phase} 没有本次事务生成的 expected manifest。");
             }
 
@@ -787,7 +715,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// DeserializeManifest：执行当前模块的DeserializeManifest逻辑。
+        /// 根据 `manifestJson`、`phase` 反序列化清单并返回结果。
         /// </summary>
 
         private static RefDataManifest DeserializeManifest(string manifestJson, string phase)
@@ -799,17 +727,11 @@ namespace TryGame.RefDataTools.Editor
             }
             catch (Exception exception)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException($"{phase} expected manifest 无法反序列化。", exception);
             }
 
             if (manifest == null)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException($"{phase} expected manifest 反序列化结果为 null。");
             }
 
@@ -821,16 +743,13 @@ namespace TryGame.RefDataTools.Editor
 
             if (manifest.payloadFiles == null || manifest.payloadFiles.Count == 0)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException($"{phase} manifest 没有任何 payloadFiles，拒绝视为空产物发布。");
             }
 
             return manifest;
         }
         /// <summary>
-        /// BuildPayloadManifest：执行当前模块的BuildPayloadManifest逻辑。
+        /// 构建载荷清单。
         /// </summary>
 
         private static List<RefDataPayloadFileManifest> BuildPayloadManifest(
@@ -877,7 +796,7 @@ namespace TryGame.RefDataTools.Editor
                 .ToList();
         }
         /// <summary>
-        /// IsExcludedPayloadFile：执行当前模块的IsExcludedPayloadFile逻辑。
+        /// 检查 `rootDirectory`、`path` 是否满足“排除载荷文件”条件。
         /// </summary>
 
         private static bool IsExcludedPayloadFile(string rootDirectory, string path)
@@ -892,7 +811,7 @@ namespace TryGame.RefDataTools.Editor
             return Path.GetFullPath(path).Equals(rootManifestPath, StringComparison.OrdinalIgnoreCase);
         }
         /// <summary>
-        /// GetPayloadRelativePath：执行当前模块的GetPayloadRelativePath逻辑。
+        /// 获取载荷`Relative`路径。
         /// </summary>
 
         private static string GetPayloadRelativePath(string rootDirectory, string filePath)
@@ -910,7 +829,7 @@ namespace TryGame.RefDataTools.Editor
             return fullPath.Substring(prefix.Length).Replace('\\', '/');
         }
         /// <summary>
-        /// ValidatePayloadSnapshot：执行当前模块的ValidatePayloadSnapshot逻辑。
+        /// 校验载荷快照。
         /// </summary>
 
         private static void ValidatePayloadSnapshot(
@@ -948,6 +867,9 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// 构建载荷索引并返回生成结果。
+        /// </summary>
 
         private static Dictionary<string, string> BuildPayloadIndex(
             IReadOnlyList<RefDataPayloadFileManifest> files,
@@ -955,9 +877,6 @@ namespace TryGame.RefDataTools.Editor
         {
             if (files == null || files.Count == 0)
             {
-                /// <summary>
-                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                /// </summary>
                 throw new InvalidDataException($"{label} payload 文件清单为空。");
             }
 
@@ -992,9 +911,6 @@ namespace TryGame.RefDataTools.Editor
                 string key = file.logicalRoot + "/" + file.relativePath;
                 if (result.ContainsKey(key))
                 {
-                    /// <summary>
-                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
-                    /// </summary>
                     throw new InvalidDataException($"{label} payload 包含重复文件：{key}");
                 }
 
@@ -1004,7 +920,7 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
         /// <summary>
-        /// IsKnownPayloadRoot：执行当前模块的IsKnownPayloadRoot逻辑。
+        /// 检查 `logicalRoot` 是否满足“已知载荷根目录”条件。
         /// </summary>
 
         private static bool IsKnownPayloadRoot(string logicalRoot)
@@ -1015,7 +931,7 @@ namespace TryGame.RefDataTools.Editor
                 string.Equals(logicalRoot, GeneratedConfigRoot, StringComparison.Ordinal);
         }
         /// <summary>
-        /// IsSha256：执行当前模块的IsSha256逻辑。
+        /// 检查 `value` 是否满足“SHA`256`”条件。
         /// </summary>
 
         private static bool IsSha256(string value)
@@ -1036,7 +952,7 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// FormatPayloadKeys：执行当前模块的FormatPayloadKeys逻辑。
+        /// 格式化载荷`Keys`。
         /// </summary>
 
         private static string FormatPayloadKeys(IReadOnlyList<string> keys)
@@ -1053,7 +969,7 @@ namespace TryGame.RefDataTools.Editor
                 : value;
         }
         /// <summary>
-        /// ValidateJsonRowsAndUniqueIds：执行当前模块的ValidateJsonRowsAndUniqueIds逻辑。
+        /// 校验JSON行并唯一标识。
         /// </summary>
 
         private static int ValidateJsonRowsAndUniqueIds(string tableName, string jsonPath)
@@ -1165,7 +1081,7 @@ namespace TryGame.RefDataTools.Editor
             return rowCount;
         }
         /// <summary>
-        /// FormatRawJsonValue：执行当前模块的FormatRawJsonValue逻辑。
+        /// 格式化原始JSON值。
         /// </summary>
 
         private static string FormatRawJsonValue(object value)
@@ -1187,7 +1103,7 @@ namespace TryGame.RefDataTools.Editor
             return Convert.ToString(value, CultureInfo.InvariantCulture);
         }
         /// <summary>
-        /// IsObjectRowArray：执行当前模块的IsObjectRowArray逻辑。
+        /// 检查 `values` 是否满足“对象数据行数组”条件。
         /// </summary>
 
         private static bool IsObjectRowArray(IList values)
@@ -1203,7 +1119,7 @@ namespace TryGame.RefDataTools.Editor
             return true;
         }
         /// <summary>
-        /// ValidateLanguage：执行当前模块的ValidateLanguage逻辑。
+        /// 校验语言。
         /// </summary>
 
         private static RefDataLanguageManifest ValidateLanguage(string stagedRuntimeOutput)
@@ -1260,7 +1176,7 @@ namespace TryGame.RefDataTools.Editor
             };
         }
         /// <summary>
-        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// 查找列。
         /// </summary>
 
         private static int FindColumn(string[] values, string name)
@@ -1276,7 +1192,7 @@ namespace TryGame.RefDataTools.Editor
             return -1;
         }
         /// <summary>
-        /// GetValue：执行当前模块的GetValue逻辑。
+        /// 安全读取数组中的指定字段；索引越界时返回空字符串。
         /// </summary>
 
         private static string GetValue(string[] values, int index)
@@ -1284,7 +1200,7 @@ namespace TryGame.RefDataTools.Editor
             return index >= 0 && index < values.Length ? values[index] ?? string.Empty : string.Empty;
         }
         /// <summary>
-        /// ValidateBytesWithFlatc：执行当前模块的ValidateBytesWithFlatc逻辑。
+        /// 校验`Bytes`使用`Flatc`。
         /// </summary>
 
         private static void ValidateBytesWithFlatc(
@@ -1306,7 +1222,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ValidateBytesMatchesJson：执行当前模块的ValidateBytesMatchesJson逻辑。
+        /// 校验`Bytes Matches`JSON。
         /// </summary>
 
         private static void ValidateBytesMatchesJson(
@@ -1355,7 +1271,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// FindFirstDifferentByteOffset：执行当前模块的FindFirstDifferentByteOffset逻辑。
+        /// 查找首个`Different Byte`偏移。
         /// </summary>
 
         private static long FindFirstDifferentByteOffset(string expectedPath, string actualPath)
@@ -1395,7 +1311,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ValidateGeneratedCSharpCompiles：执行当前模块的ValidateGeneratedCSharpCompiles逻辑。
+        /// 校验已生成`C Sharp Compiles`。
         /// </summary>
 
         private static void ValidateGeneratedCSharpCompiles(
@@ -1470,7 +1386,7 @@ namespace TryGame.RefDataTools.Editor
             Debug.Log("[TryGameRefDataExportValidator] staging GeneratedTables/GeneratedConfig 编译通过。\n" + result.CombinedOutput.Trim());
         }
         /// <summary>
-        /// MakeProjectReferencesAbsolute：执行当前模块的MakeProjectReferencesAbsolute逻辑。
+        /// 生成投影引用绝对路径。
         /// </summary>
 
         private static void MakeProjectReferencesAbsolute(XDocument project)
@@ -1500,7 +1416,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ResolvePortableProjectPath：执行当前模块的ResolvePortableProjectPath逻辑。
+        /// 解析`Portable`投影路径。
         /// </summary>
 
         private static string ResolvePortableProjectPath(string value)
@@ -1509,14 +1425,11 @@ namespace TryGame.RefDataTools.Editor
             {
                 return value;
             }
-            /// <summary>
-            /// ResolveProjectPath：执行当前模块的ResolveProjectPath逻辑。
-            /// </summary>
 
             return ResolveProjectPath(value);
         }
         /// <summary>
-        /// ReplaceCompilePathOrRemove：执行当前模块的ReplaceCompilePathOrRemove逻辑。
+        /// 替换`Compile`路径或`Remove`。
         /// </summary>
 
         private static void ReplaceCompilePathOrRemove(
@@ -1537,7 +1450,7 @@ namespace TryGame.RefDataTools.Editor
             includedStagedFiles.Add(stagedPath);
         }
         /// <summary>
-        /// AddMissingCompileFiles：执行当前模块的AddMissingCompileFiles逻辑。
+        /// 添加缺失`Compile Files`。
         /// </summary>
 
         private static void AddMissingCompileFiles(
@@ -1564,7 +1477,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// SetAllElementValues：执行当前模块的SetAllElementValues逻辑。
+        /// 设置全部`Element`值。
         /// </summary>
 
         private static void SetAllElementValues(XDocument document, string elementName, string value)
@@ -1583,7 +1496,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ResolveProjectPath：执行当前模块的ResolveProjectPath逻辑。
+        /// 解析投影路径。
         /// </summary>
 
         private static string ResolveProjectPath(string path)
@@ -1593,7 +1506,7 @@ namespace TryGame.RefDataTools.Editor
                 : Path.Combine(TryGameRefDataPaths.ProjectRoot, path));
         }
         /// <summary>
-        /// IsPathUnder：执行当前模块的IsPathUnder逻辑。
+        /// 检查 `path`、`directory` 是否满足“路径位于”条件。
         /// </summary>
 
         private static bool IsPathUnder(string path, string directory)
@@ -1604,7 +1517,7 @@ namespace TryGame.RefDataTools.Editor
             return fullPath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
         }
         /// <summary>
-        /// CollectFileNames：执行当前模块的CollectFileNames逻辑。
+        /// 收集文件`Names`。
         /// </summary>
 
         private static SortedSet<string> CollectFileNames(string directory, string pattern)
@@ -1619,7 +1532,7 @@ namespace TryGame.RefDataTools.Editor
             return result;
         }
         /// <summary>
-        /// DescribeSetDifference：执行当前模块的DescribeSetDifference逻辑。
+        /// 生成人类可读的集合差异说明，列出缺失项和多余项。
         /// </summary>
 
         private static string DescribeSetDifference(
@@ -1630,7 +1543,7 @@ namespace TryGame.RefDataTools.Editor
             return label + "=[" + string.Join(", ", expected.Where(item => !actual.Contains(item))) + "]";
         }
         /// <summary>
-        /// ComputeDirectorySha256：执行当前模块的ComputeDirectorySha256逻辑。
+        /// 计算目录`Sha 256`。
         /// </summary>
 
         private static string ComputeDirectorySha256(params string[] directories)
@@ -1654,7 +1567,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ComputeSha256：执行当前模块的ComputeSha256逻辑。
+        /// 计算`Sha 256`。
         /// </summary>
 
         private static string ComputeSha256(string path)
@@ -1666,7 +1579,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ComputeSha256：执行当前模块的ComputeSha256逻辑。
+        /// 计算`Sha 256`。
         /// </summary>
 
         private static string ComputeSha256(byte[] content)
@@ -1677,7 +1590,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// ToHex：执行当前模块的ToHex逻辑。
+        /// 将结果转换为`Hex`。
         /// </summary>
 
         private static string ToHex(byte[] bytes)
@@ -1691,7 +1604,7 @@ namespace TryGame.RefDataTools.Editor
             return sb.ToString();
         }
         /// <summary>
-        /// ReadFileVersion：执行当前模块的ReadFileVersion逻辑。
+        /// 读取文件`Version`。
         /// </summary>
 
         private static string ReadFileVersion(string path)
@@ -1701,7 +1614,7 @@ namespace TryGame.RefDataTools.Editor
             return string.IsNullOrWhiteSpace(info.FileVersion) ? "unknown" : info.FileVersion;
         }
         /// <summary>
-        /// RunProcess：执行当前模块的RunProcess逻辑。
+        /// 运行处理。
         /// </summary>
 
         private static ProcessResult RunProcess(string fileName, string arguments, string workingDirectory, int timeoutMilliseconds)
@@ -1777,7 +1690,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// GetProcessOutput：执行当前模块的GetProcessOutput逻辑。
+        /// 获取处理输出。
         /// </summary>
 
         private static string GetProcessOutput(StringBuilder output, object outputLock)
@@ -1788,7 +1701,7 @@ namespace TryGame.RefDataTools.Editor
             }
         }
         /// <summary>
-        /// Quote：执行当前模块的Quote逻辑。
+        /// 根据 `value` 构建`Quote`并返回结果。
         /// </summary>
 
         private static string Quote(string value)
@@ -1796,30 +1709,24 @@ namespace TryGame.RefDataTools.Editor
             return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
         /// <summary>
-        /// EnsureDirectory：执行当前模块的EnsureDirectory逻辑。
+        /// 确保目录。
         /// </summary>
 
         private static void EnsureDirectory(string path, string label)
         {
             if (!Directory.Exists(path))
             {
-                /// <summary>
-                /// DirectoryNotFoundException：执行当前模块的DirectoryNotFoundException逻辑。
-                /// </summary>
                 throw new DirectoryNotFoundException(label + "目录不存在：" + path);
             }
         }
         /// <summary>
-        /// EnsureFile：执行当前模块的EnsureFile逻辑。
+        /// 确保文件。
         /// </summary>
 
         private static void EnsureFile(string path, string label)
         {
             if (!File.Exists(path))
             {
-                /// <summary>
-                /// FileNotFoundException：执行当前模块的FileNotFoundException逻辑。
-                /// </summary>
                 throw new FileNotFoundException(label + "不存在：" + path, path);
             }
         }
@@ -1829,7 +1736,7 @@ namespace TryGame.RefDataTools.Editor
             public readonly int ExitCode;
             public readonly string CombinedOutput;
             /// <summary>
-            /// ProcessResult：执行当前模块的ProcessResult逻辑。
+            /// 处理结果。
             /// </summary>
 
             public ProcessResult(int exitCode, string combinedOutput)
@@ -1847,7 +1754,7 @@ namespace TryGame.RefDataTools.Editor
             private const string WordBreak = "{}[],:\"";
             private readonly StringReader reader;
             /// <summary>
-            /// MiniJsonParser：执行当前模块的MiniJsonParser逻辑。
+            /// 创建 `MiniJsonParser`，记录`json`（json）字段，形成可供后续流程传递的数据对象。
             /// </summary>
 
             private MiniJsonParser(string json)
@@ -1855,7 +1762,7 @@ namespace TryGame.RefDataTools.Editor
                 reader = new StringReader(json ?? string.Empty);
             }
             /// <summary>
-            /// Deserialize：执行当前模块的Deserialize逻辑。
+            /// 根据 `json` 反序列化结果并返回结果。
             /// </summary>
 
             public static object Deserialize(string json)
@@ -1866,9 +1773,6 @@ namespace TryGame.RefDataTools.Editor
                     parser.EatWhitespace();
                     if (parser.reader.Peek() != -1)
                     {
-                        /// <summary>
-                        /// FormatException：执行当前模块的FormatException逻辑。
-                        /// </summary>
                         throw new FormatException("JSON 根值之后仍有未解析内容。");
                     }
 
@@ -1876,7 +1780,7 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
             /// <summary>
-            /// Dispose：执行当前模块的Dispose逻辑。
+            /// 释放当前 `MiniJsonParser` 实例持有的资源，使其不再参与后续运行。
             /// </summary>
 
             public void Dispose()
@@ -1884,7 +1788,7 @@ namespace TryGame.RefDataTools.Editor
                 reader.Dispose();
             }
             /// <summary>
-            /// ParseValue：执行当前模块的ParseValue逻辑。
+            /// 解析值。
             /// </summary>
 
             private object ParseValue()
@@ -1892,24 +1796,12 @@ namespace TryGame.RefDataTools.Editor
                 switch (NextToken)
                 {
                     case JsonToken.String:
-                        /// <summary>
-                        /// ParseString：执行当前模块的ParseString逻辑。
-                        /// </summary>
                         return ParseString();
                     case JsonToken.Number:
-                        /// <summary>
-                        /// ParseNumber：执行当前模块的ParseNumber逻辑。
-                        /// </summary>
                         return ParseNumber();
                     case JsonToken.ObjectStart:
-                        /// <summary>
-                        /// ParseObject：执行当前模块的ParseObject逻辑。
-                        /// </summary>
                         return ParseObject();
                     case JsonToken.ArrayStart:
-                        /// <summary>
-                        /// ParseArray：执行当前模块的ParseArray逻辑。
-                        /// </summary>
                         return ParseArray();
                     case JsonToken.True:
                         return true;
@@ -1918,14 +1810,11 @@ namespace TryGame.RefDataTools.Editor
                     case JsonToken.Null:
                         return null;
                     default:
-                        /// <summary>
-                        /// FormatException：执行当前模块的FormatException逻辑。
-                        /// </summary>
                         throw new FormatException("JSON 值格式非法。");
                 }
             }
             /// <summary>
-            /// ParseObject：执行当前模块的ParseObject逻辑。
+            /// 解析对象。
             /// </summary>
 
             private Dictionary<string, object> ParseObject()
@@ -1943,18 +1832,12 @@ namespace TryGame.RefDataTools.Editor
 
                     if (token != JsonToken.String)
                     {
-                        /// <summary>
-                        /// FormatException：执行当前模块的FormatException逻辑。
-                        /// </summary>
                         throw new FormatException("JSON 对象属性名必须是字符串。");
                     }
 
                     string key = ParseString();
                     if (NextToken != JsonToken.Colon)
                     {
-                        /// <summary>
-                        /// FormatException：执行当前模块的FormatException逻辑。
-                        /// </summary>
                         throw new FormatException("JSON 对象属性缺少冒号：" + key);
                     }
 
@@ -1972,15 +1855,12 @@ namespace TryGame.RefDataTools.Editor
                         reader.Read();
                         return result;
                     }
-                    /// <summary>
-                    /// FormatException：执行当前模块的FormatException逻辑。
-                    /// </summary>
 
                     throw new FormatException("JSON 对象属性之间缺少逗号。");
                 }
             }
             /// <summary>
-            /// ParseArray：执行当前模块的ParseArray逻辑。
+            /// 解析数组。
             /// </summary>
 
             private List<object> ParseArray()
@@ -2009,15 +1889,12 @@ namespace TryGame.RefDataTools.Editor
                         reader.Read();
                         return result;
                     }
-                    /// <summary>
-                    /// FormatException：执行当前模块的FormatException逻辑。
-                    /// </summary>
 
                     throw new FormatException("JSON 数组元素之间缺少逗号。");
                 }
             }
             /// <summary>
-            /// ParseString：执行当前模块的ParseString逻辑。
+            /// 解析字符串。
             /// </summary>
 
             private string ParseString()
@@ -2025,9 +1902,6 @@ namespace TryGame.RefDataTools.Editor
                 StringBuilder value = new StringBuilder();
                 if (reader.Read() != '"')
                 {
-                    /// <summary>
-                    /// FormatException：执行当前模块的FormatException逻辑。
-                    /// </summary>
                     throw new FormatException("JSON 字符串缺少开始引号。");
                 }
 
@@ -2036,9 +1910,6 @@ namespace TryGame.RefDataTools.Editor
                     int next = reader.Read();
                     if (next == -1)
                     {
-                        /// <summary>
-                        /// FormatException：执行当前模块的FormatException逻辑。
-                        /// </summary>
                         throw new FormatException("JSON 字符串没有结束引号。");
                     }
 
@@ -2057,9 +1928,6 @@ namespace TryGame.RefDataTools.Editor
                     int escaped = reader.Read();
                     if (escaped == -1)
                     {
-                        /// <summary>
-                        /// FormatException：执行当前模块的FormatException逻辑。
-                        /// </summary>
                         throw new FormatException("JSON 转义字符不完整。");
                     }
 
@@ -2080,9 +1948,6 @@ namespace TryGame.RefDataTools.Editor
                                 int hexValue = reader.Read();
                                 if (hexValue == -1)
                                 {
-                                    /// <summary>
-                                    /// FormatException：执行当前模块的FormatException逻辑。
-                                    /// </summary>
                                     throw new FormatException("JSON Unicode 转义不完整。");
                                 }
 
@@ -2092,15 +1957,12 @@ namespace TryGame.RefDataTools.Editor
                             value.Append((char)Convert.ToInt32(new string(hex), 16));
                             break;
                         default:
-                            /// <summary>
-                            /// FormatException：执行当前模块的FormatException逻辑。
-                            /// </summary>
                             throw new FormatException("JSON 包含未知转义字符：" + (char)escaped);
                     }
                 }
             }
             /// <summary>
-            /// ParseNumber：执行当前模块的ParseNumber逻辑。
+            /// 解析`Number`。
             /// </summary>
 
             private object ParseNumber()
@@ -2116,14 +1978,11 @@ namespace TryGame.RefDataTools.Editor
                 {
                     return floating;
                 }
-                /// <summary>
-                /// FormatException：执行当前模块的FormatException逻辑。
-                /// </summary>
 
                 throw new FormatException("JSON 数值格式非法：" + number);
             }
             /// <summary>
-            /// ReadWord：执行当前模块的ReadWord逻辑。
+            /// 读取`Word`。
             /// </summary>
 
             private string ReadWord()
@@ -2143,7 +2002,7 @@ namespace TryGame.RefDataTools.Editor
                 return word.ToString();
             }
             /// <summary>
-            /// EatWhitespace：执行当前模块的EatWhitespace逻辑。
+            /// 更新`Eat`空白字符。
             /// </summary>
 
             private void EatWhitespace()
@@ -2192,9 +2051,6 @@ namespace TryGame.RefDataTools.Editor
                     if (word == "true") return JsonToken.True;
                     if (word == "false") return JsonToken.False;
                     if (word == "null") return JsonToken.Null;
-                    /// <summary>
-                    /// FormatException：执行当前模块的FormatException逻辑。
-                    /// </summary>
                     throw new FormatException("JSON 包含未知标记：" + word);
                 }
             }
@@ -2268,7 +2124,7 @@ namespace TryGame.RefDataTools.Editor
         private sealed class PayloadRootDefinition
         {
             /// <summary>
-            /// PayloadRootDefinition：执行当前模块的PayloadRootDefinition逻辑。
+            /// 创建 `PayloadRootDefinition`，记录`logicalRoot`（logicalRoot）和`directory`（directory）字段，形成可供后续流程传递的运行时定义。
             /// </summary>
             public PayloadRootDefinition(string logicalRoot, string directory)
             {
@@ -2276,12 +2132,12 @@ namespace TryGame.RefDataTools.Editor
                 Directory = directory;
             }
             /// <summary>
-            /// LogicalRoot：执行当前模块的LogicalRoot逻辑。
+            /// 获取当前 `PayloadRootDefinition` 实例的`Logical`根节点。
             /// </summary>
 
             public string LogicalRoot { get; }
             /// <summary>
-            /// Directory：执行当前模块的Directory逻辑。
+            /// 获取当前 `PayloadRootDefinition` 实例的目录。
             /// </summary>
             public string Directory { get; }
         }

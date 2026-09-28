@@ -10,10 +10,10 @@ using UnityEngine;
 
 namespace TryGame.Tools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 构建前校验会进入 Player 的 TryGameBuildRes Prefab。
     /// 必须从磁盘枚举文件：导入失败的 Prefab 可能不会出现在 AssetDatabase.FindAssets 结果中。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal sealed class TryGamePlayerPrefabBuildValidator : IPreprocessBuildWithReport
     {
         private const string PlayerResourceRoot = "Assets/Resources/TryGameBuildRes";
@@ -28,12 +28,12 @@ namespace TryGame.Tools.Editor
             @"\bfileID:\s*(?<id>-?\d+)",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         /// <summary>
-        /// callbackOrder：执行当前模块的callbackOrder逻辑。
+        /// 获取当前 `TryGamePlayerPrefabBuildValidator` 实例的`callback Order`。
         /// </summary>
 
         public int callbackOrder => -100;
         /// <summary>
-        /// OnPreprocessBuild：执行当前模块的OnPreprocessBuild逻辑。
+        /// 响应构建前处理构建事件，并同步当前组件状态。
         /// </summary>
 
         public void OnPreprocessBuild(BuildReport report)
@@ -48,7 +48,7 @@ namespace TryGame.Tools.Editor
                 "See TryGamePlayerPrefabBuildValidator errors in Console.");
         }
         /// <summary>
-        /// ValidateFromMenu：执行当前模块的ValidateFromMenu逻辑。
+        /// 校验从菜单。
         /// </summary>
 
         [MenuItem(ValidationMenu, false, 230)]
@@ -69,7 +69,7 @@ namespace TryGame.Tools.Editor
             ValidateForBuild(logSuccess: true);
         }
         /// <summary>
-        /// ValidateForBuild：执行当前模块的ValidateForBuild逻辑。
+        /// 校验用于构建。
         /// </summary>
 
         internal static bool ValidateForBuild(bool logSuccess)
@@ -108,7 +108,7 @@ namespace TryGame.Tools.Editor
             return true;
         }
         /// <summary>
-        /// CollectPrefabPaths：执行当前模块的CollectPrefabPaths逻辑。
+        /// 收集预制体路径。
         /// </summary>
 
         private static List<string> CollectPrefabPaths(List<string> failures)
@@ -164,7 +164,7 @@ namespace TryGame.Tools.Editor
             return result;
         }
         /// <summary>
-        /// ValidatePrefabYaml：执行当前模块的ValidatePrefabYaml逻辑。
+        /// 校验预制体YAML。
         /// </summary>
 
         private static void ValidatePrefabYaml(
@@ -244,7 +244,7 @@ namespace TryGame.Tools.Editor
             }
         }
         /// <summary>
-        /// ValidateImportedPrefab：执行当前模块的ValidateImportedPrefab逻辑。
+        /// 校验已导入预制体。
         /// </summary>
 
         private static void ValidateImportedPrefab(
@@ -297,7 +297,7 @@ namespace TryGame.Tools.Editor
             }
         }
         /// <summary>
-        /// AssetPathToAbsolute：执行当前模块的AssetPathToAbsolute逻辑。
+        /// 将资源路径转换为绝对路径。
         /// </summary>
 
         private static string AssetPathToAbsolute(string assetPath)
@@ -306,7 +306,7 @@ namespace TryGame.Tools.Editor
             return Path.GetFullPath(Path.Combine(projectRoot ?? string.Empty, assetPath));
         }
         /// <summary>
-        /// GetHierarchyPath：执行当前模块的GetHierarchyPath逻辑。
+        /// 获取`Hierarchy`路径。
         /// </summary>
 
         private static string GetHierarchyPath(Transform node)

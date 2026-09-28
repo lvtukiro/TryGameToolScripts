@@ -5,16 +5,16 @@ using UnityEngine;
 
 namespace TryGame.Tools.Editor
 {
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// <summary>
     /// 2.0 唯一物品底座的开发期校验入口。只读配置和当前运行存档，
     /// 不创建测试物品、不修档，也不会替代候选存档管线的正式保护。
-    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// </summary>
     internal static class TryGameItemInstanceValidationTools
     {
         private const string MenuPath =
             "TryGame/Validation/校验 2.0 唯一物品配置与当前存档";
         /// <summary>
-        /// Validate：执行当前模块的Validate逻辑。
+        /// 校验当前 `TryGameItemInstanceValidationTools` 实例。
         /// </summary>
 
         [MenuItem(MenuPath, false, 410)]
@@ -65,7 +65,7 @@ namespace TryGame.Tools.Editor
                 $"checkedRuntime={EditorApplication.isPlaying && SaveRuntime.Instance?.Current != null}");
         }
         /// <summary>
-        /// ValidateDefinitions：执行当前模块的ValidateDefinitions逻辑。
+        /// 校验`Definitions`。
         /// </summary>
 
         private static int ValidateDefinitions(
@@ -126,7 +126,7 @@ namespace TryGame.Tools.Editor
             return violations;
         }
         /// <summary>
-        /// ValidateCurrentSession：执行当前模块的ValidateCurrentSession逻辑。
+        /// 校验当前会话。
         /// </summary>
 
         private static int ValidateCurrentSession(
@@ -171,7 +171,7 @@ namespace TryGame.Tools.Editor
             return violations;
         }
         /// <summary>
-        /// IsInstanceItemType：执行当前模块的IsInstanceItemType逻辑。
+        /// 检查 `type` 是否满足“实例物品类型”条件。
         /// </summary>
 
         private static bool IsInstanceItemType(EnumItemType type)
