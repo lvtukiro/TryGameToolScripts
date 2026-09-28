@@ -6,10 +6,10 @@ using UnityEngine;
 
 namespace TryGame.HomeDebugTools.Editor
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// Home 运行时作弊工具。
     /// 只在 Play Mode 中修改当前运行存档，用于测试区域解锁、物品数量和商店刷新。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class TryGameHomeAreaDebugUnlockWindow : EditorWindow
     {
         private string areaIdsText = HomeAreaDebugUnlocks.DefaultAreaIdsText;
@@ -22,6 +22,9 @@ namespace TryGame.HomeDebugTools.Editor
         private string foodDropCommandStatus = "尚未执行食物掉落命令。";
         private MessageType foodDropCommandStatusType = MessageType.None;
         private Vector2 scrollPosition;
+        /// <summary>
+        /// Open：执行当前模块的Open逻辑。
+        /// </summary>
 
         [MenuItem("TryGame/家园/运行时家园作弊工具")]
         public static void Open()
@@ -30,6 +33,9 @@ namespace TryGame.HomeDebugTools.Editor
             window.minSize = new Vector2(460f, 420f);
             window.Show();
         }
+        /// <summary>
+        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// </summary>
 
         private void OnGUI()
         {
@@ -52,6 +58,9 @@ namespace TryGame.HomeDebugTools.Editor
             DrawPetSection();
             EditorGUILayout.EndScrollView();
         }
+        /// <summary>
+        /// DrawBattleRobotSection：执行当前模块的DrawBattleRobotSection逻辑。
+        /// </summary>
 
         private static void DrawBattleRobotSection()
         {
@@ -120,6 +129,9 @@ namespace TryGame.HomeDebugTools.Editor
                 EditorGUILayout.EndVertical();
             }
         }
+        /// <summary>
+        /// DrawAreaSection：执行当前模块的DrawAreaSection逻辑。
+        /// </summary>
 
         private void DrawAreaSection()
         {
@@ -151,6 +163,9 @@ namespace TryGame.HomeDebugTools.Editor
                 areaIdsText = string.Empty;
             }
         }
+        /// <summary>
+        /// DrawItemSection：执行当前模块的DrawItemSection逻辑。
+        /// </summary>
 
         private void DrawItemSection()
         {
@@ -179,6 +194,9 @@ namespace TryGame.HomeDebugTools.Editor
                 EditorGUILayout.EndHorizontal();
             }
         }
+        /// <summary>
+        /// DrawShopSection：执行当前模块的DrawShopSection逻辑。
+        /// </summary>
 
         private void DrawShopSection()
         {
@@ -203,6 +221,9 @@ namespace TryGame.HomeDebugTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// DrawFoodDropSection：执行当前模块的DrawFoodDropSection逻辑。
+        /// </summary>
 
         private void DrawFoodDropSection()
         {
@@ -247,6 +268,9 @@ namespace TryGame.HomeDebugTools.Editor
 
             EditorGUILayout.HelpBox(foodDropCommandStatus, foodDropCommandStatusType);
         }
+        /// <summary>
+        /// RunFoodDropCommand：执行当前模块的RunFoodDropCommand逻辑。
+        /// </summary>
 
         private void RunFoodDropCommand(int count)
         {
@@ -264,6 +288,9 @@ namespace TryGame.HomeDebugTools.Editor
                 ? MessageType.Info
                 : MessageType.Warning;
         }
+        /// <summary>
+        /// RunFoodBarRepeatCommand：执行当前模块的RunFoodBarRepeatCommand逻辑。
+        /// </summary>
 
         private void RunFoodBarRepeatCommand(int repeatCount)
         {
@@ -279,6 +306,9 @@ namespace TryGame.HomeDebugTools.Editor
                 ? MessageType.Info
                 : MessageType.Warning;
         }
+        /// <summary>
+        /// DrawPetSection：执行当前模块的DrawPetSection逻辑。
+        /// </summary>
 
         private void DrawPetSection()
         {
@@ -329,6 +359,9 @@ namespace TryGame.HomeDebugTools.Editor
 
             EditorGUILayout.HelpBox(petCommandStatus, petCommandStatusType);
         }
+        /// <summary>
+        /// RunPetCommand：执行当前模块的RunPetCommand逻辑。
+        /// </summary>
 
         private void RunPetCommand(
             PetIntentType intent,
@@ -367,6 +400,9 @@ namespace TryGame.HomeDebugTools.Editor
                 $"energy={controller.Energy:F3}";
             petCommandStatusType = MessageType.Info;
         }
+        /// <summary>
+        /// DrawAreaPreview：执行当前模块的DrawAreaPreview逻辑。
+        /// </summary>
 
         private void DrawAreaPreview()
         {
@@ -376,6 +412,9 @@ namespace TryGame.HomeDebugTools.Editor
             EditorGUILayout.Space(4f);
             EditorGUILayout.LabelField("输入区域", preview);
         }
+        /// <summary>
+        /// ApplyUnlock：执行当前模块的ApplyUnlock逻辑。
+        /// </summary>
 
         private void ApplyUnlock(bool unlock)
         {
@@ -435,6 +474,9 @@ namespace TryGame.HomeDebugTools.Editor
                 $"[TryGameHomeAreaDebugUnlockWindow] 已{action}当前档 HomeArea：" +
                 $"worldZoneId={homeWorldZoneId}, areas={string.Join(", ", areaIds)}");
         }
+        /// <summary>
+        /// ApplyItemCountChange：执行当前模块的ApplyItemCountChange逻辑。
+        /// </summary>
 
         private void ApplyItemCountChange(bool add)
         {
@@ -459,6 +501,9 @@ namespace TryGame.HomeDebugTools.Editor
                 HomeAreaDebugUnlocks.TryRemoveItem(itemId, count);
             }
         }
+        /// <summary>
+        /// UnlockArea：执行当前模块的UnlockArea逻辑。
+        /// </summary>
 
         private static bool UnlockArea(SaveData save, int homeAreaId)
         {
@@ -470,6 +515,9 @@ namespace TryGame.HomeDebugTools.Editor
             save.home.unlockedHomeAreaIds.Add(homeAreaId);
             return true;
         }
+        /// <summary>
+        /// LockArea：执行当前模块的LockArea逻辑。
+        /// </summary>
 
         private static bool LockArea(SaveData save, int homeAreaId)
         {
@@ -483,6 +531,9 @@ namespace TryGame.HomeDebugTools.Editor
 
             return removed;
         }
+        /// <summary>
+        /// TryResolveCurrentHomeWorldZone：执行当前模块的TryResolveCurrentHomeWorldZone逻辑。
+        /// </summary>
 
         private static bool TryResolveCurrentHomeWorldZone(SaveData save, out int homeWorldZoneId)
         {
@@ -551,6 +602,9 @@ namespace TryGame.HomeDebugTools.Editor
 
             return true;
         }
+        /// <summary>
+        /// ValidateAreasBelongToHomeWorldZone：执行当前模块的ValidateAreasBelongToHomeWorldZone逻辑。
+        /// </summary>
 
         private static bool ValidateAreasBelongToHomeWorldZone(List<int> areaIds, int homeWorldZoneId)
         {

@@ -69,6 +69,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
         private byte[] regionUndoPng;
 
         // 主窗口唯一入口；预制体生成从“动作预览”页进入。
+        /// <summary>
+        /// Open：执行当前模块的Open逻辑。
+        /// </summary>
         [MenuItem("TryGame/工具/序列帧动画工具")]
         public static void Open()
         {
@@ -77,12 +80,18 @@ namespace Game.EditorTools.SequenceFrameAnimation
             window.minSize = new Vector2(1050f, 680f);
             window.Show();
         }
+        /// <summary>
+        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// </summary>
 
         private void OnEnable()
         {
             EnsureDocument();
             EditorApplication.update += UpdatePlayback;
         }
+        /// <summary>
+        /// OnDisable：执行当前模块的OnDisable逻辑。
+        /// </summary>
 
         private void OnDisable()
         {
@@ -90,6 +99,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             isPlaying = false;
             DestroyTexture(ref previewTexture);
         }
+        /// <summary>
+        /// OnDestroy：执行当前模块的OnDestroy逻辑。
+        /// </summary>
 
         private void OnDestroy()
         {
@@ -98,6 +110,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             // 才清理本窗口创建的目录。
             CleanupTemporaryExtractedFrameFolders();
         }
+        /// <summary>
+        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// </summary>
 
         private void OnGUI()
         {
@@ -109,6 +124,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             DrawPreviewPanel();
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawToolbar：执行当前模块的DrawToolbar逻辑。
+        /// </summary>
 
         private void DrawToolbar()
         {
@@ -118,6 +136,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             GUILayout.Label(status, EditorStyles.miniLabel);
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawTabs：执行当前模块的DrawTabs逻辑。
+        /// </summary>
 
         private void DrawTabs()
         {
@@ -130,6 +151,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawLeftPanel：执行当前模块的DrawLeftPanel逻辑。
+        /// </summary>
 
         private void DrawLeftPanel()
         {
@@ -145,6 +169,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             EditorGUILayout.EndVertical();
         }
+        /// <summary>
+        /// DrawFramesPanel：执行当前模块的DrawFramesPanel逻辑。
+        /// </summary>
 
         private void DrawFramesPanel()
         {
@@ -373,6 +400,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 + " 勾选“扣底色”后会把导出的纯色背景扣成透明。",
                 EditorStyles.wordWrappedMiniLabel);
         }
+        /// <summary>
+        /// DrawActionPreviewControlPanel：执行当前模块的DrawActionPreviewControlPanel逻辑。
+        /// </summary>
 
         private void DrawActionPreviewControlPanel()
         {
@@ -463,6 +493,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 + "不需要再手动返回上一页导出。",
                 EditorStyles.wordWrappedMiniLabel);
         }
+        /// <summary>
+        /// DrawPreviewPanel：执行当前模块的DrawPreviewPanel逻辑。
+        /// </summary>
 
         private void DrawPreviewPanel()
         {
@@ -490,6 +523,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             DrawFrameList();
             EditorGUILayout.EndVertical();
         }
+        /// <summary>
+        /// DrawCanvasGuides：执行当前模块的DrawCanvasGuides逻辑。
+        /// </summary>
 
         private void DrawCanvasGuides(Rect previewRect, Rect textureRect)
         {
@@ -561,6 +597,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                         document.footBaselineNormalized * canvasHeight) + " px",
                 EditorStyles.whiteMiniLabel);
         }
+        /// <summary>
+        /// DrawFrameList：执行当前模块的DrawFrameList逻辑。
+        /// </summary>
 
         private void DrawFrameList()
         {
@@ -622,6 +661,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
             EditorGUILayout.EndScrollView();
         }
+        /// <summary>
+        /// SelectNextFrameForPreview：执行当前模块的SelectNextFrameForPreview逻辑。
+        /// </summary>
 
         private void SelectNextFrameForPreview()
         {
@@ -638,6 +680,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             status = "当前预览帧：源帧 " + document.frames[nextIndex].sourceFrameIndex;
             Repaint();
         }
+        /// <summary>
+        /// SelectFrameSource：执行当前模块的SelectFrameSource逻辑。
+        /// </summary>
 
         private void SelectFrameSource()
         {
@@ -667,6 +712,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             status = "已选择动作文件，请点击“拆帧”。";
             Repaint();
         }
+        /// <summary>
+        /// ExtractSelectedFrameSource：执行当前模块的ExtractSelectedFrameSource逻辑。
+        /// </summary>
 
         private void ExtractSelectedFrameSource()
         {
@@ -741,6 +789,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             Repaint();
         }
+        /// <summary>
+        /// LoadFrameFiles：执行当前模块的LoadFrameFiles逻辑。
+        /// </summary>
 
         private List<SequenceFrameData> LoadFrameFiles(string folder)
         {
@@ -767,6 +818,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return result;
         }
+        /// <summary>
+        /// AutoSelectFrames：执行当前模块的AutoSelectFrames逻辑。
+        /// </summary>
 
         private void AutoSelectFrames()
         {
@@ -803,6 +857,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 + CountSelectedFrames() + " 帧。";
             Repaint();
         }
+        /// <summary>
+        /// BuildFrameDisplayOrder：执行当前模块的BuildFrameDisplayOrder逻辑。
+        /// </summary>
 
         private List<int> BuildFrameDisplayOrder()
         {
@@ -825,6 +882,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return result;
         }
+        /// <summary>
+        /// RecalculateDifferenceScoresFromSelectedFrames：执行当前模块的RecalculateDifferenceScoresFromSelectedFrames逻辑。
+        /// </summary>
 
         private void RecalculateDifferenceScoresFromSelectedFrames()
         {
@@ -854,6 +914,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
             }
         }
+        /// <summary>
+        /// SetAllFrameSelection：执行当前模块的SetAllFrameSelection逻辑。
+        /// </summary>
 
         private void SetAllFrameSelection(bool selected)
         {
@@ -867,6 +930,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             RecalculateDifferenceScoresFromSelectedFrames();
         }
+        /// <summary>
+        /// ExportFrames：执行当前模块的ExportFrames逻辑。
+        /// </summary>
 
         private bool ExportFrames()
         {
@@ -921,6 +987,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             status = "已导出完整角色序列帧：" + selected.Count + " 张：" + animationFolder;
             return true;
         }
+        /// <summary>
+        /// DeletePreviouslyExportedFrameFiles：执行当前模块的DeletePreviouslyExportedFrameFiles逻辑。
+        /// </summary>
 
         private static void DeletePreviouslyExportedFrameFiles(string animationFolder)
         {
@@ -944,6 +1013,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
             }
         }
+        /// <summary>
+        /// ExportSequenceFrameClip：执行当前模块的ExportSequenceFrameClip逻辑。
+        /// </summary>
 
         private void ExportSequenceFrameClip()
         {
@@ -1061,6 +1133,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             EditorGUIUtility.PingObject(saved);
             status = "已生成正式序列帧 Clip：" + assetPath;
         }
+        /// <summary>
+        /// TryGetActionId：执行当前模块的TryGetActionId逻辑。
+        /// </summary>
 
         private bool TryGetActionId(out int actionId)
         {
@@ -1074,11 +1149,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             return actionId > 0;
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 从正式 SequenceFrameActionResource 表取下一个可用的 actionId。
         /// 编辑器窗口可能在运行时 RefData 初始化前打开，因此这里按正式编辑器加载
         /// 流程补做一次表注册/初始化；不读取临时帧目录，也不改动任何导出文件。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private void AssignNextSequenceFrameActionId()
         {
             try
@@ -1180,6 +1255,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 Repaint();
             }
         }
+        /// <summary>
+        /// GetSequenceFrameClipAssetPath：执行当前模块的GetSequenceFrameClipAssetPath逻辑。
+        /// </summary>
 
         private static string GetSequenceFrameClipAssetPath(int actionId)
         {
@@ -1190,6 +1268,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 + SequenceFrameResourceSubId
                 + ".asset";
         }
+        /// <summary>
+        /// LoadSpriteAssets：执行当前模块的LoadSpriteAssets逻辑。
+        /// </summary>
 
         private static List<Sprite> LoadSpriteAssets(List<SequenceFrameData> frames)
         {
@@ -1201,9 +1282,15 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     assetPaths.Add(frames[i].exportedAssetPath);
                 }
             }
+            /// <summary>
+            /// LoadSpriteAssets：执行当前模块的LoadSpriteAssets逻辑。
+            /// </summary>
 
             return LoadSpriteAssets(assetPaths);
         }
+        /// <summary>
+        /// LoadSpriteAssets：执行当前模块的LoadSpriteAssets逻辑。
+        /// </summary>
 
         private static List<Sprite> LoadSpriteAssets(List<string> assetPaths)
         {
@@ -1221,6 +1308,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return result;
         }
+        /// <summary>
+        /// AreFramesExportedToCurrentDestination：执行当前模块的AreFramesExportedToCurrentDestination逻辑。
+        /// </summary>
 
         private bool AreFramesExportedToCurrentDestination(
             List<SequenceFrameData> frames)
@@ -1247,6 +1337,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return frames.Count > 0;
         }
+        /// <summary>
+        /// SetSpriteArray：执行当前模块的SetSpriteArray逻辑。
+        /// </summary>
 
         private static void SetSpriteArray(SerializedProperty property, List<Sprite> sprites)
         {
@@ -1256,6 +1349,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 property.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
             }
         }
+        /// <summary>
+        /// ConfigureSpriteImporter：执行当前模块的ConfigureSpriteImporter逻辑。
+        /// </summary>
 
         private static void ConfigureSpriteImporter(string assetPath, Vector2 pivotNormalized)
         {
@@ -1271,6 +1367,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             importer.npotScale = TextureImporterNPOTScale.None;
             importer.SaveAndReimport();
         }
+        /// <summary>
+        /// GetSelectedFrames：执行当前模块的GetSelectedFrames逻辑。
+        /// </summary>
 
         private List<SequenceFrameData> GetSelectedFrames()
         {
@@ -1285,6 +1384,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return result;
         }
+        /// <summary>
+        /// LoadPreviewFrame：执行当前模块的LoadPreviewFrame逻辑。
+        /// </summary>
 
         private void LoadPreviewFrame(int index)
         {
@@ -1305,10 +1407,10 @@ namespace Game.EditorTools.SequenceFrameAnimation
             Repaint();
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 按已勾选帧的播放序号加载预览。未勾选帧保留在源帧列表中，
         /// 但不应进入动作播放时间轴。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private void LoadPreviewSelectedFrame(int index)
         {
             List<SequenceFrameData> selectedFrames = GetSelectedFrames();
@@ -1333,6 +1435,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 LoadPreviewFrame(sourceIndex);
             }
         }
+        /// <summary>
+        /// UpdatePlayback：执行当前模块的UpdatePlayback逻辑。
+        /// </summary>
 
         private void UpdatePlayback()
         {
@@ -1382,6 +1487,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             LoadPreviewSelectedFrame(playbackFrame);
         }
+        /// <summary>
+        /// GetTextureDrawRect：执行当前模块的GetTextureDrawRect逻辑。
+        /// </summary>
 
         private static Rect GetTextureDrawRect(Texture2D texture, Rect rect)
         {
@@ -1408,6 +1516,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return drawRect;
         }
+        /// <summary>
+        /// DrawTextureFit：执行当前模块的DrawTextureFit逻辑。
+        /// </summary>
 
         private void DrawTextureFit(Texture2D texture, Rect rect, bool mirrorHorizontally)
         {
@@ -1435,6 +1546,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, true);
             }
         }
+        /// <summary>
+        /// DrawSelectedRegion：执行当前模块的DrawSelectedRegion逻辑。
+        /// </summary>
 
         private void DrawSelectedRegion(Rect textureRect)
         {
@@ -1458,6 +1572,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             Handles.color = previousColor;
             Handles.EndGUI();
         }
+        /// <summary>
+        /// HandleRegionPreviewInput：执行当前模块的HandleRegionPreviewInput逻辑。
+        /// </summary>
 
         private void HandleRegionPreviewInput(Rect textureRect, bool mirrorHorizontally)
         {
@@ -1494,6 +1611,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             current.Use();
             Repaint();
         }
+        /// <summary>
+        /// SelectConnectedColorRegion：执行当前模块的SelectConnectedColorRegion逻辑。
+        /// </summary>
 
         private void SelectConnectedColorRegion(int startX, int startY, Vector2 clickedNormalized)
         {
@@ -1564,6 +1684,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 + " 像素，颜色 " + ColorUtility.ToHtmlStringRGBA(regionKeyColor)
                 + "。点击“抠除选中区域”执行。";
         }
+        /// <summary>
+        /// TryQueueColorRegionNeighbor：执行当前模块的TryQueueColorRegionNeighbor逻辑。
+        /// </summary>
 
         private void TryQueueColorRegionNeighbor(
             int index,
@@ -1584,6 +1707,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 pending.Enqueue(index);
             }
         }
+        /// <summary>
+        /// RemoveBackgroundFromSelectedRegion：执行当前模块的RemoveBackgroundFromSelectedRegion逻辑。
+        /// </summary>
 
         private void RemoveBackgroundFromSelectedRegion()
         {
@@ -1643,6 +1769,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             status = "已抠除当前帧选中区域；如不满意可点击“撤销单帧抠图”。";
             Repaint();
         }
+        /// <summary>
+        /// UndoRegionBackgroundRemoval：执行当前模块的UndoRegionBackgroundRemoval逻辑。
+        /// </summary>
 
         private void UndoRegionBackgroundRemoval()
         {
@@ -1659,6 +1788,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             status = "已撤销当前帧的局部抠图：" + Path.GetFileName(restoredPath);
             Repaint();
         }
+        /// <summary>
+        /// ClearSelectedRegion：执行当前模块的ClearSelectedRegion逻辑。
+        /// </summary>
 
         private void ClearSelectedRegion()
         {
@@ -1671,6 +1803,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             status = "已清除局部抠图选区。";
             Repaint();
         }
+        /// <summary>
+        /// GetCurrentFramePath：执行当前模块的GetCurrentFramePath逻辑。
+        /// </summary>
 
         private string GetCurrentFramePath()
         {
@@ -1685,6 +1820,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return ResolveReadableFramePath(document.frames[selectedFrameListIndex]);
         }
+        /// <summary>
+        /// ResetRegionSelectionState：执行当前模块的ResetRegionSelectionState逻辑。
+        /// </summary>
 
         private void ResetRegionSelectionState(bool clearUndo)
         {
@@ -1700,6 +1838,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 regionUndoPng = null;
             }
         }
+        /// <summary>
+        /// GuiToTextureNormalized：执行当前模块的GuiToTextureNormalized逻辑。
+        /// </summary>
 
         private static Vector2 GuiToTextureNormalized(
             Vector2 guiPoint,
@@ -1712,9 +1853,15 @@ namespace Game.EditorTools.SequenceFrameAnimation
             {
                 x = 1f - x;
             }
+            /// <summary>
+            /// Vector2：执行当前模块的Vector2逻辑。
+            /// </summary>
 
             return new Vector2(x, y);
         }
+        /// <summary>
+        /// TryExtractFrames：执行当前模块的TryExtractFrames逻辑。
+        /// </summary>
 
         private bool TryExtractFrames(string animationPath, out string frameFolder, out string error)
         {
@@ -1780,6 +1927,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return Directory.GetFiles(frameFolder, "*.png").Length > 0;
         }
+        /// <summary>
+        /// ComputeFrameDifference：执行当前模块的ComputeFrameDifference逻辑。
+        /// </summary>
 
         private float ComputeFrameDifference(string firstPath, string secondPath)
         {
@@ -1814,6 +1964,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             DestroyTexture(ref second);
             return difference / (sampleSize * sampleSize * 3f);
         }
+        /// <summary>
+        /// SaveDocument：执行当前模块的SaveDocument逻辑。
+        /// </summary>
 
         private void SaveDocument()
         {
@@ -1828,6 +1981,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 SaveDocumentToPath(path);
             }
         }
+        /// <summary>
+        /// SaveDocumentToPath：执行当前模块的SaveDocumentToPath逻辑。
+        /// </summary>
 
         private void SaveDocumentToPath(string assetPath)
         {
@@ -1835,6 +1991,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             File.WriteAllText(ToAbsolutePath(assetPath), json);
             AssetDatabase.ImportAsset(assetPath);
         }
+        /// <summary>
+        /// LoadDocument：执行当前模块的LoadDocument逻辑。
+        /// </summary>
 
         private void LoadDocument()
         {
@@ -1882,6 +2041,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             LoadPreviewFrame(0);
             status = "已读取序列帧动作：" + path;
         }
+        /// <summary>
+        /// SelectOutputFolder：执行当前模块的SelectOutputFolder逻辑。
+        /// </summary>
 
         private void SelectOutputFolder()
         {
@@ -1903,6 +2065,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 EditorUtility.DisplayDialog("输出目录", "目录必须位于当前项目 Assets 下。", "确定");
             }
         }
+        /// <summary>
+        /// LoadTexture：执行当前模块的LoadTexture逻辑。
+        /// </summary>
 
         private static Texture2D LoadTexture(string path)
         {
@@ -1920,6 +2085,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return texture;
         }
+        /// <summary>
+        /// EnsureCanvasDefaultsFromFirstFrame：执行当前模块的EnsureCanvasDefaultsFromFirstFrame逻辑。
+        /// </summary>
 
         private void EnsureCanvasDefaultsFromFirstFrame()
         {
@@ -1962,6 +2130,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 DestroyTexture(ref texture);
             }
         }
+        /// <summary>
+        /// SetFootBaselineFromCurrentFrame：执行当前模块的SetFootBaselineFromCurrentFrame逻辑。
+        /// </summary>
 
         private void SetFootBaselineFromCurrentFrame()
         {
@@ -2021,6 +2192,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             Repaint();
         }
+        /// <summary>
+        /// SampleBackgroundColorFromCurrentFrame：执行当前模块的SampleBackgroundColorFromCurrentFrame逻辑。
+        /// </summary>
 
         private void SampleBackgroundColorFromCurrentFrame()
         {
@@ -2056,6 +2230,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             Repaint();
         }
+        /// <summary>
+        /// CanBatchRemoveTemporaryBackground：执行当前模块的CanBatchRemoveTemporaryBackground逻辑。
+        /// </summary>
 
         private bool CanBatchRemoveTemporaryBackground()
         {
@@ -2080,6 +2257,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return false;
         }
+        /// <summary>
+        /// RemoveBackgroundFromTemporaryFrames：执行当前模块的RemoveBackgroundFromTemporaryFrames逻辑。
+        /// </summary>
 
         private void RemoveBackgroundFromTemporaryFrames()
         {
@@ -2141,6 +2321,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             Repaint();
         }
+        /// <summary>
+        /// StandardizeTemporaryFrames：执行当前模块的StandardizeTemporaryFrames逻辑。
+        /// </summary>
 
         private void StandardizeTemporaryFrames()
         {
@@ -2254,6 +2437,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             Repaint();
         }
+        /// <summary>
+        /// TryStandardizeTemporaryFrame：执行当前模块的TryStandardizeTemporaryFrame逻辑。
+        /// </summary>
 
         private static bool TryStandardizeTemporaryFrame(
             string path,
@@ -2388,11 +2574,11 @@ namespace Game.EditorTools.SequenceFrameAnimation
             }
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 临时源帧在工具窗口关闭后会被清理。重新读取已导出的动作 JSON 时，如果原
         /// sourceFilePath 已不存在，则回退到 Assets 内的 exportedAssetPath，保证预览、
         /// 差异计算和画布读取仍然可用。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private static string ResolveReadableFramePath(SequenceFrameData frame)
         {
             if (frame == null)
@@ -2435,6 +2621,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 return string.Empty;
             }
         }
+        /// <summary>
+        /// IsTemporaryExtractedFrame：执行当前模块的IsTemporaryExtractedFrame逻辑。
+        /// </summary>
 
         private static bool IsTemporaryExtractedFrame(string path)
         {
@@ -2468,6 +2657,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     temporaryRoot + Path.AltDirectorySeparatorChar,
                     StringComparison.OrdinalIgnoreCase);
         }
+        /// <summary>
+        /// TrackTemporaryExtractedFrameFolder：执行当前模块的TrackTemporaryExtractedFrameFolder逻辑。
+        /// </summary>
 
         private void TrackTemporaryExtractedFrameFolder(string folder)
         {
@@ -2494,6 +2686,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             temporaryExtractedFrameFolders.Add(normalizedFolder);
         }
+        /// <summary>
+        /// CleanupTemporaryExtractedFrameFolders：执行当前模块的CleanupTemporaryExtractedFrameFolders逻辑。
+        /// </summary>
 
         private void CleanupTemporaryExtractedFrameFolders()
         {
@@ -2529,6 +2724,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             temporaryExtractedFrameFolders.Clear();
         }
+        /// <summary>
+        /// TryNormalizeTemporaryExtractedFrameFolder：执行当前模块的TryNormalizeTemporaryExtractedFrameFolder逻辑。
+        /// </summary>
 
         private static bool TryNormalizeTemporaryExtractedFrameFolder(
             string folder,
@@ -2564,6 +2762,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 return false;
             }
         }
+        /// <summary>
+        /// GetBackgroundSampleSourcePath：执行当前模块的GetBackgroundSampleSourcePath逻辑。
+        /// </summary>
 
         private string GetBackgroundSampleSourcePath()
         {
@@ -2594,6 +2795,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return string.Empty;
         }
+        /// <summary>
+        /// SampleCornerBackgroundColor：执行当前模块的SampleCornerBackgroundColor逻辑。
+        /// </summary>
 
         private static Color SampleCornerBackgroundColor(Texture2D texture)
         {
@@ -2648,6 +2852,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             Vector4 average = sum / count;
             return new Color(average.x, average.y, average.z, 1f);
         }
+        /// <summary>
+        /// AccumulateCornerSample：执行当前模块的AccumulateCornerSample逻辑。
+        /// </summary>
 
         private static void AccumulateCornerSample(
             Color[] pixels,
@@ -2671,6 +2878,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 }
             }
         }
+        /// <summary>
+        /// TryExportProcessedFrame：执行当前模块的TryExportProcessedFrame逻辑。
+        /// </summary>
 
         private static bool TryExportProcessedFrame(
             string sourcePath,
@@ -2826,6 +3036,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 DestroyTexture(ref texture);
             }
         }
+        /// <summary>
+        /// ColorDistanceSquared：执行当前模块的ColorDistanceSquared逻辑。
+        /// </summary>
 
         private static float ColorDistanceSquared(Color32 pixel, Color key)
         {
@@ -2834,6 +3047,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             float db = (pixel.b / 255f) - key.b;
             return dr * dr + dg * dg + db * db;
         }
+        /// <summary>
+        /// TryQueueBackgroundPixel：执行当前模块的TryQueueBackgroundPixel逻辑。
+        /// </summary>
 
         private static void TryQueueBackgroundPixel(
             int index,
@@ -2847,6 +3063,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 pending.Enqueue(index);
             }
         }
+        /// <summary>
+        /// TryQueueBackgroundNeighbor：执行当前模块的TryQueueBackgroundNeighbor逻辑。
+        /// </summary>
 
         private static void TryQueueBackgroundNeighbor(
             int index,
@@ -2860,6 +3079,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 TryQueueBackgroundPixel(index, backgroundMask, connectedBackground, pending);
             }
         }
+        /// <summary>
+        /// HasConnectedBackgroundNeighbor：执行当前模块的HasConnectedBackgroundNeighbor逻辑。
+        /// </summary>
 
         private static bool HasConnectedBackgroundNeighbor(
             int index,
@@ -2874,6 +3096,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 || (y > 0 && connectedBackground[index - width])
                 || (y + 1 < height && connectedBackground[index + width]);
         }
+        /// <summary>
+        /// GetImageWidth：执行当前模块的GetImageWidth逻辑。
+        /// </summary>
 
         private static int GetImageWidth(string path)
         {
@@ -2882,6 +3107,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             DestroyTexture(ref texture);
             return width;
         }
+        /// <summary>
+        /// GetImageHeight：执行当前模块的GetImageHeight逻辑。
+        /// </summary>
 
         private static int GetImageHeight(string path)
         {
@@ -2890,6 +3118,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
             DestroyTexture(ref texture);
             return height;
         }
+        /// <summary>
+        /// DestroyTexture：执行当前模块的DestroyTexture逻辑。
+        /// </summary>
 
         private static void DestroyTexture(ref Texture2D texture)
         {
@@ -2899,6 +3130,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 texture = null;
             }
         }
+        /// <summary>
+        /// CountSelectedFrames：执行当前模块的CountSelectedFrames逻辑。
+        /// </summary>
 
         private int CountSelectedFrames()
         {
@@ -2913,6 +3147,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return count;
         }
+        /// <summary>
+        /// EnsureDocument：执行当前模块的EnsureDocument逻辑。
+        /// </summary>
 
         private void EnsureDocument()
         {
@@ -2931,6 +3168,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 temporaryExtractedFrameFolders = new List<string>();
             }
         }
+        /// <summary>
+        /// TryGetProjectAssetFolder：执行当前模块的TryGetProjectAssetFolder逻辑。
+        /// </summary>
 
         private static bool TryGetProjectAssetFolder(string path, out string assetPath)
         {
@@ -2956,12 +3196,18 @@ namespace Game.EditorTools.SequenceFrameAnimation
             assetPath = "Assets" + fullPath.Substring(assetsPath.Length).Replace('\\', '/');
             return true;
         }
+        /// <summary>
+        /// ToAbsolutePath：执行当前模块的ToAbsolutePath逻辑。
+        /// </summary>
 
         private static string ToAbsolutePath(string assetPath)
         {
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             return Path.Combine(projectRoot, assetPath.Replace('/', Path.DirectorySeparatorChar));
         }
+        /// <summary>
+        /// SafeName：执行当前模块的SafeName逻辑。
+        /// </summary>
 
         private static string SafeName(string value)
         {

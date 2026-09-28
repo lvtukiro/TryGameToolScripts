@@ -13,6 +13,9 @@ namespace Game.EditorTools
     {
         public List<BattleActionTimelineTableData> tables =
             new List<BattleActionTimelineTableData>();
+        /// <summary>
+        /// Clone：执行当前模块的Clone逻辑。
+        /// </summary>
 
         public BattleActionTimelineDocument Clone()
         {
@@ -22,6 +25,9 @@ namespace Game.EditorTools
             clone.EnsureLists();
             return clone;
         }
+        /// <summary>
+        /// EnsureLists：执行当前模块的EnsureLists逻辑。
+        /// </summary>
 
         public void EnsureLists()
         {
@@ -103,6 +109,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// FindTable：执行当前模块的FindTable逻辑。
+        /// </summary>
 
         public BattleActionTimelineTableData FindTable(string sheetName)
         {
@@ -111,17 +120,26 @@ namespace Game.EditorTools
                 sheetName,
                 StringComparison.Ordinal));
         }
+        /// <summary>
+        /// FindRecord：执行当前模块的FindRecord逻辑。
+        /// </summary>
 
         public BattleActionTimelineRecordData FindRecord(string sheetName, int rowId)
         {
             return FindTable(sheetName)?.records.FirstOrDefault(
                 record => record != null && record.rowId == rowId);
         }
+        /// <summary>
+        /// ActionTables：执行当前模块的ActionTables逻辑。
+        /// </summary>
 
         public IEnumerable<BattleActionTimelineTableData> ActionTables()
         {
             return tables.Where(BattleActionTimelineSchema.IsActiveSingleTable);
         }
+        /// <summary>
+        /// FromSnapshot：执行当前模块的FromSnapshot逻辑。
+        /// </summary>
 
         public static BattleActionTimelineDocument FromSnapshot(
             BattleActionTimelineWorkbookSnapshot snapshot)
@@ -161,6 +179,9 @@ namespace Game.EditorTools
             result.EnsureLists();
             return result;
         }
+        /// <summary>
+        /// AddInlineProjections：执行当前模块的AddInlineProjections逻辑。
+        /// </summary>
 
         private void AddInlineProjections()
         {
@@ -231,6 +252,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// AddInlineProjection：执行当前模块的AddInlineProjection逻辑。
+        /// </summary>
 
         private void AddInlineProjection(
             BattleActionTimelineTableData source,
@@ -398,6 +422,9 @@ namespace Game.EditorTools
 
             return result;
         }
+        /// <summary>
+        /// InlineOwnerSignature：执行当前模块的InlineOwnerSignature逻辑。
+        /// </summary>
 
         private static string InlineOwnerSignature(
             BattleActionTimelineTableData table,
@@ -421,6 +448,9 @@ namespace Game.EditorTools
 
             return signature.ToString();
         }
+        /// <summary>
+        /// InlineOwnerId：执行当前模块的InlineOwnerId逻辑。
+        /// </summary>
 
         private static int InlineOwnerId(
             BattleActionTimelineTableData table,
@@ -439,6 +469,9 @@ namespace Game.EditorTools
                 ? ownerId
                 : 0;
         }
+        /// <summary>
+        /// InlineField：执行当前模块的InlineField逻辑。
+        /// </summary>
 
         private static BattleActionTimelineInlineFieldData InlineField(
             string headerName,
@@ -450,12 +483,18 @@ namespace Game.EditorTools
                 serializedName = serializedName,
             };
         }
+        /// <summary>
+        /// CloneInlineField：执行当前模块的CloneInlineField逻辑。
+        /// </summary>
 
         private static BattleActionTimelineInlineFieldData CloneInlineField(
             BattleActionTimelineInlineFieldData source)
         {
             return InlineField(source.headerName, source.serializedName);
         }
+        /// <summary>
+        /// TransformInlineFields：执行当前模块的TransformInlineFields逻辑。
+        /// </summary>
 
         private static BattleActionTimelineInlineFieldData[] TransformInlineFields()
         {
@@ -470,6 +509,9 @@ namespace Game.EditorTools
                 InlineField("interpolation", "Interpolation"),
             };
         }
+        /// <summary>
+        /// BuildWriteSet：执行当前模块的BuildWriteSet逻辑。
+        /// </summary>
 
         public BattleActionTimelineWorkbookWriteSet BuildWriteSet(
             BattleActionTimelineWorkbookSnapshot baseline)
@@ -551,6 +593,9 @@ namespace Game.EditorTools
 
             return result;
         }
+        /// <summary>
+        /// CanonicalSignature：执行当前模块的CanonicalSignature逻辑。
+        /// </summary>
 
         public string CanonicalSignature()
         {
@@ -592,6 +637,9 @@ namespace Game.EditorTools
             new List<BattleActionTimelineInlineFieldData>();
         public List<BattleActionTimelineInlineOwnerData> inlineOwners =
             new List<BattleActionTimelineInlineOwnerData>();
+        /// <summary>
+        /// AllocateRowId：执行当前模块的AllocateRowId逻辑。
+        /// </summary>
 
         public int AllocateRowId()
         {
@@ -642,6 +690,9 @@ namespace Game.EditorTools
 
     internal readonly struct BattleActionTimelineTransform
     {
+        /// <summary>
+        /// BattleActionTimelineTransform：执行当前模块的BattleActionTimelineTransform逻辑。
+        /// </summary>
         public BattleActionTimelineTransform(
             Vector2 offset,
             float rotationDegrees,
@@ -651,17 +702,32 @@ namespace Game.EditorTools
             RotationDegrees = rotationDegrees;
             Scale = scale;
         }
+        /// <summary>
+        /// Identity：执行当前模块的Identity逻辑。
+        /// </summary>
 
         public static BattleActionTimelineTransform Identity =>
             new BattleActionTimelineTransform(Vector2.zero, 0f, Vector2.one);
+        /// <summary>
+        /// Offset：执行当前模块的Offset逻辑。
+        /// </summary>
 
         public Vector2 Offset { get; }
+        /// <summary>
+        /// RotationDegrees：执行当前模块的RotationDegrees逻辑。
+        /// </summary>
         public float RotationDegrees { get; }
+        /// <summary>
+        /// Scale：执行当前模块的Scale逻辑。
+        /// </summary>
         public Vector2 Scale { get; }
     }
 
     internal readonly struct BattleActionTimelinePhaseTimes
     {
+        /// <summary>
+        /// BattleActionTimelinePhaseTimes：执行当前模块的BattleActionTimelinePhaseTimes逻辑。
+        /// </summary>
         public BattleActionTimelinePhaseTimes(
             double startupEnd,
             double switchWindowStart,
@@ -673,44 +739,77 @@ namespace Game.EditorTools
             RecoveryStart = recoveryStart;
             Duration = duration;
         }
+        /// <summary>
+        /// StartupEnd：执行当前模块的StartupEnd逻辑。
+        /// </summary>
 
         public double StartupEnd { get; }
+        /// <summary>
+        /// SwitchWindowStart：执行当前模块的SwitchWindowStart逻辑。
+        /// </summary>
         public double SwitchWindowStart { get; }
+        /// <summary>
+        /// RecoveryStart：执行当前模块的RecoveryStart逻辑。
+        /// </summary>
         public double RecoveryStart { get; }
+        /// <summary>
+        /// Duration：执行当前模块的Duration逻辑。
+        /// </summary>
         public double Duration { get; }
     }
 
     internal static class BattleActionTimelineTime
     {
         public const double Epsilon = 0.0000001d;
+        /// <summary>
+        /// SecondsToFrame：执行当前模块的SecondsToFrame逻辑。
+        /// </summary>
 
         public static int SecondsToFrame(double seconds, double frameRate)
         {
             ValidateFrameRate(frameRate);
             if (!IsFinite(seconds))
             {
+                /// <summary>
+                /// ArgumentOutOfRangeException：执行当前模块的ArgumentOutOfRangeException逻辑。
+                /// </summary>
                 throw new ArgumentOutOfRangeException(nameof(seconds));
             }
 
             double frames = seconds * frameRate;
             if (frames > int.MaxValue || frames < int.MinValue)
             {
+                /// <summary>
+                /// OverflowException：执行当前模块的OverflowException逻辑。
+                /// </summary>
                 throw new OverflowException("时间超出可表示帧范围。");
             }
 
             return (int)Math.Round(frames, MidpointRounding.AwayFromZero);
         }
+        /// <summary>
+        /// FrameToSeconds：执行当前模块的FrameToSeconds逻辑。
+        /// </summary>
 
         public static double FrameToSeconds(int frame, double frameRate)
         {
             ValidateFrameRate(frameRate);
             return frame / frameRate;
         }
+        /// <summary>
+        /// SnapSeconds：执行当前模块的SnapSeconds逻辑。
+        /// </summary>
 
         public static double SnapSeconds(double seconds, double frameRate)
         {
+            /// <summary>
+            /// FrameToSeconds：执行当前模块的FrameToSeconds逻辑。
+            /// </summary>
             return FrameToSeconds(SecondsToFrame(seconds, frameRate), frameRate);
         }
+        /// <summary>
+        /// TryValidatePhases：执行当前模块的TryValidatePhases逻辑。
+        /// </summary>
 
         public static bool TryValidatePhases(
             BattleActionTimelinePhaseTimes phases,
@@ -735,16 +834,25 @@ namespace Game.EditorTools
             error = string.Empty;
             return true;
         }
+        /// <summary>
+        /// IsFinite：执行当前模块的IsFinite逻辑。
+        /// </summary>
 
         public static bool IsFinite(double value)
         {
             return !double.IsNaN(value) && !double.IsInfinity(value);
         }
+        /// <summary>
+        /// ValidateFrameRate：执行当前模块的ValidateFrameRate逻辑。
+        /// </summary>
 
         private static void ValidateFrameRate(double frameRate)
         {
             if (!IsFinite(frameRate) || frameRate <= 0d)
             {
+                /// <summary>
+                /// ArgumentOutOfRangeException：执行当前模块的ArgumentOutOfRangeException逻辑。
+                /// </summary>
                 throw new ArgumentOutOfRangeException(nameof(frameRate));
             }
         }
@@ -752,6 +860,9 @@ namespace Game.EditorTools
 
     internal static class BattleActionTimelineInlineStructCodec
     {
+        /// <summary>
+        /// TryParse：执行当前模块的TryParse逻辑。
+        /// </summary>
         public static bool TryParse(
             string source,
             out List<Dictionary<string, string>> values,
@@ -781,6 +892,9 @@ namespace Game.EditorTools
                 return false;
             }
         }
+        /// <summary>
+        /// Serialize：执行当前模块的Serialize逻辑。
+        /// </summary>
 
         public static string Serialize(
             IReadOnlyList<BattleActionTimelineInlineFieldData> fields,
@@ -831,6 +945,9 @@ namespace Game.EditorTools
 
             return text.Append(']').ToString();
         }
+        /// <summary>
+        /// FormatValue：执行当前模块的FormatValue逻辑。
+        /// </summary>
 
         private static string FormatValue(string value)
         {
@@ -849,6 +966,9 @@ namespace Game.EditorTools
 
             return "\"" + Escape(trimmed) + "\"";
         }
+        /// <summary>
+        /// IsIdentifier：执行当前模块的IsIdentifier逻辑。
+        /// </summary>
 
         private static bool IsIdentifier(string value)
         {
@@ -870,6 +990,9 @@ namespace Game.EditorTools
 
             return true;
         }
+        /// <summary>
+        /// Escape：执行当前模块的Escape逻辑。
+        /// </summary>
 
         private static string Escape(string value)
         {
@@ -885,11 +1008,17 @@ namespace Game.EditorTools
         {
             private readonly string text;
             private int index;
+            /// <summary>
+            /// Parser：执行当前模块的Parser逻辑。
+            /// </summary>
 
             public Parser(string text)
             {
                 this.text = text;
             }
+            /// <summary>
+            /// ParseArray：执行当前模块的ParseArray逻辑。
+            /// </summary>
 
             public List<Dictionary<string, string>> ParseArray()
             {
@@ -917,6 +1046,9 @@ namespace Game.EditorTools
                     Expect(',');
                 }
             }
+            /// <summary>
+            /// ParseObject：执行当前模块的ParseObject逻辑。
+            /// </summary>
 
             private Dictionary<string, string> ParseObject()
             {
@@ -938,6 +1070,9 @@ namespace Game.EditorTools
                         : ReadToken(':');
                     if (string.IsNullOrWhiteSpace(name))
                     {
+                        /// <summary>
+                        /// Error：执行当前模块的Error逻辑。
+                        /// </summary>
                         throw Error("字段名为空");
                     }
 
@@ -957,6 +1092,9 @@ namespace Game.EditorTools
 
                     if (result.ContainsKey(name))
                     {
+                        /// <summary>
+                        /// Error：执行当前模块的Error逻辑。
+                        /// </summary>
                         throw Error("重复字段 " + name);
                     }
 
@@ -970,6 +1108,9 @@ namespace Game.EditorTools
                     Expect(',');
                 }
             }
+            /// <summary>
+            /// ReadQuoted：执行当前模块的ReadQuoted逻辑。
+            /// </summary>
 
             private string ReadQuoted()
             {
@@ -991,6 +1132,9 @@ namespace Game.EditorTools
 
                     if (index >= text.Length)
                     {
+                        /// <summary>
+                        /// Error：执行当前模块的Error逻辑。
+                        /// </summary>
                         throw Error("字符串转义不完整");
                     }
 
@@ -1005,9 +1149,15 @@ namespace Game.EditorTools
                         default: result.Append(escaped); break;
                     }
                 }
+                /// <summary>
+                /// Error：执行当前模块的Error逻辑。
+                /// </summary>
 
                 throw Error("字符串缺少结束引号");
             }
+            /// <summary>
+            /// ReadValueToken：执行当前模块的ReadValueToken逻辑。
+            /// </summary>
 
             private string ReadValueToken()
             {
@@ -1021,11 +1171,17 @@ namespace Game.EditorTools
                 string value = text.Substring(start, index - start).Trim();
                 if (value.Length == 0)
                 {
+                    /// <summary>
+                    /// Error：执行当前模块的Error逻辑。
+                    /// </summary>
                     throw Error("字段值为空");
                 }
 
                 return value;
             }
+            /// <summary>
+            /// ReadToken：执行当前模块的ReadToken逻辑。
+            /// </summary>
 
             private string ReadToken(char terminator)
             {
@@ -1037,6 +1193,9 @@ namespace Game.EditorTools
 
                 return text.Substring(start, index - start).Trim();
             }
+            /// <summary>
+            /// SkipWhitespace：执行当前模块的SkipWhitespace逻辑。
+            /// </summary>
 
             private void SkipWhitespace()
             {
@@ -1045,16 +1204,25 @@ namespace Game.EditorTools
                     index++;
                 }
             }
+            /// <summary>
+            /// Peek：执行当前模块的Peek逻辑。
+            /// </summary>
 
             private char Peek()
             {
                 if (index >= text.Length)
                 {
+                    /// <summary>
+                    /// Error：执行当前模块的Error逻辑。
+                    /// </summary>
                     throw Error("意外到达文本末尾");
                 }
 
                 return text[index];
             }
+            /// <summary>
+            /// TryConsume：执行当前模块的TryConsume逻辑。
+            /// </summary>
 
             private bool TryConsume(char expected)
             {
@@ -1067,26 +1235,41 @@ namespace Game.EditorTools
                 index++;
                 return true;
             }
+            /// <summary>
+            /// Expect：执行当前模块的Expect逻辑。
+            /// </summary>
 
             private void Expect(char expected)
             {
                 SkipWhitespace();
                 if (index >= text.Length || text[index] != expected)
                 {
+                    /// <summary>
+                    /// Error：执行当前模块的Error逻辑。
+                    /// </summary>
                     throw Error("应为 '" + expected + "'");
                 }
 
                 index++;
             }
+            /// <summary>
+            /// EnsureEnd：执行当前模块的EnsureEnd逻辑。
+            /// </summary>
 
             private void EnsureEnd()
             {
                 SkipWhitespace();
                 if (index != text.Length)
                 {
+                    /// <summary>
+                    /// Error：执行当前模块的Error逻辑。
+                    /// </summary>
                     throw Error("数组结束后仍有多余内容");
                 }
             }
+            /// <summary>
+            /// Error：执行当前模块的Error逻辑。
+            /// </summary>
 
             private FormatException Error(string message)
             {
@@ -1149,6 +1332,9 @@ namespace Game.EditorTools
             "id\tcodeName\tinitialSpeed\tgravityScale\n\n" +
             "executionSteps / shapes / transformKeyframes 为 repeated struct 单元格；" +
             "工具也兼容已拆成独立子 Sheet 的等价结构。";
+        /// <summary>
+        /// IsActiveSingleTable：执行当前模块的IsActiveSingleTable逻辑。
+        /// </summary>
 
         public static bool IsActiveSingleTable(BattleActionTimelineTableData table)
         {
@@ -1158,6 +1344,9 @@ namespace Game.EditorTools
                 FindColumn(table, RecoveryStartAliases) >= 0 &&
                 FindColumn(table, DurationAliases) >= 0;
         }
+        /// <summary>
+        /// IsExecutionStepTable：执行当前模块的IsExecutionStepTable逻辑。
+        /// </summary>
 
         public static bool IsExecutionStepTable(BattleActionTimelineTableData table)
         {
@@ -1167,6 +1356,9 @@ namespace Game.EditorTools
                 FindColumn(table, StepConfigAliases) >= 0 &&
                 FindColumn(table, StepOwnerAliases) >= 0;
         }
+        /// <summary>
+        /// IsAttackBodyTable：执行当前模块的IsAttackBodyTable逻辑。
+        /// </summary>
 
         public static bool IsAttackBodyTable(BattleActionTimelineTableData table)
         {
@@ -1174,6 +1366,9 @@ namespace Game.EditorTools
                 FindColumn(table, "clashStrength") >= 0 &&
                 FindColumn(table, "clashResistance") >= 0;
         }
+        /// <summary>
+        /// IsShapeTable：执行当前模块的IsShapeTable逻辑。
+        /// </summary>
 
         public static bool IsShapeTable(BattleActionTimelineTableData table)
         {
@@ -1181,6 +1376,9 @@ namespace Game.EditorTools
                 FindColumn(table, "shapeType") >= 0 &&
                 FindColumn(table, AttackBodyIdAliases) >= 0;
         }
+        /// <summary>
+        /// IsMeleeSpawnTable：执行当前模块的IsMeleeSpawnTable逻辑。
+        /// </summary>
 
         public static bool IsMeleeSpawnTable(BattleActionTimelineTableData table)
         {
@@ -1188,6 +1386,9 @@ namespace Game.EditorTools
                 FindColumn(table, "activeDuration") >= 0 &&
                 FindColumn(table, AttackBodyIdAliases) >= 0;
         }
+        /// <summary>
+        /// IsProjectileLaunchTable：执行当前模块的IsProjectileLaunchTable逻辑。
+        /// </summary>
 
         public static bool IsProjectileLaunchTable(BattleActionTimelineTableData table)
         {
@@ -1196,6 +1397,9 @@ namespace Game.EditorTools
                 FindColumn(table, "spawnOffsetX", "offsetX") >= 0 &&
                 FindColumn(table, "spawnOffsetY", "offsetY") >= 0;
         }
+        /// <summary>
+        /// IsProjectileTable：执行当前模块的IsProjectileTable逻辑。
+        /// </summary>
 
         public static bool IsProjectileTable(BattleActionTimelineTableData table)
         {
@@ -1204,6 +1408,9 @@ namespace Game.EditorTools
                 FindColumn(table, "maxLifetime") >= 0 &&
                 FindColumn(table, AttackBodyIdAliases) >= 0;
         }
+        /// <summary>
+        /// IsKeyframeTable：执行当前模块的IsKeyframeTable逻辑。
+        /// </summary>
 
         public static bool IsKeyframeTable(BattleActionTimelineTableData table)
         {
@@ -1212,6 +1419,9 @@ namespace Game.EditorTools
                 FindColumn(table, ScaleXAliases) >= 0 &&
                 FindColumn(table, ScaleYAliases) >= 0;
         }
+        /// <summary>
+        /// IsLinearMovementTable：执行当前模块的IsLinearMovementTable逻辑。
+        /// </summary>
 
         public static bool IsLinearMovementTable(BattleActionTimelineTableData table)
         {
@@ -1219,6 +1429,9 @@ namespace Game.EditorTools
                 FindColumn(table, "speed") >= 0 &&
                 FindColumn(table, "initialSpeed") < 0;
         }
+        /// <summary>
+        /// IsBallisticMovementTable：执行当前模块的IsBallisticMovementTable逻辑。
+        /// </summary>
 
         public static bool IsBallisticMovementTable(BattleActionTimelineTableData table)
         {
@@ -1226,6 +1439,9 @@ namespace Game.EditorTools
                 FindColumn(table, "initialSpeed") >= 0 &&
                 FindColumn(table, "gravityScale") >= 0;
         }
+        /// <summary>
+        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// </summary>
 
         public static int FindColumn(
             BattleActionTimelineTableData table,
@@ -1233,6 +1449,9 @@ namespace Game.EditorTools
         {
             return table == null ? -1 : FindColumn(table.headers, aliases);
         }
+        /// <summary>
+        /// FindColumn：执行当前模块的FindColumn逻辑。
+        /// </summary>
 
         public static int FindColumn(
             IReadOnlyList<string> headers,
@@ -1256,6 +1475,9 @@ namespace Game.EditorTools
 
             return -1;
         }
+        /// <summary>
+        /// Get：执行当前模块的Get逻辑。
+        /// </summary>
 
         public static string Get(
             BattleActionTimelineTableData table,
@@ -1267,6 +1489,9 @@ namespace Game.EditorTools
                 ? record.cells[column] ?? string.Empty
                 : string.Empty;
         }
+        /// <summary>
+        /// GetInt：执行当前模块的GetInt逻辑。
+        /// </summary>
 
         public static int GetInt(
             BattleActionTimelineTableData table,
@@ -1282,6 +1507,9 @@ namespace Game.EditorTools
                 ? value
                 : fallback;
         }
+        /// <summary>
+        /// GetDouble：执行当前模块的GetDouble逻辑。
+        /// </summary>
 
         public static double GetDouble(
             BattleActionTimelineTableData table,
@@ -1297,6 +1525,9 @@ namespace Game.EditorTools
                 ? value
                 : fallback;
         }
+        /// <summary>
+        /// GetBool：执行当前模块的GetBool逻辑。
+        /// </summary>
 
         public static bool GetBool(
             BattleActionTimelineTableData table,
@@ -1312,6 +1543,9 @@ namespace Game.EditorTools
 
             return text == "1" ? true : text == "0" ? false : fallback;
         }
+        /// <summary>
+        /// Set：执行当前模块的Set逻辑。
+        /// </summary>
 
         public static void Set(
             BattleActionTimelineTableData table,
@@ -1335,6 +1569,9 @@ namespace Game.EditorTools
                 record.rowId = rowId;
             }
         }
+        /// <summary>
+        /// SetInt：执行当前模块的SetInt逻辑。
+        /// </summary>
 
         public static void SetInt(
             BattleActionTimelineTableData table,
@@ -1348,6 +1585,9 @@ namespace Game.EditorTools
                 value.ToString(CultureInfo.InvariantCulture),
                 aliases);
         }
+        /// <summary>
+        /// SetDouble：执行当前模块的SetDouble逻辑。
+        /// </summary>
 
         public static void SetDouble(
             BattleActionTimelineTableData table,
@@ -1361,6 +1601,9 @@ namespace Game.EditorTools
                 value.ToString("R", CultureInfo.InvariantCulture),
                 aliases);
         }
+        /// <summary>
+        /// ReadPhases：执行当前模块的ReadPhases逻辑。
+        /// </summary>
 
         public static BattleActionTimelinePhaseTimes ReadPhases(
             BattleActionTimelineTableData table,
@@ -1372,6 +1615,9 @@ namespace Game.EditorTools
                 GetDouble(table, action, 0d, RecoveryStartAliases),
                 GetDouble(table, action, 0d, DurationAliases));
         }
+        /// <summary>
+        /// StepsForAction：执行当前模块的StepsForAction逻辑。
+        /// </summary>
 
         public static IEnumerable<BattleActionTimelineRecordData> StepsForAction(
             BattleActionTimelineDocument document,
@@ -1389,6 +1635,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// TableContaining：执行当前模块的TableContaining逻辑。
+        /// </summary>
 
         public static BattleActionTimelineTableData TableContaining(
             BattleActionTimelineDocument document,
@@ -1397,6 +1646,9 @@ namespace Game.EditorTools
             return document.tables.FirstOrDefault(
                 table => table?.records != null && table.records.Contains(record));
         }
+        /// <summary>
+        /// DisplayName：执行当前模块的DisplayName逻辑。
+        /// </summary>
 
         public static string DisplayName(
             BattleActionTimelineTableData table,
@@ -1407,6 +1659,9 @@ namespace Game.EditorTools
                 ? record.rowId.ToString(CultureInfo.InvariantCulture)
                 : record.rowId.ToString(CultureInfo.InvariantCulture) + " · " + name;
         }
+        /// <summary>
+        /// StepIsProjectile：执行当前模块的StepIsProjectile逻辑。
+        /// </summary>
 
         public static bool StepIsProjectile(
             BattleActionTimelineTableData table,
@@ -1417,6 +1672,9 @@ namespace Game.EditorTools
                 value.IndexOf("Launch", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 value == "1";
         }
+        /// <summary>
+        /// StepIsMelee：执行当前模块的StepIsMelee逻辑。
+        /// </summary>
 
         public static bool StepIsMelee(
             BattleActionTimelineTableData table,
@@ -1426,6 +1684,9 @@ namespace Game.EditorTools
             return value.IndexOf("Melee", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 value == "0";
         }
+        /// <summary>
+        /// StepIsSelfEffect：执行当前模块的StepIsSelfEffect逻辑。
+        /// </summary>
 
         public static bool StepIsSelfEffect(
             BattleActionTimelineTableData table,
@@ -1437,6 +1698,9 @@ namespace Game.EditorTools
                     StringComparison.OrdinalIgnoreCase) ||
                 value == "2";
         }
+        /// <summary>
+        /// FirstTable：执行当前模块的FirstTable逻辑。
+        /// </summary>
 
         public static BattleActionTimelineTableData FirstTable(
             BattleActionTimelineDocument document,
@@ -1444,6 +1708,9 @@ namespace Game.EditorTools
         {
             return document?.tables.FirstOrDefault(predicate);
         }
+        /// <summary>
+        /// FindById：执行当前模块的FindById逻辑。
+        /// </summary>
 
         public static BattleActionTimelineRecordData FindById(
             BattleActionTimelineTableData table,
@@ -1451,6 +1718,9 @@ namespace Game.EditorTools
         {
             return table?.records.FirstOrDefault(record => record != null && record.rowId == id);
         }
+        /// <summary>
+        /// EvaluateKeyframes：执行当前模块的EvaluateKeyframes逻辑。
+        /// </summary>
 
         public static BattleActionTimelineTransform EvaluateKeyframes(
             BattleActionTimelineTableData table,
@@ -1467,6 +1737,9 @@ namespace Game.EditorTools
                 .ToList();
             if (localTime <= GetDouble(table, ordered[0], 0d, LocalTimeAliases))
             {
+                /// <summary>
+                /// ReadTransform：执行当前模块的ReadTransform逻辑。
+                /// </summary>
                 return ReadTransform(table, ordered[0]);
             }
 
@@ -1508,6 +1781,9 @@ namespace Game.EditorTools
 
             return ReadTransform(table, ordered[ordered.Count - 1]);
         }
+        /// <summary>
+        /// ApplyInterpolation：执行当前模块的ApplyInterpolation逻辑。
+        /// </summary>
 
         public static float ApplyInterpolation(float time, string interpolation)
         {
@@ -1540,6 +1816,9 @@ namespace Game.EditorTools
 
             return value;
         }
+        /// <summary>
+        /// Validate：执行当前模块的Validate逻辑。
+        /// </summary>
 
         public static void Validate(
             BattleActionTimelineDocument document,
@@ -1704,6 +1983,9 @@ namespace Game.EditorTools
             ValidateSpawnsAndProjectiles(document, issues);
             ValidateKeyframes(document, issues);
         }
+        /// <summary>
+        /// ValidateBodies：执行当前模块的ValidateBodies逻辑。
+        /// </summary>
 
         private static void ValidateBodies(
             BattleActionTimelineDocument document,
@@ -1788,6 +2070,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// ValidateSpawnsAndProjectiles：执行当前模块的ValidateSpawnsAndProjectiles逻辑。
+        /// </summary>
 
         private static void ValidateSpawnsAndProjectiles(
             BattleActionTimelineDocument document,
@@ -1965,6 +2250,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// ValidateKeyframes：执行当前模块的ValidateKeyframes逻辑。
+        /// </summary>
 
         private static void ValidateKeyframes(
             BattleActionTimelineDocument document,
@@ -2047,6 +2335,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// FindKeyframeOwnerColumn：执行当前模块的FindKeyframeOwnerColumn逻辑。
+        /// </summary>
 
         public static int FindKeyframeOwnerColumn(BattleActionTimelineTableData table)
         {
@@ -2059,6 +2350,9 @@ namespace Game.EditorTools
                 "ownerId",
                 "attackOwnerId");
         }
+        /// <summary>
+        /// ReadTransform：执行当前模块的ReadTransform逻辑。
+        /// </summary>
 
         private static BattleActionTimelineTransform ReadTransform(
             BattleActionTimelineTableData table,
@@ -2073,11 +2367,17 @@ namespace Game.EditorTools
                     (float)GetDouble(table, record, 1d, ScaleXAliases),
                     (float)GetDouble(table, record, 1d, ScaleYAliases)));
         }
+        /// <summary>
+        /// UnlimitedOrPositive：执行当前模块的UnlimitedOrPositive逻辑。
+        /// </summary>
 
         private static bool UnlimitedOrPositive(int value)
         {
             return value == -1 || value > 0;
         }
+        /// <summary>
+        /// ParseInt：执行当前模块的ParseInt逻辑。
+        /// </summary>
 
         private static int ParseInt(string value)
         {
@@ -2089,6 +2389,9 @@ namespace Game.EditorTools
                 ? result
                 : 0;
         }
+        /// <summary>
+        /// Normalize：执行当前模块的Normalize逻辑。
+        /// </summary>
 
         private static string Normalize(string value)
         {

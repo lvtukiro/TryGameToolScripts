@@ -8,10 +8,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// 2.0b 备战间 Prefab Builder 共用的 Editor UI 工厂。
     /// 这里只负责生成和绑定序列化对象，不包含任何运行时业务逻辑。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class BattlePreparationEditorUiFactory
     {
         internal static readonly Color OverlayColor = new Color(0.025f, 0.035f, 0.055f, 0.82f);
@@ -26,6 +26,9 @@ namespace Game.EditorTools
 
         internal readonly struct ButtonParts
         {
+            /// <summary>
+            /// ButtonParts：执行当前模块的ButtonParts逻辑。
+            /// </summary>
             internal ButtonParts(GameObject gameObject, Button button, Image image, Text text)
             {
                 GameObject = gameObject;
@@ -33,11 +36,26 @@ namespace Game.EditorTools
                 Image = image;
                 Text = text;
             }
+            /// <summary>
+            /// GameObject：执行当前模块的GameObject逻辑。
+            /// </summary>
 
             internal GameObject GameObject { get; }
+            /// <summary>
+            /// Button：执行当前模块的Button逻辑。
+            /// </summary>
             internal Button Button { get; }
+            /// <summary>
+            /// Image：执行当前模块的Image逻辑。
+            /// </summary>
             internal Image Image { get; }
+            /// <summary>
+            /// Text：执行当前模块的Text逻辑。
+            /// </summary>
             internal Text Text { get; }
+            /// <summary>
+            /// Rect：执行当前模块的Rect逻辑。
+            /// </summary>
             internal RectTransform Rect => GameObject != null
                 ? GameObject.GetComponent<RectTransform>()
                 : null;
@@ -45,17 +63,32 @@ namespace Game.EditorTools
 
         internal readonly struct ScrollParts
         {
+            /// <summary>
+            /// ScrollParts：执行当前模块的ScrollParts逻辑。
+            /// </summary>
             internal ScrollParts(ScrollRect scrollRect, RectTransform viewport, RectTransform content)
             {
                 ScrollRect = scrollRect;
                 Viewport = viewport;
                 Content = content;
             }
+            /// <summary>
+            /// ScrollRect：执行当前模块的ScrollRect逻辑。
+            /// </summary>
 
             internal ScrollRect ScrollRect { get; }
+            /// <summary>
+            /// Viewport：执行当前模块的Viewport逻辑。
+            /// </summary>
             internal RectTransform Viewport { get; }
+            /// <summary>
+            /// Content：执行当前模块的Content逻辑。
+            /// </summary>
             internal RectTransform Content { get; }
         }
+        /// <summary>
+        /// NewUiObject：执行当前模块的NewUiObject逻辑。
+        /// </summary>
 
         internal static GameObject NewUiObject(string name, Transform parent)
         {
@@ -64,6 +97,9 @@ namespace Game.EditorTools
             value.transform.SetParent(parent, false);
             return value;
         }
+        /// <summary>
+        /// NewRect：执行当前模块的NewRect逻辑。
+        /// </summary>
 
         internal static RectTransform NewRect(
             string name,
@@ -77,6 +113,9 @@ namespace Game.EditorTools
             SetRect(rect, anchorMin, anchorMax, offsetMin, offsetMax);
             return rect;
         }
+        /// <summary>
+        /// SetRect：执行当前模块的SetRect逻辑。
+        /// </summary>
 
         internal static void SetRect(
             RectTransform rect,
@@ -96,6 +135,9 @@ namespace Game.EditorTools
             rect.offsetMax = offsetMax;
             rect.localScale = Vector3.one;
         }
+        /// <summary>
+        /// Stretch：执行当前模块的Stretch逻辑。
+        /// </summary>
 
         internal static void Stretch(RectTransform rect, float margin = 0f)
         {
@@ -106,6 +148,9 @@ namespace Game.EditorTools
                 new Vector2(margin, margin),
                 new Vector2(-margin, -margin));
         }
+        /// <summary>
+        /// Place：执行当前模块的Place逻辑。
+        /// </summary>
 
         internal static void Place(
             RectTransform rect,
@@ -126,6 +171,9 @@ namespace Game.EditorTools
             rect.sizeDelta = size;
             rect.localScale = Vector3.one;
         }
+        /// <summary>
+        /// AddImage：执行当前模块的AddImage逻辑。
+        /// </summary>
 
         internal static Image AddImage(
             GameObject target,
@@ -146,6 +194,9 @@ namespace Game.EditorTools
             image.preserveAspect = preserveAspect;
             return image;
         }
+        /// <summary>
+        /// AddText：执行当前模块的AddText逻辑。
+        /// </summary>
 
         internal static Text AddText(
             GameObject target,
@@ -171,6 +222,9 @@ namespace Game.EditorTools
             label.verticalOverflow = VerticalWrapMode.Truncate;
             return label;
         }
+        /// <summary>
+        /// AddTextChild：执行当前模块的AddTextChild逻辑。
+        /// </summary>
 
         internal static Text AddTextChild(
             string name,
@@ -183,8 +237,14 @@ namespace Game.EditorTools
         {
             GameObject child = NewUiObject(name, parent);
             Stretch(child.GetComponent<RectTransform>(), margin);
+            /// <summary>
+            /// AddText：执行当前模块的AddText逻辑。
+            /// </summary>
             return AddText(child, text, fontSize, alignment, color);
         }
+        /// <summary>
+        /// AddButton：执行当前模块的AddButton逻辑。
+        /// </summary>
 
         internal static ButtonParts AddButton(
             string name,
@@ -230,9 +290,15 @@ namespace Game.EditorTools
                     new Vector2(-8f, 0f));
                 text = AddText(textObject, label, fontSize);
             }
+            /// <summary>
+            /// ButtonParts：执行当前模块的ButtonParts逻辑。
+            /// </summary>
 
             return new ButtonParts(gameObject, button, background, text);
         }
+        /// <summary>
+        /// AddPanel：执行当前模块的AddPanel逻辑。
+        /// </summary>
 
         internal static GameObject AddPanel(
             string name,
@@ -244,6 +310,9 @@ namespace Game.EditorTools
             AddImage(panel, color ?? PanelColor, null, blocksRaycasts);
             return panel;
         }
+        /// <summary>
+        /// AddVerticalScroll：执行当前模块的AddVerticalScroll逻辑。
+        /// </summary>
 
         internal static ScrollParts AddVerticalScroll(
             string name,
@@ -313,8 +382,14 @@ namespace Game.EditorTools
             scroll.movementType = ScrollRect.MovementType.Clamped;
             scroll.inertia = true;
             scroll.decelerationRate = 0.135f;
+            /// <summary>
+            /// ScrollParts：执行当前模块的ScrollParts逻辑。
+            /// </summary>
             return new ScrollParts(scroll, viewport, content);
         }
+        /// <summary>
+        /// AddRuntimeComponent：执行当前模块的AddRuntimeComponent逻辑。
+        /// </summary>
 
         internal static Component AddRuntimeComponent(GameObject target, string fullTypeName)
         {
@@ -322,6 +397,9 @@ namespace Game.EditorTools
             Component component = target.GetComponent(type);
             return component != null ? component : target.AddComponent(type);
         }
+        /// <summary>
+        /// AreRuntimeTypesAvailable：执行当前模块的AreRuntimeTypesAvailable逻辑。
+        /// </summary>
 
         internal static bool AreRuntimeTypesAvailable(IEnumerable<string> fullTypeNames)
         {
@@ -340,6 +418,9 @@ namespace Game.EditorTools
 
             return true;
         }
+        /// <summary>
+        /// ResolveRuntimeComponentType：执行当前模块的ResolveRuntimeComponentType逻辑。
+        /// </summary>
 
         internal static Type ResolveRuntimeComponentType(string fullTypeName)
         {
@@ -352,6 +433,9 @@ namespace Game.EditorTools
 
             return type;
         }
+        /// <summary>
+        /// SetObject：执行当前模块的SetObject逻辑。
+        /// </summary>
 
         internal static void SetObject(Component component, string propertyName, UnityEngine.Object value)
         {
@@ -367,6 +451,9 @@ namespace Game.EditorTools
             property.objectReferenceValue = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+        /// <summary>
+        /// SetInt：执行当前模块的SetInt逻辑。
+        /// </summary>
 
         internal static void SetInt(Component component, string propertyName, int value)
         {
@@ -390,6 +477,9 @@ namespace Game.EditorTools
             }
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+        /// <summary>
+        /// SetBool：执行当前模块的SetBool逻辑。
+        /// </summary>
 
         internal static void SetBool(Component component, string propertyName, bool value)
         {
@@ -405,6 +495,9 @@ namespace Game.EditorTools
             property.boolValue = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+        /// <summary>
+        /// SetSerializedRect：执行当前模块的SetSerializedRect逻辑。
+        /// </summary>
 
         internal static void SetSerializedRect(
             Component component,
@@ -423,6 +516,9 @@ namespace Game.EditorTools
             property.rectValue = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+        /// <summary>
+        /// SetObjects：执行当前模块的SetObjects逻辑。
+        /// </summary>
 
         internal static void SetObjects(
             Component component,
@@ -455,6 +551,9 @@ namespace Game.EditorTools
 
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+        /// <summary>
+        /// SetInts：执行当前模块的SetInts逻辑。
+        /// </summary>
 
         internal static void SetInts(
             Component component,
@@ -493,6 +592,9 @@ namespace Game.EditorTools
 
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+        /// <summary>
+        /// FindRequiredProperty：执行当前模块的FindRequiredProperty逻辑。
+        /// </summary>
 
         internal static SerializedProperty FindRequiredProperty(
             UnityEngine.Object target,
@@ -514,6 +616,9 @@ namespace Game.EditorTools
 
             return property;
         }
+        /// <summary>
+        /// AddBuilderMarker：执行当前模块的AddBuilderMarker逻辑。
+        /// </summary>
 
         internal static void AddBuilderMarker(GameObject root, string markerName)
         {
@@ -533,6 +638,9 @@ namespace Game.EditorTools
             marker.transform.SetParent(root.transform, false);
             marker.SetActive(false);
         }
+        /// <summary>
+        /// ContainsBuilderMarker：执行当前模块的ContainsBuilderMarker逻辑。
+        /// </summary>
 
         internal static bool ContainsBuilderMarker(GameObject root, string markerName)
         {
@@ -540,6 +648,9 @@ namespace Game.EditorTools
                 && !string.IsNullOrEmpty(markerName)
                 && FindChildRecursive(root.transform, markerName) != null;
         }
+        /// <summary>
+        /// FindChildRecursive：执行当前模块的FindChildRecursive逻辑。
+        /// </summary>
 
         internal static Transform FindChildRecursive(Transform root, string name)
         {
@@ -565,6 +676,9 @@ namespace Game.EditorTools
 
             return null;
         }
+        /// <summary>
+        /// DestroyChildIfPresent：执行当前模块的DestroyChildIfPresent逻辑。
+        /// </summary>
 
         internal static void DestroyChildIfPresent(Transform parent, string name)
         {
@@ -582,6 +696,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// SavePrefab：执行当前模块的SavePrefab逻辑。
+        /// </summary>
 
         internal static void SavePrefab(GameObject root, string assetPath)
         {
@@ -596,9 +713,15 @@ namespace Game.EditorTools
             GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, assetPath);
             if (saved == null)
             {
+                /// <summary>
+                /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
+                /// </summary>
                 throw new InvalidOperationException($"Prefab save returned null: {assetPath}");
             }
         }
+        /// <summary>
+        /// EnsureAssetDirectory：执行当前模块的EnsureAssetDirectory逻辑。
+        /// </summary>
 
         internal static void EnsureAssetDirectory(string assetDirectory)
         {
@@ -619,6 +742,9 @@ namespace Game.EditorTools
                     string guid = AssetDatabase.CreateFolder(current, parts[index]);
                     if (string.IsNullOrEmpty(guid))
                     {
+                        /// <summary>
+                        /// IOException：执行当前模块的IOException逻辑。
+                        /// </summary>
                         throw new IOException($"Failed to create asset directory: {next}");
                     }
                 }
@@ -626,6 +752,9 @@ namespace Game.EditorTools
                 current = next;
             }
         }
+        /// <summary>
+        /// ResolveFont：执行当前模块的ResolveFont逻辑。
+        /// </summary>
 
         internal static Font ResolveFont()
         {
@@ -634,6 +763,9 @@ namespace Game.EditorTools
                 ? font
                 : Resources.GetBuiltinResource<Font>("Arial.ttf");
         }
+        /// <summary>
+        /// SetLayerRecursively：执行当前模块的SetLayerRecursively逻辑。
+        /// </summary>
 
         internal static void SetLayerRecursively(GameObject root, int layer)
         {
@@ -648,6 +780,9 @@ namespace Game.EditorTools
                 SetLayerRecursively(root.transform.GetChild(index).gameObject, layer);
             }
         }
+        /// <summary>
+        /// TryResolveRuntimeComponentType：执行当前模块的TryResolveRuntimeComponentType逻辑。
+        /// </summary>
 
         private static Type TryResolveRuntimeComponentType(string fullTypeName)
         {

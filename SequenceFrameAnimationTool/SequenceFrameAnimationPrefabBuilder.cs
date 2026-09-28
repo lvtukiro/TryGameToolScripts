@@ -10,6 +10,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 {
     public static class SequenceFrameAnimationPrefabBuilder
     {
+        /// <summary>
+        /// CreatePrefabInteractive：执行当前模块的CreatePrefabInteractive逻辑。
+        /// </summary>
         public static void CreatePrefabInteractive()
         {
             string jsonAbsolutePath = EditorUtility.OpenFilePanel(
@@ -45,6 +48,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             CreatePrefab(document, outputAbsolutePath);
         }
+        /// <summary>
+        /// CreatePrefab：执行当前模块的CreatePrefab逻辑。
+        /// </summary>
 
         public static void CreatePrefab(
             SequenceFrameAnimationDocument document,
@@ -126,6 +132,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 + "\n完整角色帧：" + sprites.Count,
                 "确定");
         }
+        /// <summary>
+        /// LoadSprites：执行当前模块的LoadSprites逻辑。
+        /// </summary>
 
         private static List<Sprite> LoadSprites(List<SequenceFrameData> frames)
         {
@@ -137,9 +146,15 @@ namespace Game.EditorTools.SequenceFrameAnimation
                     paths.Add(frames[i].exportedAssetPath);
                 }
             }
+            /// <summary>
+            /// LoadSprites：执行当前模块的LoadSprites逻辑。
+            /// </summary>
 
             return LoadSprites(paths);
         }
+        /// <summary>
+        /// LoadSprites：执行当前模块的LoadSprites逻辑。
+        /// </summary>
 
         private static List<Sprite> LoadSprites(List<string> assetPaths)
         {
@@ -157,6 +172,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
 
             return result;
         }
+        /// <summary>
+        /// SetSpriteArray：执行当前模块的SetSpriteArray逻辑。
+        /// </summary>
 
         private static void SetSpriteArray(SerializedProperty property, List<Sprite> sprites)
         {
@@ -166,6 +184,9 @@ namespace Game.EditorTools.SequenceFrameAnimation
                 property.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
             }
         }
+        /// <summary>
+        /// TryGetProjectAssetPath：执行当前模块的TryGetProjectAssetPath逻辑。
+        /// </summary>
 
         private static bool TryGetProjectAssetPath(string absolutePath, out string assetPath)
         {

@@ -14,18 +14,18 @@ namespace TryGame.RefDataTools.Editor
         FullCleanRebuild = 1,
     }
 
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// RefData 三仓库总事务：所有导出先进入 Temp staging，验证通过后才替换正式目录。
     /// 目录发布不是操作系统级跨仓库原子操作，因此使用完整目录备份和反向回滚保证最终一致性。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class TryGameRefDataExportTransaction
     {
         private const string TransactionFolderName = "TryGameRefDataTransactions";
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 在会修改源 Excel 的编辑器工具写盘前，先确认当前正式基线允许这组增量输入。
         /// 正式 Execute 仍会在写盘后重新执行同一套检查，防止预检后的竞态变化。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         public static bool ValidateIncrementalPreflight(IReadOnlyList<string> excelFullPaths)
         {
             if (!TryValidateInputs(excelFullPaths, TryGameRefDataExportMode.Incremental))
@@ -64,6 +64,9 @@ namespace TryGame.RefDataTools.Editor
                 implicitDependencyFiles,
                 expectedInputHashes);
         }
+        /// <summary>
+        /// Execute：执行当前模块的Execute逻辑。
+        /// </summary>
 
         public static bool Execute(
             IReadOnlyList<string> excelFullPaths,
@@ -167,18 +170,27 @@ namespace TryGame.RefDataTools.Editor
                         stagedLuaOutput);
                     if (!process.Export(cltabtoyFiles))
                     {
+                        /// <summary>
+                        /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+                        /// </summary>
                         return FailBeforePublish(transactionRoot, "cltabtoy staging 导出失败，正式目录保持不变。", null);
                     }
 
                     string stagedFbData = Path.Combine(stagedSourceOutput, "fb_data");
                     if (!Directory.Exists(stagedFbData) || Directory.GetFiles(stagedFbData, "*.bytes", SearchOption.TopDirectoryOnly).Length == 0)
                     {
+                        /// <summary>
+                        /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+                        /// </summary>
                         return FailBeforePublish(transactionRoot, "cltabtoy 返回成功但 staging 没有任何 bytes，拒绝发布。", null);
                     }
                 }
 
                 if (languageFiles.Count > 0 && !TryGameLanguageExcelExport.Export(languageFiles, stagedSourceOutput))
                 {
+                    /// <summary>
+                    /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+                    /// </summary>
                     return FailBeforePublish(transactionRoot, "Language staging 导出失败，正式目录保持不变。", null);
                 }
 
@@ -234,6 +246,9 @@ namespace TryGame.RefDataTools.Editor
                     stagedGeneratedConfig,
                     out string manifestJson))
                 {
+                    /// <summary>
+                    /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+                    /// </summary>
                     return FailBeforePublish(transactionRoot, "staging 完整性验证失败，正式目录保持不变。", null);
                 }
 
@@ -270,6 +285,9 @@ namespace TryGame.RefDataTools.Editor
                     stagedGeneratedTables,
                     stagedGeneratedConfig))
                 {
+                    /// <summary>
+                    /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+                    /// </summary>
                     return FailBeforePublish(transactionRoot, "staging manifest 或完整产物门禁失败，拒绝发布。", null);
                 }
 
@@ -327,6 +345,9 @@ namespace TryGame.RefDataTools.Editor
             }
             catch (Exception exception)
             {
+                /// <summary>
+                /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+                /// </summary>
                 return FailBeforePublish(transactionRoot, "RefData staging 或验证流程发生异常，正式目录保持不变。", exception);
             }
 
@@ -339,6 +360,9 @@ namespace TryGame.RefDataTools.Editor
             TryDeleteTransactionDirectory(transactionRoot, transactionParent, "成功事务目录");
             return true;
         }
+        /// <summary>
+        /// TryValidateInputs：执行当前模块的TryValidateInputs逻辑。
+        /// </summary>
 
         private static bool TryValidateInputs(
             IReadOnlyList<string> excelFullPaths,
@@ -464,6 +488,9 @@ namespace TryGame.RefDataTools.Editor
                 $"commonDefine={commonDefinePath}");
             return true;
         }
+        /// <summary>
+        /// TryResolveRepositories：执行当前模块的TryResolveRepositories逻辑。
+        /// </summary>
 
         private static bool TryResolveRepositories(
             out string sourceRepository,
@@ -479,6 +506,9 @@ namespace TryGame.RefDataTools.Editor
             valid &= ValidateGitRepository("生成代码", generatedRepository);
             return valid;
         }
+        /// <summary>
+        /// ValidateGitRepository：执行当前模块的ValidateGitRepository逻辑。
+        /// </summary>
 
         private static bool ValidateGitRepository(string label, string repository)
         {
@@ -493,6 +523,9 @@ namespace TryGame.RefDataTools.Editor
                 $"repository={repository}, gitMarker={gitMarker}");
             return false;
         }
+        /// <summary>
+        /// SplitExportFiles：执行当前模块的SplitExportFiles逻辑。
+        /// </summary>
 
         private static void SplitExportFiles(
             IReadOnlyList<string> excelFullPaths,
@@ -516,6 +549,9 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// TryBuildCanonicalInputSnapshot：执行当前模块的TryBuildCanonicalInputSnapshot逻辑。
+        /// </summary>
 
         private static bool TryBuildCanonicalInputSnapshot(
             IReadOnlyList<string> selectedInputFiles,
@@ -589,6 +625,9 @@ namespace TryGame.RefDataTools.Editor
                 $"snapshotTotal={validationInputFiles.Count}");
             return true;
         }
+        /// <summary>
+        /// TryValidateCanonicalInputSetUnchanged：执行当前模块的TryValidateCanonicalInputSetUnchanged逻辑。
+        /// </summary>
 
         private static bool TryValidateCanonicalInputSetUnchanged(
             HashSet<string> expectedCanonicalPaths,
@@ -635,11 +674,17 @@ namespace TryGame.RefDataTools.Editor
                 $"[TryGameRefDataExportTransaction] 规范源表集合门禁通过：phase={phase}, count={currentPaths.Count}");
             return true;
         }
+        /// <summary>
+        /// CopyDirectorySnapshot：执行当前模块的CopyDirectorySnapshot逻辑。
+        /// </summary>
 
         private static void CopyDirectorySnapshot(string source, string destination)
         {
             if (Directory.Exists(destination))
             {
+                /// <summary>
+                /// IOException：执行当前模块的IOException逻辑。
+                /// </summary>
                 throw new IOException("staging 目标已存在，拒绝覆盖：" + destination);
             }
 
@@ -667,10 +712,10 @@ namespace TryGame.RefDataTools.Editor
             }
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 清洁重建从空 staging 生成；这里只给仍存在的同路径文件或目录补回旧 meta。
         /// 删除/改名对象的 meta 不会被带回，新对象由 Unity 刷新时生成新 GUID。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private static int PreserveMatchingMetaFiles(string baselineRoot, string stagedRoot)
         {
             if (!Directory.Exists(baselineRoot) || !Directory.Exists(stagedRoot))
@@ -702,10 +747,10 @@ namespace TryGame.RefDataTools.Editor
             return copiedCount;
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 发布前打印正式目录中存在、但清洁 staging 已不再生成的文件。
         /// 这里只报告计划，真正删除仍由后续目录发布事务统一完成并受回滚保护。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private static void PrintCleanRebuildRemovalPlan(
             string sourceBaseline,
             string stagedSource,
@@ -761,6 +806,9 @@ namespace TryGame.RefDataTools.Editor
                 $"artifacts={removedArtifactCount}, metas={removedMetaCount}\n" +
                 details.ToString().TrimEnd());
         }
+        /// <summary>
+        /// AppendRemovalPlanSection：执行当前模块的AppendRemovalPlanSection逻辑。
+        /// </summary>
 
         private static void AppendRemovalPlanSection(
             StringBuilder output,
@@ -814,6 +862,9 @@ namespace TryGame.RefDataTools.Editor
             totalArtifactCount += sectionArtifactCount;
             totalMetaCount += sectionMetaCount;
         }
+        /// <summary>
+        /// OverlayRuntimeArtifacts：执行当前模块的OverlayRuntimeArtifacts逻辑。
+        /// </summary>
 
         private static void OverlayRuntimeArtifacts(string stagedSourceOutput, string stagedRuntimeOutput)
         {
@@ -837,6 +888,9 @@ namespace TryGame.RefDataTools.Editor
                 CopyFileAndOptionalMeta(sourceLanguage, runtimeLanguage);
             }
         }
+        /// <summary>
+        /// CopyFileAndOptionalMeta：执行当前模块的CopyFileAndOptionalMeta逻辑。
+        /// </summary>
 
         private static void CopyFileAndOptionalMeta(string source, string destination)
         {
@@ -849,6 +903,9 @@ namespace TryGame.RefDataTools.Editor
                 File.Copy(sourceMeta, destinationMeta, false);
             }
         }
+        /// <summary>
+        /// DeleteRuntimeArtifactsFromSourceSnapshot：执行当前模块的DeleteRuntimeArtifactsFromSourceSnapshot逻辑。
+        /// </summary>
 
         private static void DeleteRuntimeArtifactsFromSourceSnapshot(string sourceOutput)
         {
@@ -873,6 +930,9 @@ namespace TryGame.RefDataTools.Editor
             DeleteIfExists(language);
             DeleteIfExists(language + ".meta");
         }
+        /// <summary>
+        /// DeleteIfExists：执行当前模块的DeleteIfExists逻辑。
+        /// </summary>
 
         private static void DeleteIfExists(string path)
         {
@@ -881,6 +941,9 @@ namespace TryGame.RefDataTools.Editor
                 File.Delete(path);
             }
         }
+        /// <summary>
+        /// WriteManifestCopies：执行当前模块的WriteManifestCopies逻辑。
+        /// </summary>
 
         private static void WriteManifestCopies(
             string manifestJson,
@@ -893,6 +956,9 @@ namespace TryGame.RefDataTools.Editor
             File.WriteAllText(Path.Combine(stagedRuntimeOutput, TryGameRefDataPaths.ManifestFileName), manifestJson, utf8);
             File.WriteAllText(Path.Combine(stagedGeneratedTables, TryGameRefDataPaths.ManifestFileName), manifestJson, utf8);
         }
+        /// <summary>
+        /// FailBeforePublish：执行当前模块的FailBeforePublish逻辑。
+        /// </summary>
 
         private static bool FailBeforePublish(string transactionRoot, string message, Exception exception)
         {
@@ -907,6 +973,9 @@ namespace TryGame.RefDataTools.Editor
 
             return false;
         }
+        /// <summary>
+        /// PrintRepositoryDiffs：执行当前模块的PrintRepositoryDiffs逻辑。
+        /// </summary>
 
         private static void PrintRepositoryDiffs(params string[] repositories)
         {
@@ -932,6 +1001,9 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// RunGitForDiff：执行当前模块的RunGitForDiff逻辑。
+        /// </summary>
 
         private static string RunGitForDiff(string repository, string arguments)
         {
@@ -960,6 +1032,9 @@ namespace TryGame.RefDataTools.Editor
                 return output.TrimEnd();
             }
         }
+        /// <summary>
+        /// AppendDiffSection：执行当前模块的AppendDiffSection逻辑。
+        /// </summary>
 
         private static void AppendDiffSection(
             StringBuilder output,
@@ -982,11 +1057,17 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// Quote：执行当前模块的Quote逻辑。
+        /// </summary>
 
         private static string Quote(string value)
         {
             return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
+        /// <summary>
+        /// MakeRelativePath：执行当前模块的MakeRelativePath逻辑。
+        /// </summary>
 
         private static string MakeRelativePath(string root, string path)
         {
@@ -995,6 +1076,9 @@ namespace TryGame.RefDataTools.Editor
             Uri pathUri = new Uri(Path.GetFullPath(path));
             return Uri.UnescapeDataString(rootUri.MakeRelativeUri(pathUri).ToString()).Replace('/', Path.DirectorySeparatorChar);
         }
+        /// <summary>
+        /// TryDeleteTransactionDirectory：执行当前模块的TryDeleteTransactionDirectory逻辑。
+        /// </summary>
 
         private static void TryDeleteTransactionDirectory(string path, string allowedParent, string label)
         {
@@ -1027,8 +1111,14 @@ namespace TryGame.RefDataTools.Editor
             private readonly string backupRoot;
             private readonly string failedNewRoot;
             private readonly List<PublishEntry> entries = new List<PublishEntry>();
+            /// <summary>
+            /// RollbackSucceeded：执行当前模块的RollbackSucceeded逻辑。
+            /// </summary>
 
             public bool RollbackSucceeded { get; private set; } = true;
+            /// <summary>
+            /// DirectoryPublishTransaction：执行当前模块的DirectoryPublishTransaction逻辑。
+            /// </summary>
 
             public DirectoryPublishTransaction(string transactionRoot)
             {
@@ -1036,6 +1126,9 @@ namespace TryGame.RefDataTools.Editor
                 backupRoot = Path.Combine(this.transactionRoot, "backup");
                 failedNewRoot = Path.Combine(this.transactionRoot, "failed-new");
             }
+            /// <summary>
+            /// Add：执行当前模块的Add逻辑。
+            /// </summary>
 
             public void Add(string label, string stagedDirectory, string targetDirectory)
             {
@@ -1048,11 +1141,17 @@ namespace TryGame.RefDataTools.Editor
                     FailedNewDirectory = Path.Combine(failedNewRoot, entries.Count.ToString("00")),
                 });
             }
+            /// <summary>
+            /// Commit：执行当前模块的Commit逻辑。
+            /// </summary>
 
             public bool Commit(Func<bool> verifyPublished)
             {
                 if (verifyPublished == null)
                 {
+                    /// <summary>
+                    /// ArgumentNullException：执行当前模块的ArgumentNullException逻辑。
+                    /// </summary>
                     throw new ArgumentNullException(nameof(verifyPublished));
                 }
 
@@ -1093,6 +1192,9 @@ namespace TryGame.RefDataTools.Editor
                 {
                     if (!verifyPublished())
                     {
+                        /// <summary>
+                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                        /// </summary>
                         throw new InvalidDataException("正式目录发布后校验返回失败。");
                     }
 
@@ -1128,6 +1230,9 @@ namespace TryGame.RefDataTools.Editor
 
                 return true;
             }
+            /// <summary>
+            /// Rollback：执行当前模块的Rollback逻辑。
+            /// </summary>
 
             private bool Rollback(int lastTouchedIndex)
             {

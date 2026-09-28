@@ -8,6 +8,9 @@ public static class PetFoodBarPrefabBuilder
 {
     private const string PrefabPath =
         "Assets/Resources/TryGameBuildRes/gui/ui_game/sub_home_pet_food_bar.prefab";
+    /// <summary>
+    /// ScheduleEnsurePrefab：执行当前模块的ScheduleEnsurePrefab逻辑。
+    /// </summary>
 
     [InitializeOnLoadMethod]
     private static void ScheduleEnsurePrefab()
@@ -15,12 +18,18 @@ public static class PetFoodBarPrefabBuilder
         EditorApplication.delayCall -= EnsurePrefab;
         EditorApplication.delayCall += EnsurePrefab;
     }
+    /// <summary>
+    /// RebuildPrefab：执行当前模块的RebuildPrefab逻辑。
+    /// </summary>
 
     [MenuItem("TryGame/宠物/重建食物条预制体")]
     public static void RebuildPrefab()
     {
         BuildPrefab(true);
     }
+    /// <summary>
+    /// EnsurePrefab：执行当前模块的EnsurePrefab逻辑。
+    /// </summary>
 
     private static void EnsurePrefab()
     {
@@ -29,6 +38,9 @@ public static class PetFoodBarPrefabBuilder
             BuildPrefab(false);
         }
     }
+    /// <summary>
+    /// BuildPrefab：执行当前模块的BuildPrefab逻辑。
+    /// </summary>
 
     private static void BuildPrefab(bool log)
     {
@@ -127,6 +139,9 @@ public static class PetFoodBarPrefabBuilder
             Debug.Log($"[PetFoodBarPrefabBuilder] 已重建：{PrefabPath}");
         }
     }
+    /// <summary>
+    /// BuildFoodItemTemplate：执行当前模块的BuildFoodItemTemplate逻辑。
+    /// </summary>
 
     private static GameObject BuildFoodItemTemplate(RectTransform parent)
     {
@@ -168,6 +183,9 @@ public static class PetFoodBarPrefabBuilder
         item.SetActive(false);
         return item;
     }
+    /// <summary>
+    /// BuildEmptySlotTemplate：执行当前模块的BuildEmptySlotTemplate逻辑。
+    /// </summary>
 
     private static GameObject BuildEmptySlotTemplate(RectTransform parent)
     {
@@ -183,6 +201,9 @@ public static class PetFoodBarPrefabBuilder
         item.SetActive(false);
         return item;
     }
+    /// <summary>
+    /// NewUiObject：执行当前模块的NewUiObject逻辑。
+    /// </summary>
 
     private static GameObject NewUiObject(string name, Transform parent)
     {
@@ -190,6 +211,9 @@ public static class PetFoodBarPrefabBuilder
         value.transform.SetParent(parent, false);
         return value;
     }
+    /// <summary>
+    /// Center：执行当前模块的Center逻辑。
+    /// </summary>
 
     private static void Center(RectTransform rect)
     {
@@ -197,6 +221,9 @@ public static class PetFoodBarPrefabBuilder
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
     }
+    /// <summary>
+    /// Stretch：执行当前模块的Stretch逻辑。
+    /// </summary>
 
     private static void Stretch(
         RectTransform rect,
@@ -208,6 +235,9 @@ public static class PetFoodBarPrefabBuilder
         rect.offsetMin = offsetMin;
         rect.offsetMax = offsetMax;
     }
+    /// <summary>
+    /// ResolveFont：执行当前模块的ResolveFont逻辑。
+    /// </summary>
 
     private static Font ResolveFont()
     {

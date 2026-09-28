@@ -5,16 +5,19 @@ using UnityEngine;
 
 namespace Game.EditorTools
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// 临时战斗诊断日志开关。设置只保存在 EditorPrefs，不进入游戏存档；
     /// 进入 Play Mode 时会重新应用到运行时日志入口。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class BattleDiagnosticsLogSettingsWindow : EditorWindow
     {
         private const string AllEnabledKey =
             "TryGame.BattleDiagnosticsLogSettings.AllEnabled";
         private const string CategoryKeyPrefix =
             "TryGame.BattleDiagnosticsLogSettings.Category.";
+        /// <summary>
+        /// Open：执行当前模块的Open逻辑。
+        /// </summary>
 
         [MenuItem("TryGame/工具/战斗临时日志设置", false, 490)]
         private static void Open()
@@ -25,17 +28,26 @@ namespace Game.EditorTools
             window.minSize = new Vector2(420f, 440f);
             window.Show();
         }
+        /// <summary>
+        /// InitializeEditorSettings：执行当前模块的InitializeEditorSettings逻辑。
+        /// </summary>
 
         [InitializeOnLoadMethod]
         private static void InitializeEditorSettings()
         {
             ApplyEditorPrefs();
         }
+        /// <summary>
+        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// </summary>
 
         private void OnEnable()
         {
             ApplyEditorPrefs();
         }
+        /// <summary>
+        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// </summary>
 
         private void OnGUI()
         {
@@ -98,6 +110,9 @@ namespace Game.EditorTools
                 (BattleDiagnosticsLogSettings.AllEnabled ? "总开关开启" : "总开关关闭"),
                 EditorStyles.miniLabel);
         }
+        /// <summary>
+        /// ApplyEditorPrefs：执行当前模块的ApplyEditorPrefs逻辑。
+        /// </summary>
 
         private static void ApplyEditorPrefs()
         {
@@ -118,6 +133,9 @@ namespace Game.EditorTools
                 BattleDiagnosticsLogSettings.SetCategoryEnabled(category, enabled);
             }
         }
+        /// <summary>
+        /// SaveCurrentPrefs：执行当前模块的SaveCurrentPrefs逻辑。
+        /// </summary>
 
         private static void SaveCurrentPrefs()
         {

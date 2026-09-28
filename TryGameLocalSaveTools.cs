@@ -6,16 +6,19 @@ using Debug = UnityEngine.Debug;
 
 namespace TryGame.Tools.Editor
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// 开发期本地存档工具。
     /// 只处理 Editor/Player 共用的 Application.persistentDataPath/saves 目录；
     /// 清档采用移动到备份目录的方式，避免测试档被直接物理删除。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class TryGameLocalSaveTools
     {
         private const string SaveFolderName = "saves";
         private const string OpenSaveFolderMenu = "TryGame/存档/打开本地存档文件夹";
         private const string ArchiveLocalSavesMenu = "TryGame/存档/归档本地存档";
+        /// <summary>
+        /// OpenLocalSaveFolder：执行当前模块的OpenLocalSaveFolder逻辑。
+        /// </summary>
 
         [MenuItem(OpenSaveFolderMenu, false, 300)]
         private static void OpenLocalSaveFolder()
@@ -24,6 +27,9 @@ namespace TryGame.Tools.Editor
             EditorUtility.RevealInFinder(saveFolder);
             Debug.Log($"[TryGameLocalSaveTools] 已打开本地存档目录：{saveFolder}");
         }
+        /// <summary>
+        /// ArchiveLocalSaves：执行当前模块的ArchiveLocalSaves逻辑。
+        /// </summary>
 
         [MenuItem(ArchiveLocalSavesMenu, false, 301)]
         private static void ArchiveLocalSaves()
@@ -89,12 +95,18 @@ namespace TryGame.Tools.Editor
                     "OK");
             }
         }
+        /// <summary>
+        /// CanArchiveLocalSaves：执行当前模块的CanArchiveLocalSaves逻辑。
+        /// </summary>
 
         [MenuItem(ArchiveLocalSavesMenu, true)]
         private static bool CanArchiveLocalSaves()
         {
             return !EditorApplication.isPlayingOrWillChangePlaymode;
         }
+        /// <summary>
+        /// EnsureSaveFolder：执行当前模块的EnsureSaveFolder逻辑。
+        /// </summary>
 
         private static string EnsureSaveFolder()
         {
@@ -103,6 +115,9 @@ namespace TryGame.Tools.Editor
             Directory.CreateDirectory(saveFolder);
             return saveFolder;
         }
+        /// <summary>
+        /// CollectRootSaveFiles：执行当前模块的CollectRootSaveFiles逻辑。
+        /// </summary>
 
         private static string[] CollectRootSaveFiles(string saveFolder)
         {
@@ -140,6 +155,9 @@ namespace TryGame.Tools.Editor
 
             return result;
         }
+        /// <summary>
+        /// IsSaveFileName：执行当前模块的IsSaveFileName逻辑。
+        /// </summary>
 
         private static bool IsSaveFileName(string fileName)
         {
@@ -152,6 +170,9 @@ namespace TryGame.Tools.Editor
                 || fileName.EndsWith(".json.tmp", StringComparison.OrdinalIgnoreCase)
                 || fileName.EndsWith(".json.bak", StringComparison.OrdinalIgnoreCase);
         }
+        /// <summary>
+        /// ResolveUniqueArchiveFolder：执行当前模块的ResolveUniqueArchiveFolder逻辑。
+        /// </summary>
 
         private static string ResolveUniqueArchiveFolder(string saveFolder)
         {
@@ -168,6 +189,9 @@ namespace TryGame.Tools.Editor
 
             return path;
         }
+        /// <summary>
+        /// ResolveUniqueFilePath：执行当前模块的ResolveUniqueFilePath逻辑。
+        /// </summary>
 
         private static string ResolveUniqueFilePath(string archiveFolder, string fileName)
         {

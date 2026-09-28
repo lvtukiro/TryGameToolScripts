@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -27,6 +27,9 @@ namespace TryGame.RefDataTools.Editor
         {
             get { return Path.GetFullPath(Path.Combine(Application.dataPath, "..")).Replace("\\", "/"); }
         }
+        /// <summary>
+        /// ToFullPath：执行当前模块的ToFullPath逻辑。
+        /// </summary>
 
         public static string ToFullPath(string assetPath)
         {
@@ -37,6 +40,9 @@ namespace TryGame.RefDataTools.Editor
 
             return Path.GetFullPath(Path.Combine(ProjectRoot, assetPath)).Replace("\\", "/");
         }
+        /// <summary>
+        /// ToAssetPath：执行当前模块的ToAssetPath逻辑。
+        /// </summary>
 
         public static string ToAssetPath(string fullPath)
         {
@@ -50,10 +56,10 @@ namespace TryGame.RefDataTools.Editor
             return normalized.StartsWith(root) ? normalized.Substring(root.Length) : normalized;
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 按统一规则收集指定根目录下可直接导出的 Excel。
         /// 共用枚举结构体由其它表引用，不作为独立导出输入。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         public static List<string> FindExportableExcelFiles(string rootFullPath)
         {
             List<string> result = new List<string>();

@@ -78,6 +78,9 @@ namespace TryGame.PlaceholderTools.Editor
                 Debug.LogError("[TryGameFurniturePlaceholderPrefabGenerator] 构建或执行生成计划异常，流程已停止：\n" + exception);
             }
         }
+        /// <summary>
+        /// TryBuildGenerationPlan：执行当前模块的TryBuildGenerationPlan逻辑。
+        /// </summary>
 
         private static bool TryBuildGenerationPlan(List<HomeFurnitureRow> furnitureRows, Dictionary<int, FurnitureResourceRow> resourceRows, Dictionary<int, ResourceRuleRow> ruleRows, Dictionary<string, List<string>> imagesByName, out List<GenerationPlanItem> plan)
         {
@@ -140,6 +143,9 @@ namespace TryGame.PlaceholderTools.Editor
 
             return valid;
         }
+        /// <summary>
+        /// ExecuteGenerationPlan：执行当前模块的ExecuteGenerationPlan逻辑。
+        /// </summary>
 
         private static void ExecuteGenerationPlan(List<GenerationPlanItem> plan)
         {
@@ -205,6 +211,9 @@ namespace TryGame.PlaceholderTools.Editor
 
                 if (!ids.Add(id))
                 {
+                    /// <summary>
+                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                    /// </summary>
                     throw new InvalidDataException($"{FurnitureSheetName} 存在重复 id：{id}");
                 }
 
@@ -221,6 +230,9 @@ namespace TryGame.PlaceholderTools.Editor
 
             if (result.Count == 0)
             {
+                /// <summary>
+                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                /// </summary>
                 throw new InvalidDataException($"{FurnitureSheetName} 没有读取到任何有效家具行，拒绝按空表生成。");
             }
 
@@ -246,6 +258,9 @@ namespace TryGame.PlaceholderTools.Editor
 
                 if (result.ContainsKey(id))
                 {
+                    /// <summary>
+                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                    /// </summary>
                     throw new InvalidDataException($"{FurnitureResourceSheetName} 存在重复 id：{id}");
                 }
 
@@ -259,6 +274,9 @@ namespace TryGame.PlaceholderTools.Editor
 
             if (result.Count == 0)
             {
+                /// <summary>
+                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                /// </summary>
                 throw new InvalidDataException($"{FurnitureResourceSheetName} 没有读取到任何有效资源行，拒绝按空表生成。");
             }
 
@@ -284,6 +302,9 @@ namespace TryGame.PlaceholderTools.Editor
 
                 if (result.ContainsKey(id))
                 {
+                    /// <summary>
+                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                    /// </summary>
                     throw new InvalidDataException($"{ResourceRuleSheetName} 存在重复 id：{id}");
                 }
 
@@ -297,6 +318,9 @@ namespace TryGame.PlaceholderTools.Editor
 
             if (result.Count == 0)
             {
+                /// <summary>
+                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                /// </summary>
                 throw new InvalidDataException($"{ResourceRuleSheetName} 没有读取到任何有效规则行，拒绝按空表生成。");
             }
 
@@ -449,6 +473,9 @@ namespace TryGame.PlaceholderTools.Editor
             Debug.Log($"[TryGameFurniturePlaceholderPrefabGenerator] 已复制家具图片到图标路径：source={imageAssetPath}, target={iconAssetPath}");
             return true;
         }
+        /// <summary>
+        /// RollbackCreatedAssets：执行当前模块的RollbackCreatedAssets逻辑。
+        /// </summary>
 
         private static void RollbackCreatedAssets(List<string> createdAssets)
         {
@@ -536,6 +563,9 @@ namespace TryGame.PlaceholderTools.Editor
                 importer.SaveAndReimport();
             }
         }
+        /// <summary>
+        /// CaptureImporterSnapshot：执行当前模块的CaptureImporterSnapshot逻辑。
+        /// </summary>
 
         private static void CaptureImporterSnapshot(string assetPath, TextureImporter importer)
         {
@@ -551,6 +581,9 @@ namespace TryGame.PlaceholderTools.Editor
                 assetPath,
                 new TextureImporterSnapshot(importer.textureType, importer.spritePixelsPerUnit));
         }
+        /// <summary>
+        /// RestoreImporterSnapshots：执行当前模块的RestoreImporterSnapshots逻辑。
+        /// </summary>
 
         private static void RestoreImporterSnapshots(Dictionary<string, TextureImporterSnapshot> snapshots)
         {
@@ -688,6 +721,9 @@ namespace TryGame.PlaceholderTools.Editor
         /// </summary>
         private static CommonResource ReadIconResource(Dictionary<string, string> row)
         {
+            /// <summary>
+            /// ParseResource：执行当前模块的ParseResource逻辑。
+            /// </summary>
             return ParseResource(GetValue(row, "icon"));
         }
 
@@ -782,6 +818,9 @@ namespace TryGame.PlaceholderTools.Editor
         {
             public readonly TextureImporterType textureType;
             public readonly float spritePixelsPerUnit;
+            /// <summary>
+            /// TextureImporterSnapshot：执行当前模块的TextureImporterSnapshot逻辑。
+            /// </summary>
 
             public TextureImporterSnapshot(TextureImporterType textureType, float spritePixelsPerUnit)
             {
@@ -871,6 +910,9 @@ namespace TryGame.PlaceholderTools.Editor
                 string fullPath = ToFullPath(assetPath);
                 if (!File.Exists(fullPath))
                 {
+                    /// <summary>
+                    /// FileNotFoundException：执行当前模块的FileNotFoundException逻辑。
+                    /// </summary>
                     throw new FileNotFoundException("配表 Excel 不存在。", fullPath);
                 }
 
@@ -909,6 +951,9 @@ namespace TryGame.PlaceholderTools.Editor
                     {
                         throw new InvalidDataException($"Excel 缺少目标 sheet XML：file={fullPath}, sheet={sheetName}, path={sheetPath}");
                     }
+                    /// <summary>
+                    /// ReadSheetRows：执行当前模块的ReadSheetRows逻辑。
+                    /// </summary>
 
                     return ReadSheetRows(sheetEntry, sharedStrings);
                 }

@@ -12,10 +12,10 @@ using UnityEngine;
 
 namespace TryGame.Tools.Editor
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// 防止 Gameplay 代码重新绕过统一帧入口或直接读取 Unity 时间。
     /// 这是源码结构门禁，不代替 Unity 编译和 Play Mode 行为验证。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     [InitializeOnLoad]
     internal static class TryGameGameplayArchitectureValidator
     {
@@ -67,27 +67,45 @@ namespace TryGame.Tools.Editor
             "if(forward.sqrMagnitude>0.0001f){" +
             "transform.rotation=Quaternion.LookRotation(forward.normalized,camera.transform.up);" +
             "}}";
+        /// <summary>
+        /// TryGameGameplayArchitectureValidator：执行当前模块的TryGameGameplayArchitectureValidator逻辑。
+        /// </summary>
 
         static TryGameGameplayArchitectureValidator()
         {
             EditorApplication.delayCall += RunAutomaticValidation;
         }
+        /// <summary>
+        /// RunFromMenu：执行当前模块的RunFromMenu逻辑。
+        /// </summary>
 
         [MenuItem(MenuPath)]
         private static void RunFromMenu()
         {
             RunValidation(true);
         }
+        /// <summary>
+        /// RunAutomaticValidation：执行当前模块的RunAutomaticValidation逻辑。
+        /// </summary>
 
         private static void RunAutomaticValidation()
         {
             RunValidation(false);
         }
+        /// <summary>
+        /// ValidateForBuild：执行当前模块的ValidateForBuild逻辑。
+        /// </summary>
 
         internal static bool ValidateForBuild()
         {
+            /// <summary>
+            /// RunValidation：执行当前模块的RunValidation逻辑。
+            /// </summary>
             return RunValidation(false);
         }
+        /// <summary>
+        /// RunValidation：执行当前模块的RunValidation逻辑。
+        /// </summary>
 
         private static bool RunValidation(bool requestedByUser)
         {
@@ -129,6 +147,9 @@ namespace TryGame.Tools.Editor
                 return false;
             }
         }
+        /// <summary>
+        /// ValidateFrameEntrypoints：执行当前模块的ValidateFrameEntrypoints逻辑。
+        /// </summary>
 
         private static int ValidateFrameEntrypoints(
             IReadOnlyDictionary<Type, string> scriptPaths,
@@ -176,6 +197,9 @@ namespace TryGame.Tools.Editor
 
             return violations;
         }
+        /// <summary>
+        /// ValidateDeclaredFrameMethods：执行当前模块的ValidateDeclaredFrameMethods逻辑。
+        /// </summary>
 
         private static int ValidateDeclaredFrameMethods(
             Type type,
@@ -215,6 +239,9 @@ namespace TryGame.Tools.Editor
 
             return violations;
         }
+        /// <summary>
+        /// ValidateStandaloneFrameMethods：执行当前模块的ValidateStandaloneFrameMethods逻辑。
+        /// </summary>
 
         private static int ValidateStandaloneFrameMethods(Type type, string assetPath)
         {
@@ -246,6 +273,9 @@ namespace TryGame.Tools.Editor
 
             return violations;
         }
+        /// <summary>
+        /// IsExplicitSystemFrameException：执行当前模块的IsExplicitSystemFrameException逻辑。
+        /// </summary>
 
         private static bool IsExplicitSystemFrameException(
             Type type,
@@ -263,6 +293,9 @@ namespace TryGame.Tools.Editor
                     StringComparison.Ordinal)
                 && HasExpectedHomeCameraSystemLateUpdate(assetPath);
         }
+        /// <summary>
+        /// IsStandaloneSystemFrameException：执行当前模块的IsStandaloneSystemFrameException逻辑。
+        /// </summary>
 
         private static bool IsStandaloneSystemFrameException(
             Type type,
@@ -274,6 +307,9 @@ namespace TryGame.Tools.Editor
                 && string.Equals(type.FullName, "Game.FaceCamera", StringComparison.Ordinal)
                 && HasExpectedFaceCameraSystemLateUpdate(assetPath);
         }
+        /// <summary>
+        /// HasExpectedHomeCameraSystemLateUpdate：执行当前模块的HasExpectedHomeCameraSystemLateUpdate逻辑。
+        /// </summary>
 
         private static bool HasExpectedHomeCameraSystemLateUpdate(string assetPath)
         {
@@ -291,6 +327,9 @@ namespace TryGame.Tools.Editor
             string source = StripCommentsAndLiterals(File.ReadAllText(absolutePath));
             return HomeCameraSystemLateUpdateRegex.IsMatch(source);
         }
+        /// <summary>
+        /// HasExpectedFaceCameraSystemLateUpdate：执行当前模块的HasExpectedFaceCameraSystemLateUpdate逻辑。
+        /// </summary>
 
         private static bool HasExpectedFaceCameraSystemLateUpdate(string assetPath)
         {
@@ -329,6 +368,9 @@ namespace TryGame.Tools.Editor
                 ExpectedFaceCameraLateUpdateNormalized,
                 StringComparison.Ordinal);
         }
+        /// <summary>
+        /// TryFindMatchingBrace：执行当前模块的TryFindMatchingBrace逻辑。
+        /// </summary>
 
         private static bool TryFindMatchingBrace(
             string source,
@@ -361,6 +403,9 @@ namespace TryGame.Tools.Editor
 
             return false;
         }
+        /// <summary>
+        /// RemoveWhitespace：执行当前模块的RemoveWhitespace逻辑。
+        /// </summary>
 
         private static string RemoveWhitespace(string source)
         {
@@ -375,6 +420,9 @@ namespace TryGame.Tools.Editor
 
             return result.ToString();
         }
+        /// <summary>
+        /// ValidateUnityTimeUsage：执行当前模块的ValidateUnityTimeUsage逻辑。
+        /// </summary>
 
         private static int ValidateUnityTimeUsage(
             IReadOnlyDictionary<Type, string> scriptPaths,
@@ -458,6 +506,9 @@ namespace TryGame.Tools.Editor
 
             return violations;
         }
+        /// <summary>
+        /// ValidatePlatformBoundaries：执行当前模块的ValidatePlatformBoundaries逻辑。
+        /// </summary>
 
         private static int ValidatePlatformBoundaries(ref int scannedFileCount)
         {
@@ -599,6 +650,9 @@ namespace TryGame.Tools.Editor
 
             return violations;
         }
+        /// <summary>
+        /// ValidateAssemblyReferenceBoundary：执行当前模块的ValidateAssemblyReferenceBoundary逻辑。
+        /// </summary>
 
         private static int ValidateAssemblyReferenceBoundary(
             string rule,
@@ -645,6 +699,9 @@ namespace TryGame.Tools.Editor
 
             return violations;
         }
+        /// <summary>
+        /// BuildRuntimeScriptPathMap：执行当前模块的BuildRuntimeScriptPathMap逻辑。
+        /// </summary>
 
         private static Dictionary<Type, string> BuildRuntimeScriptPathMap()
         {
@@ -663,6 +720,9 @@ namespace TryGame.Tools.Editor
 
             return paths;
         }
+        /// <summary>
+        /// IsUnityFrameMethod：执行当前模块的IsUnityFrameMethod逻辑。
+        /// </summary>
 
         private static bool IsUnityFrameMethod(string methodName)
         {
@@ -670,6 +730,9 @@ namespace TryGame.Tools.Editor
                 || methodName == "LateUpdate"
                 || methodName == "FixedUpdate";
         }
+        /// <summary>
+        /// IsUnderTimeGuardRoot：执行当前模块的IsUnderTimeGuardRoot逻辑。
+        /// </summary>
 
         private static bool IsUnderTimeGuardRoot(string assetPath)
         {
@@ -691,6 +754,9 @@ namespace TryGame.Tools.Editor
 
             return false;
         }
+        /// <summary>
+        /// FindFrameMethodLine：执行当前模块的FindFrameMethodLine逻辑。
+        /// </summary>
 
         private static int FindFrameMethodLine(string assetPath, string methodName)
         {
@@ -720,6 +786,9 @@ namespace TryGame.Tools.Editor
 
             return 0;
         }
+        /// <summary>
+        /// StripCommentsAndLiterals：执行当前模块的StripCommentsAndLiterals逻辑。
+        /// </summary>
 
         private static string StripCommentsAndLiterals(string source)
         {
@@ -741,8 +810,14 @@ namespace TryGame.Tools.Editor
 
             int index = 0;
             ScanCode(source, searchable, ref index);
+            /// <summary>
+            /// string：执行当前模块的string逻辑。
+            /// </summary>
             return new string(searchable);
         }
+        /// <summary>
+        /// ScanCode：执行当前模块的ScanCode逻辑。
+        /// </summary>
 
         private static void ScanCode(string source, char[] searchable, ref int index)
         {
@@ -758,6 +833,9 @@ namespace TryGame.Tools.Editor
                 index++;
             }
         }
+        /// <summary>
+        /// TrySkipComment：执行当前模块的TrySkipComment逻辑。
+        /// </summary>
 
         private static bool TrySkipComment(string source, ref int index)
         {
@@ -801,6 +879,9 @@ namespace TryGame.Tools.Editor
 
             return true;
         }
+        /// <summary>
+        /// TrySkipLiteral：执行当前模块的TrySkipLiteral逻辑。
+        /// </summary>
 
         private static bool TrySkipLiteral(
             string source,
@@ -844,6 +925,9 @@ namespace TryGame.Tools.Editor
 
             return false;
         }
+        /// <summary>
+        /// TryGetInterpolatedStringPrefix：执行当前模块的TryGetInterpolatedStringPrefix逻辑。
+        /// </summary>
 
         private static bool TryGetInterpolatedStringPrefix(
             string source,
@@ -882,6 +966,9 @@ namespace TryGame.Tools.Editor
 
             return false;
         }
+        /// <summary>
+        /// ScanInterpolatedString：执行当前模块的ScanInterpolatedString逻辑。
+        /// </summary>
 
         private static void ScanInterpolatedString(
             string source,
@@ -935,6 +1022,9 @@ namespace TryGame.Tools.Editor
                 index++;
             }
         }
+        /// <summary>
+        /// ScanInterpolationExpression：执行当前模块的ScanInterpolationExpression逻辑。
+        /// </summary>
 
         private static void ScanInterpolationExpression(
             string source,
@@ -1027,6 +1117,9 @@ namespace TryGame.Tools.Editor
                 index++;
             }
         }
+        /// <summary>
+        /// SkipInterpolationFormat：执行当前模块的SkipInterpolationFormat逻辑。
+        /// </summary>
 
         private static void SkipInterpolationFormat(string source, ref int index)
         {
@@ -1041,6 +1134,9 @@ namespace TryGame.Tools.Editor
                 index++;
             }
         }
+        /// <summary>
+        /// SkipEscapedQuotedLiteral：执行当前模块的SkipEscapedQuotedLiteral逻辑。
+        /// </summary>
 
         private static void SkipEscapedQuotedLiteral(
             string source,
@@ -1065,6 +1161,9 @@ namespace TryGame.Tools.Editor
                 index++;
             }
         }
+        /// <summary>
+        /// SkipVerbatimString：执行当前模块的SkipVerbatimString逻辑。
+        /// </summary>
 
         private static void SkipVerbatimString(string source, ref int index)
         {
@@ -1087,6 +1186,9 @@ namespace TryGame.Tools.Editor
                 return;
             }
         }
+        /// <summary>
+        /// GetLineNumber：执行当前模块的GetLineNumber逻辑。
+        /// </summary>
 
         private static int GetLineNumber(string text, int index)
         {
@@ -1102,6 +1204,9 @@ namespace TryGame.Tools.Editor
 
             return line;
         }
+        /// <summary>
+        /// AssetPathToAbsolute：执行当前模块的AssetPathToAbsolute逻辑。
+        /// </summary>
 
         private static string AssetPathToAbsolute(string assetPath)
         {
@@ -1114,6 +1219,9 @@ namespace TryGame.Tools.Editor
 
             return Path.GetFullPath(Path.Combine(projectRoot, assetPath));
         }
+        /// <summary>
+        /// AbsoluteToAssetPath：执行当前模块的AbsoluteToAssetPath逻辑。
+        /// </summary>
 
         private static string AbsoluteToAssetPath(string absolutePath)
         {
@@ -1127,6 +1235,9 @@ namespace TryGame.Tools.Editor
 
             return "Assets/" + normalizedPath.Substring(normalizedDataPath.Length + 1);
         }
+        /// <summary>
+        /// FormatLocation：执行当前模块的FormatLocation逻辑。
+        /// </summary>
 
         private static string FormatLocation(string assetPath, int line)
         {
@@ -1137,7 +1248,13 @@ namespace TryGame.Tools.Editor
 
     internal sealed class TryGameGameplayArchitectureBuildValidator : IPreprocessBuildWithReport
     {
+        /// <summary>
+        /// callbackOrder：执行当前模块的callbackOrder逻辑。
+        /// </summary>
         public int callbackOrder => 0;
+        /// <summary>
+        /// OnPreprocessBuild：执行当前模块的OnPreprocessBuild逻辑。
+        /// </summary>
 
         public void OnPreprocessBuild(BuildReport report)
         {

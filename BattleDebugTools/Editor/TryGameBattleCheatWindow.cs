@@ -5,10 +5,10 @@ using UnityEngine;
 namespace TryGame.BattleDebugTools.Editor
 {
     /// <summary>
-    /// Battle WorldZone play-mode cheat entry.  Commands are deliberately routed through the
-    /// scene runtime instead of editing scene objects directly, so checkpoint, Robot equipment
-    /// and combat-runtime validation remain identical to normal gameplay.
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class TryGameBattleCheatWindow : EditorWindow
     {
         private string enemyIdText = "102";
@@ -17,6 +17,9 @@ namespace TryGame.BattleDebugTools.Editor
         private string commandStatus = "尚未执行战斗作弊命令。";
         private MessageType commandStatusType = MessageType.None;
         private Vector2 scrollPosition;
+        /// <summary>
+        /// Open：执行当前模块的Open逻辑。
+        /// </summary>
 
         [MenuItem("TryGame/战斗/运行时战斗作弊工具")]
         public static void Open()
@@ -26,11 +29,17 @@ namespace TryGame.BattleDebugTools.Editor
             window.minSize = new Vector2(420f, 300f);
             window.Show();
         }
+        /// <summary>
+        /// OnInspectorUpdate：执行当前模块的OnInspectorUpdate逻辑。
+        /// </summary>
 
         private void OnInspectorUpdate()
         {
             Repaint();
         }
+        /// <summary>
+        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// </summary>
 
         private void OnGUI()
         {
@@ -62,6 +71,9 @@ namespace TryGame.BattleDebugTools.Editor
             DrawPlayerNoDamageSection(runtime);
             EditorGUILayout.EndScrollView();
         }
+        /// <summary>
+        /// DrawEnemySpawnSection：执行当前模块的DrawEnemySpawnSection逻辑。
+        /// </summary>
 
         private void DrawEnemySpawnSection(BattleWorldZoneSceneRuntime runtime)
         {
@@ -86,6 +98,9 @@ namespace TryGame.BattleDebugTools.Editor
 
             EditorGUILayout.HelpBox(commandStatus, commandStatusType);
         }
+        /// <summary>
+        /// DrawPlayerNoDamageSection：执行当前模块的DrawPlayerNoDamageSection逻辑。
+        /// </summary>
 
         private void DrawPlayerNoDamageSection(BattleWorldZoneSceneRuntime runtime)
         {
@@ -116,6 +131,9 @@ namespace TryGame.BattleDebugTools.Editor
                     EditorStyles.miniLabel);
             }
         }
+        /// <summary>
+        /// RunSpawnEnemyCommand：执行当前模块的RunSpawnEnemyCommand逻辑。
+        /// </summary>
 
         private void RunSpawnEnemyCommand(BattleWorldZoneSceneRuntime runtime)
         {
@@ -153,6 +171,9 @@ namespace TryGame.BattleDebugTools.Editor
                 SetCommandStatus("生成失败：" + error, MessageType.Error);
             }
         }
+        /// <summary>
+        /// TryParseInt：执行当前模块的TryParseInt逻辑。
+        /// </summary>
 
         private bool TryParseInt(
             string text,
@@ -172,6 +193,9 @@ namespace TryGame.BattleDebugTools.Editor
 
             return true;
         }
+        /// <summary>
+        /// SetCommandStatus：执行当前模块的SetCommandStatus逻辑。
+        /// </summary>
 
         private void SetCommandStatus(string message, MessageType type)
         {

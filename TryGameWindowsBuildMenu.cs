@@ -9,10 +9,10 @@ using Debug = UnityEngine.Debug;
 
 namespace TryGame.Tools.Editor
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// TryGame Windows Player 的统一开发构建入口。
     /// Smoke 入口不会使用 AutoRunPlayer，因为需要显式传入窗口验证命令行参数。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class TryGameWindowsBuildMenu
     {
         private const string DevelopmentBuildMenu =
@@ -23,18 +23,27 @@ namespace TryGame.Tools.Editor
 
         private const string OutputRelativePath = "Build/Windows-x64/TryAiGameTmp.exe";
         private const string WindowSmokeArgument = "--trygame-window-smoke";
+        /// <summary>
+        /// BuildDevelopmentPlayer：执行当前模块的BuildDevelopmentPlayer逻辑。
+        /// </summary>
 
         [MenuItem(DevelopmentBuildMenu, false, 100)]
         private static void BuildDevelopmentPlayer()
         {
             BuildWindowsPlayer(runWindowSmoke: false);
         }
+        /// <summary>
+        /// BuildAndRunWindowSmoke：执行当前模块的BuildAndRunWindowSmoke逻辑。
+        /// </summary>
 
         [MenuItem(WindowSmokeBuildMenu, false, 101)]
         private static void BuildAndRunWindowSmoke()
         {
             BuildWindowsPlayer(runWindowSmoke: true);
         }
+        /// <summary>
+        /// CanBuildWindowsPlayer：执行当前模块的CanBuildWindowsPlayer逻辑。
+        /// </summary>
 
         [MenuItem(DevelopmentBuildMenu, true)]
         [MenuItem(WindowSmokeBuildMenu, true)]
@@ -44,6 +53,9 @@ namespace TryGame.Tools.Editor
                    !EditorApplication.isPlayingOrWillChangePlaymode &&
                    !BuildPipeline.isBuildingPlayer;
         }
+        /// <summary>
+        /// BuildWindowsPlayer：执行当前模块的BuildWindowsPlayer逻辑。
+        /// </summary>
 
         private static void BuildWindowsPlayer(bool runWindowSmoke)
         {
@@ -94,6 +106,9 @@ namespace TryGame.Tools.Editor
                     $"本次构建不能按成功处理：\n{exception}");
             }
         }
+        /// <summary>
+        /// TryPrepareBuild：执行当前模块的TryPrepareBuild逻辑。
+        /// </summary>
 
         private static bool TryPrepareBuild(out string[] scenes, out string outputPath)
         {
@@ -181,6 +196,9 @@ namespace TryGame.Tools.Editor
 
             return true;
         }
+        /// <summary>
+        /// TryCollectEnabledScenes：执行当前模块的TryCollectEnabledScenes逻辑。
+        /// </summary>
 
         private static bool TryCollectEnabledScenes(out string[] scenes)
         {
@@ -226,6 +244,9 @@ namespace TryGame.Tools.Editor
             scenes = enabledScenePaths.ToArray();
             return true;
         }
+        /// <summary>
+        /// TryValidateBuildReport：执行当前模块的TryValidateBuildReport逻辑。
+        /// </summary>
 
         private static bool TryValidateBuildReport(BuildReport report, string outputPath)
         {
@@ -257,6 +278,9 @@ namespace TryGame.Tools.Editor
 
             return true;
         }
+        /// <summary>
+        /// RunWindowSmokePlayer：执行当前模块的RunWindowSmokePlayer逻辑。
+        /// </summary>
 
         private static void RunWindowSmokePlayer(string outputPath)
         {

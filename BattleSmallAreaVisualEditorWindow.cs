@@ -10,10 +10,10 @@ using UnityEngine;
 
 namespace Game.EditorTools
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// BattleSmallArea 源数据可视化工具。支持 DTO/TSV、正式 xlsx 的当前或全部模板事务写回，
     /// 写回成功后必须经过统一增量导表事务与 Output 逐模板回读才报告完成。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     public sealed class BattleSmallAreaVisualEditorWindow : EditorWindow
     {
         [Serializable]
@@ -148,10 +148,10 @@ namespace Game.EditorTools
             MaximumEndpoint,
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// Unity Undo 只能可靠记录 UnityEngine.Object。把 DTO 作为隐藏 ScriptableObject 的
         /// 序列化子树保存，窗口、画布与 SceneView 的每一次编辑都走同一条 Undo 链。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private sealed class AuthoringState : ScriptableObject
         {
             public Document document = new Document();
@@ -240,6 +240,9 @@ namespace Game.EditorTools
         private string previewStatus = "运行时表现配置尚未读取";
         private bool draftRestored;
         private bool draftSaveQueued;
+        /// <summary>
+        /// Open：执行当前模块的Open逻辑。
+        /// </summary>
 
         [MenuItem("TryGame/战斗世界区/小区域可视化编辑器", false, 431)]
         private static void Open()
@@ -249,6 +252,9 @@ namespace Game.EditorTools
             window.minSize = new Vector2(980f, 620f);
             window.Show();
         }
+        /// <summary>
+        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// </summary>
 
         private void OnEnable()
         {
@@ -263,6 +269,9 @@ namespace Game.EditorTools
             EnsurePreviewRegistry();
             ValidateDocument();
         }
+        /// <summary>
+        /// OnDisable：执行当前模块的OnDisable逻辑。
+        /// </summary>
 
         private void OnDisable()
         {
@@ -271,6 +280,9 @@ namespace Game.EditorTools
             AssemblyReloadEvents.beforeAssemblyReload -= SaveDraftNow;
             SaveDraftNow();
         }
+        /// <summary>
+        /// OnDestroy：执行当前模块的OnDestroy逻辑。
+        /// </summary>
 
         private void OnDestroy()
         {
@@ -282,6 +294,9 @@ namespace Game.EditorTools
                 authoringState = null;
             }
         }
+        /// <summary>
+        /// EnsureAuthoringState：执行当前模块的EnsureAuthoringState逻辑。
+        /// </summary>
 
         private void EnsureAuthoringState()
         {
@@ -302,6 +317,9 @@ namespace Game.EditorTools
             authoringState.baselineSourceRows = BuildSourceRows(authoringState.document);
             EnsureNextRowIdArray();
         }
+        /// <summary>
+        /// EnsureNextRowIdArray：执行当前模块的EnsureNextRowIdArray逻辑。
+        /// </summary>
 
         private void EnsureNextRowIdArray()
         {
@@ -315,6 +333,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// OnUndoRedo：执行当前模块的OnUndoRedo逻辑。
+        /// </summary>
 
         private void OnUndoRedo()
         {
@@ -328,6 +349,9 @@ namespace Game.EditorTools
             Repaint();
             SceneView.RepaintAll();
         }
+        /// <summary>
+        /// QueueUndoRedo：执行当前模块的QueueUndoRedo逻辑。
+        /// </summary>
 
         private void QueueUndoRedo(bool redo)
         {
@@ -344,6 +368,9 @@ namespace Game.EditorTools
                 }
             };
         }
+        /// <summary>
+        /// CancelActiveDrag：执行当前模块的CancelActiveDrag逻辑。
+        /// </summary>
 
         private void CancelActiveDrag()
         {
@@ -351,6 +378,9 @@ namespace Game.EditorTools
             dragUndoRegistered = false;
             dragMode = DragMode.None;
         }
+        /// <summary>
+        /// IsSelectionValid：执行当前模块的IsSelectionValid逻辑。
+        /// </summary>
 
         private bool IsSelectionValid()
         {
@@ -358,6 +388,9 @@ namespace Game.EditorTools
                 && selectedIndex >= 0
                 && selectedIndex < GetCount(selectedKind);
         }
+        /// <summary>
+        /// NormalizeSelectionAfterDocumentChange：执行当前模块的NormalizeSelectionAfterDocumentChange逻辑。
+        /// </summary>
 
         private void NormalizeSelectionAfterDocumentChange()
         {
@@ -366,6 +399,9 @@ namespace Game.EditorTools
             selectedIndex = -1;
             CancelActiveDrag();
         }
+        /// <summary>
+        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// </summary>
 
         private void OnGUI()
         {
@@ -385,6 +421,9 @@ namespace Game.EditorTools
                 Mathf.Max(100f, body.height - 12f));
             DrawCanvas(canvas);
         }
+        /// <summary>
+        /// DrawToolbar：执行当前模块的DrawToolbar逻辑。
+        /// </summary>
 
         private void DrawToolbar()
         {
@@ -450,6 +489,9 @@ namespace Game.EditorTools
             }
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawInspector：执行当前模块的DrawInspector逻辑。
+        /// </summary>
 
         private void DrawInspector()
         {
@@ -510,6 +552,9 @@ namespace Game.EditorTools
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndScrollView();
         }
+        /// <summary>
+        /// DrawAuthoringControls：执行当前模块的DrawAuthoringControls逻辑。
+        /// </summary>
 
         private void DrawAuthoringControls()
         {
@@ -574,6 +619,9 @@ namespace Game.EditorTools
                 previewRegistry == null ? MessageType.Warning : MessageType.Info);
             EditorGUILayout.EndVertical();
         }
+        /// <summary>
+        /// LayerControl：执行当前模块的LayerControl逻辑。
+        /// </summary>
 
         private static void LayerControl(
             string label,
@@ -591,6 +639,9 @@ namespace Game.EditorTools
             SetLayerFlag(ref lockedLayers, layer, locked);
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawFloorList：执行当前模块的DrawFloorList逻辑。
+        /// </summary>
 
         private void DrawFloorList(Document target)
         {
@@ -614,6 +665,9 @@ namespace Game.EditorTools
             if (GUILayout.Button("+ 新增地面")) { AddAtCenter(ToolKind.Floor); GUIUtility.ExitGUI(); }
             }
         }
+        /// <summary>
+        /// DrawLadderList：执行当前模块的DrawLadderList逻辑。
+        /// </summary>
 
         private void DrawLadderList(Document target)
         {
@@ -636,6 +690,9 @@ namespace Game.EditorTools
             if (GUILayout.Button("+ 新增梯子")) { AddAtCenter(ToolKind.Ladder); GUIUtility.ExitGUI(); }
             }
         }
+        /// <summary>
+        /// DrawDoorList：执行当前模块的DrawDoorList逻辑。
+        /// </summary>
 
         private void DrawDoorList(Document target)
         {
@@ -656,6 +713,9 @@ namespace Game.EditorTools
             if (GUILayout.Button("+ 新增门")) { AddAtCenter(ToolKind.Door); GUIUtility.ExitGUI(); }
             }
         }
+        /// <summary>
+        /// DrawEnemyAreaList：执行当前模块的DrawEnemyAreaList逻辑。
+        /// </summary>
 
         private void DrawEnemyAreaList(Document target)
         {
@@ -710,6 +770,9 @@ namespace Game.EditorTools
             if (GUILayout.Button($"+ {title}")) { AddAtCenter(kind); GUIUtility.ExitGUI(); }
             }
         }
+        /// <summary>
+        /// DrawRowHeader：执行当前模块的DrawRowHeader逻辑。
+        /// </summary>
 
         private void DrawRowHeader(ToolKind kind, int index, LocalRow row, string title)
         {
@@ -737,6 +800,9 @@ namespace Game.EditorTools
                 EditorGUILayout.IntField("localId（模板稳定）", row.localId);
             }
         }
+        /// <summary>
+        /// DrawCanvas：执行当前模块的DrawCanvas逻辑。
+        /// </summary>
 
         private void DrawCanvas(Rect rect)
         {
@@ -752,6 +818,9 @@ namespace Game.EditorTools
                 EditorStyles.whiteLabel);
             HandleCanvasInput(inner);
         }
+        /// <summary>
+        /// DrawGrid：执行当前模块的DrawGrid逻辑。
+        /// </summary>
 
         private void DrawGrid(Rect rect)
         {
@@ -775,6 +844,9 @@ namespace Game.EditorTools
             Handles.DrawLine(WorldToCanvas(new Vector2(minX, 0f), rect), WorldToCanvas(new Vector2(maxX, 0f), rect));
             Handles.EndGUI();
         }
+        /// <summary>
+        /// DrawGeometry：执行当前模块的DrawGeometry逻辑。
+        /// </summary>
 
         private void DrawGeometry(Rect rect)
         {
@@ -812,6 +884,9 @@ namespace Game.EditorTools
                 DrawPointGeometry(rect, ToolKind.Boss, document.bossPoints, new Color(0.92f, 0.2f, 0.72f, 0.2f), "B（运行时决定）");
             if (IsLayerVisible(LayerKind.Extraction)) DrawExtractionPreviews(rect);
         }
+        /// <summary>
+        /// DrawBackgroundPreview：执行当前模块的DrawBackgroundPreview逻辑。
+        /// </summary>
 
         private void DrawBackgroundPreview(Rect canvas)
         {
@@ -831,6 +906,9 @@ namespace Game.EditorTools
                 document.backgroundScale);
             DrawSpriteWorld(canvas, sprite, new Rect(center - size * 0.5f, size), Color.white);
         }
+        /// <summary>
+        /// DrawFloorPreview：执行当前模块的DrawFloorPreview逻辑。
+        /// </summary>
 
         private void DrawFloorPreview(Rect canvas, FloorRow row, int index)
         {
@@ -903,6 +981,9 @@ namespace Game.EditorTools
                 DrawEndpointHandles(canvas, row.minX, row.maxX, row.y);
             }
         }
+        /// <summary>
+        /// DrawLadderPreview：执行当前模块的DrawLadderPreview逻辑。
+        /// </summary>
 
         private void DrawLadderPreview(Rect canvas, LadderRow row, int index)
         {
@@ -932,6 +1013,9 @@ namespace Game.EditorTools
             DrawWorldOutline(canvas, layout.WorldRect, new Color(1f, 0.78f, 0.18f, 0.9f),
                 selectedKind == ToolKind.Ladder && selectedIndex == index ? 3f : 1f);
         }
+        /// <summary>
+        /// TryCreateLadderPreviewLayout：执行当前模块的TryCreateLadderPreviewLayout逻辑。
+        /// </summary>
 
         private bool TryCreateLadderPreviewLayout(
             LadderRow row,
@@ -968,6 +1052,9 @@ namespace Game.EditorTools
                 out layout,
                 out error);
         }
+        /// <summary>
+        /// TryCreateLadderInteractionRect：执行当前模块的TryCreateLadderInteractionRect逻辑。
+        /// </summary>
 
         private static bool TryCreateLadderInteractionRect(
             Document value,
@@ -996,6 +1083,9 @@ namespace Game.EditorTools
                 height);
             return true;
         }
+        /// <summary>
+        /// DrawDoorPreviews：执行当前模块的DrawDoorPreviews逻辑。
+        /// </summary>
 
         private void DrawDoorPreviews(Rect canvas)
         {
@@ -1018,6 +1108,9 @@ namespace Game.EditorTools
                 DrawEntitySprite(canvas, sprite, layout.WorldRect, ToolKind.Door, i, $"D{row.localId}");
             }
         }
+        /// <summary>
+        /// DrawLootPreviews：执行当前模块的DrawLootPreviews逻辑。
+        /// </summary>
 
         private void DrawLootPreviews(Rect canvas)
         {
@@ -1040,6 +1133,9 @@ namespace Game.EditorTools
                 DrawEntitySprite(canvas, sprite, layout.WorldRect, ToolKind.Loot, i, $"Loot {row.localId}");
             }
         }
+        /// <summary>
+        /// DrawExtractionPreviews：执行当前模块的DrawExtractionPreviews逻辑。
+        /// </summary>
 
         private void DrawExtractionPreviews(Rect canvas)
         {
@@ -1083,6 +1179,9 @@ namespace Game.EditorTools
                 GUI.Label(point, prefix, EditorStyles.centeredGreyMiniLabel);
             }
         }
+        /// <summary>
+        /// DrawEntitySprite：执行当前模块的DrawEntitySprite逻辑。
+        /// </summary>
 
         private void DrawEntitySprite(
             Rect canvas,
@@ -1106,6 +1205,9 @@ namespace Game.EditorTools
                 selectedKind == kind && selectedIndex == index ? 3f : 1f);
             GUI.Label(WorldRectToCanvas(worldRect, canvas), label, EditorStyles.centeredGreyMiniLabel);
         }
+        /// <summary>
+        /// DrawSpriteTiledWorld：执行当前模块的DrawSpriteTiledWorld逻辑。
+        /// </summary>
 
         private void DrawSpriteTiledWorld(
             Rect canvas,
@@ -1144,11 +1246,17 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// DrawSpriteWorld：执行当前模块的DrawSpriteWorld逻辑。
+        /// </summary>
 
         private void DrawSpriteWorld(Rect canvas, Sprite sprite, Rect worldRect, Color tint)
         {
             DrawSpriteWorldClipped(canvas, sprite, worldRect, document.bounds, tint);
         }
+        /// <summary>
+        /// DrawSpriteWorldClipped：执行当前模块的DrawSpriteWorldClipped逻辑。
+        /// </summary>
 
         private void DrawSpriteWorldClipped(
             Rect canvas,
@@ -1183,6 +1291,9 @@ namespace Game.EditorTools
             GUI.DrawTextureWithTexCoords(destination, sprite.texture, uv, true);
             GUI.color = previous;
         }
+        /// <summary>
+        /// DrawMissingSprite：执行当前模块的DrawMissingSprite逻辑。
+        /// </summary>
 
         private void DrawMissingSprite(Rect canvas, Rect worldRect, string label)
         {
@@ -1200,6 +1311,9 @@ namespace Game.EditorTools
             Handles.EndGUI();
             GUI.Label(destination, label, EditorStyles.centeredGreyMiniLabel);
         }
+        /// <summary>
+        /// DrawWorldOutline：执行当前模块的DrawWorldOutline逻辑。
+        /// </summary>
 
         private void DrawWorldOutline(Rect canvas, Rect worldRect, Color color, float thickness)
         {
@@ -1214,6 +1328,9 @@ namespace Game.EditorTools
                 new Vector3(destination.xMin, destination.yMin));
             Handles.EndGUI();
         }
+        /// <summary>
+        /// DrawEndpointHandles：执行当前模块的DrawEndpointHandles逻辑。
+        /// </summary>
 
         private void DrawEndpointHandles(Rect canvas, float minimumX, float maximumX, float y)
         {
@@ -1222,6 +1339,9 @@ namespace Game.EditorTools
             EditorGUI.DrawRect(new Rect(left.x - 5f, left.y - 5f, 10f, 10f), Color.white);
             EditorGUI.DrawRect(new Rect(right.x - 5f, right.y - 5f, 10f, 10f), Color.white);
         }
+        /// <summary>
+        /// WorldRectToCanvas：执行当前模块的WorldRectToCanvas逻辑。
+        /// </summary>
 
         private Rect WorldRectToCanvas(Rect worldRect, Rect canvas)
         {
@@ -1233,6 +1353,9 @@ namespace Game.EditorTools
                 Mathf.Max(topLeft.x, bottomRight.x),
                 Mathf.Max(topLeft.y, bottomRight.y));
         }
+        /// <summary>
+        /// Intersect：执行当前模块的Intersect逻辑。
+        /// </summary>
 
         private static Rect Intersect(Rect left, Rect right)
         {
@@ -1242,6 +1365,9 @@ namespace Game.EditorTools
                 Mathf.Min(left.xMax, right.xMax),
                 Mathf.Min(left.yMax, right.yMax));
         }
+        /// <summary>
+        /// DrawWorldRect：执行当前模块的DrawWorldRect逻辑。
+        /// </summary>
 
         private void DrawWorldRect(Rect canvas, float minX, float maxX, float minY, float maxY,
             Color color, ToolKind kind, int index, string label)
@@ -1253,6 +1379,9 @@ namespace Game.EditorTools
             if (selectedKind == kind && selectedIndex == index) DrawSelection(worldRect);
             GUI.Label(worldRect, label, EditorStyles.centeredGreyMiniLabel);
         }
+        /// <summary>
+        /// DrawSelection：执行当前模块的DrawSelection逻辑。
+        /// </summary>
 
         private static void DrawSelection(Rect rect)
         {
@@ -1264,6 +1393,9 @@ namespace Game.EditorTools
                 new Vector3(rect.xMin, rect.yMin));
             Handles.EndGUI();
         }
+        /// <summary>
+        /// HandleCanvasInput：执行当前模块的HandleCanvasInput逻辑。
+        /// </summary>
 
         private void HandleCanvasInput(Rect rect)
         {
@@ -1328,6 +1460,9 @@ namespace Game.EditorTools
                 CancelActiveDrag();
             }
         }
+        /// <summary>
+        /// TryHitSelectedEndpoint：执行当前模块的TryHitSelectedEndpoint逻辑。
+        /// </summary>
 
         private DragMode TryHitSelectedEndpoint(Vector2 world, Rect canvas)
         {
@@ -1361,6 +1496,9 @@ namespace Game.EditorTools
                 return DragMode.MaximumEndpoint;
             return DragMode.None;
         }
+        /// <summary>
+        /// BeginCanvasDrag：执行当前模块的BeginCanvasDrag逻辑。
+        /// </summary>
 
         private void BeginCanvasDrag(Vector2 world, DragMode mode)
         {
@@ -1388,6 +1526,9 @@ namespace Game.EditorTools
                 dragInitialX = GetSelectedX();
             }
         }
+        /// <summary>
+        /// ApplyCanvasDrag：执行当前模块的ApplyCanvasDrag逻辑。
+        /// </summary>
 
         private void ApplyCanvasDrag(Vector2 world)
         {
@@ -1443,6 +1584,9 @@ namespace Game.EditorTools
                 case ToolKind.Extraction: SetSelectedX(Snap(dragInitialX + delta.x)); break;
             }
         }
+        /// <summary>
+        /// TryHit：执行当前模块的TryHit逻辑。
+        /// </summary>
 
         private bool TryHit(Vector2 world, out ToolKind kind, out int index)
         {
@@ -1476,18 +1620,30 @@ namespace Game.EditorTools
             }
             kind = ToolKind.Select; index = -1; return false;
         }
+        /// <summary>
+        /// HitPoint：执行当前模块的HitPoint逻辑。
+        /// </summary>
 
         private bool HitPoint(Vector2 world, LocalRow row)
         {
             return Mathf.Abs(world.x - GetPointX(row)) <= 0.45f
                 && Mathf.Abs(world.y - (FloorY(row.floorId) + 0.45f)) <= 0.65f;
         }
+        /// <summary>
+        /// CanCanvasSelect：执行当前模块的CanCanvasSelect逻辑。
+        /// </summary>
 
         private bool CanCanvasSelect(ToolKind kind)
         {
             LayerKind layer = ToolLayer(kind);
+            /// <summary>
+            /// IsLayerVisible：执行当前模块的IsLayerVisible逻辑。
+            /// </summary>
             return IsLayerVisible(layer) && !IsLayerLocked(layer);
         }
+        /// <summary>
+        /// GetSelectedX：执行当前模块的GetSelectedX逻辑。
+        /// </summary>
 
         private float GetSelectedX()
         {
@@ -1499,11 +1655,17 @@ namespace Game.EditorTools
             if (row is ExtractionRow extraction) return extraction.x;
             return 0f;
         }
+        /// <summary>
+        /// AddAtCenter：执行当前模块的AddAtCenter逻辑。
+        /// </summary>
 
         private void AddAtCenter(ToolKind kind)
         {
             AddAt(kind, document.bounds.center);
         }
+        /// <summary>
+        /// AddAt：执行当前模块的AddAt逻辑。
+        /// </summary>
 
         private bool AddAt(ToolKind kind, Vector2 world)
         {
@@ -1591,6 +1753,9 @@ namespace Game.EditorTools
             for (int i = 0; i < rows.Count; i++) max = Mathf.Max(max, rows[i].localId);
             return max + 1;
         }
+        /// <summary>
+        /// AllocateRowId：执行当前模块的AllocateRowId逻辑。
+        /// </summary>
 
         private int AllocateRowId(ToolKind kind)
         {
@@ -1604,6 +1769,9 @@ namespace Game.EditorTools
             while (candidate > 0 && IsRowIdUsed(kind, candidate))
             {
                 if (candidate == int.MaxValue)
+                    /// <summary>
+                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
+                    /// </summary>
                     throw new InvalidOperationException($"{kind} rowId 已耗尽。");
                 candidate++;
             }
@@ -1611,6 +1779,9 @@ namespace Game.EditorTools
             authoringState.nextRowIds[slot] = candidate == int.MaxValue ? int.MaxValue : candidate + 1;
             return candidate;
         }
+        /// <summary>
+        /// ComputeNextRowId：执行当前模块的ComputeNextRowId逻辑。
+        /// </summary>
 
         private int ComputeNextRowId(ToolKind kind)
         {
@@ -1631,6 +1802,9 @@ namespace Game.EditorTools
             if (maximum == int.MaxValue) throw new InvalidOperationException($"{kind} rowId 已耗尽。");
             return Mathf.Max(1, maximum + 1);
         }
+        /// <summary>
+        /// IsRowIdUsed：执行当前模块的IsRowIdUsed逻辑。
+        /// </summary>
 
         private bool IsRowIdUsed(ToolKind kind, int rowId)
         {
@@ -1651,6 +1825,9 @@ namespace Game.EditorTools
             }
             return false;
         }
+        /// <summary>
+        /// RowsForKind：执行当前模块的RowsForKind逻辑。
+        /// </summary>
 
         private static IEnumerable<LocalRow> RowsForKind(Document value, ToolKind kind)
         {
@@ -1666,12 +1843,18 @@ namespace Game.EditorTools
                 default: return Enumerable.Empty<LocalRow>();
             }
         }
+        /// <summary>
+        /// Snap：执行当前模块的Snap逻辑。
+        /// </summary>
 
         private float Snap(float value)
         {
             if (!authoringState.snapEnabled || authoringState.snapSize <= 0.0001f) return value;
             return Mathf.Round(value / authoringState.snapSize) * authoringState.snapSize;
         }
+        /// <summary>
+        /// SnapSizeIndex：执行当前模块的SnapSizeIndex逻辑。
+        /// </summary>
 
         private static int SnapSizeIndex(float value)
         {
@@ -1679,6 +1862,9 @@ namespace Game.EditorTools
             if (Mathf.Abs(value - 0.25f) < 0.01f) return 2;
             return 1;
         }
+        /// <summary>
+        /// ToolLayer：执行当前模块的ToolLayer逻辑。
+        /// </summary>
 
         private static LayerKind ToolLayer(ToolKind kind)
         {
@@ -1694,22 +1880,34 @@ namespace Game.EditorTools
                 default: return LayerKind.None;
             }
         }
+        /// <summary>
+        /// IsLayerVisible：执行当前模块的IsLayerVisible逻辑。
+        /// </summary>
 
         private bool IsLayerVisible(LayerKind layer)
         {
             return layer == LayerKind.None || ((LayerKind)authoringState.visibleLayers & layer) != 0;
         }
+        /// <summary>
+        /// IsLayerLocked：执行当前模块的IsLayerLocked逻辑。
+        /// </summary>
 
         private bool IsLayerLocked(LayerKind layer)
         {
             return layer != LayerKind.None && ((LayerKind)authoringState.lockedLayers & layer) != 0;
         }
+        /// <summary>
+        /// SetLayerFlag：执行当前模块的SetLayerFlag逻辑。
+        /// </summary>
 
         private static void SetLayerFlag(ref int flags, LayerKind layer, bool enabled)
         {
             if (enabled) flags |= (int)layer;
             else flags &= ~(int)layer;
         }
+        /// <summary>
+        /// OnAuthoringChanged：执行当前模块的OnAuthoringChanged逻辑。
+        /// </summary>
 
         private void OnAuthoringChanged()
         {
@@ -1719,6 +1917,9 @@ namespace Game.EditorTools
             Repaint();
             SceneView.RepaintAll();
         }
+        /// <summary>
+        /// RefreshDirtyFlag：执行当前模块的RefreshDirtyFlag逻辑。
+        /// </summary>
 
         private void RefreshDirtyFlag()
         {
@@ -1727,11 +1928,17 @@ namespace Game.EditorTools
                 NormalizeSourceRows(authoringState.baselineSourceRows),
                 StringComparison.Ordinal);
         }
+        /// <summary>
+        /// NormalizeSourceRows：执行当前模块的NormalizeSourceRows逻辑。
+        /// </summary>
 
         private static string NormalizeSourceRows(string value)
         {
             return (value ?? string.Empty).Replace("\r\n", "\n").TrimEnd();
         }
+        /// <summary>
+        /// FindNearestFloor：执行当前模块的FindNearestFloor逻辑。
+        /// </summary>
 
         private FloorRow FindNearestFloor(Vector2 world)
         {
@@ -1755,6 +1962,9 @@ namespace Game.EditorTools
 
             return nearest;
         }
+        /// <summary>
+        /// TryResolveLadderPlacement：执行当前模块的TryResolveLadderPlacement逻辑。
+        /// </summary>
 
         private bool TryResolveLadderPlacement(
             Vector2 world,
@@ -1824,6 +2034,9 @@ namespace Game.EditorTools
             x = bestX;
             return true;
         }
+        /// <summary>
+        /// TryGetLadderCenterRange：执行当前模块的TryGetLadderCenterRange逻辑。
+        /// </summary>
 
         private bool TryGetLadderCenterRange(
             FloorRow first,
@@ -1847,6 +2060,9 @@ namespace Game.EditorTools
             }
             return minimumX <= maximumX;
         }
+        /// <summary>
+        /// GetInitialFloorInterval：执行当前模块的GetInitialFloorInterval逻辑。
+        /// </summary>
 
         private static void GetInitialFloorInterval(
             FloorRow floor,
@@ -1867,6 +2083,9 @@ namespace Game.EditorTools
             minimumX = Mathf.Clamp(centerX - width * 0.5f, floor.minX, floor.maxX - width);
             maximumX = minimumX + width;
         }
+        /// <summary>
+        /// ClampLadderX：执行当前模块的ClampLadderX逻辑。
+        /// </summary>
 
         private float ClampLadderX(LadderRow row, float value)
         {
@@ -1878,6 +2097,9 @@ namespace Game.EditorTools
                 ? Mathf.Clamp(value, minimumX, maximumX)
                 : Mathf.Clamp(value, document.bounds.xMin + halfWidth, document.bounds.xMax - halfWidth);
         }
+        /// <summary>
+        /// FindOtherFloorId：执行当前模块的FindOtherFloorId逻辑。
+        /// </summary>
 
         private int FindOtherFloorId(int floorId)
         {
@@ -1885,6 +2107,9 @@ namespace Game.EditorTools
                 if (document.floors[i].localId != floorId) return document.floors[i].localId;
             return floorId + 1;
         }
+        /// <summary>
+        /// FloorY：执行当前模块的FloorY逻辑。
+        /// </summary>
 
         private float FloorY(int floorId)
         {
@@ -1892,6 +2117,9 @@ namespace Game.EditorTools
                 if (document.floors[i].localId == floorId) return document.floors[i].y;
             return document.bounds.yMin;
         }
+        /// <summary>
+        /// ToFloorDefinition：执行当前模块的ToFloorDefinition逻辑。
+        /// </summary>
 
         private static BattleFloorDefinition ToFloorDefinition(FloorRow row)
         {
@@ -1907,6 +2135,9 @@ namespace Game.EditorTools
                 row.isSafeSpawnFloor,
                 row.styleId);
         }
+        /// <summary>
+        /// ToLadderDefinition：执行当前模块的ToLadderDefinition逻辑。
+        /// </summary>
 
         private static BattleLadderDefinition ToLadderDefinition(LadderRow row)
         {
@@ -1919,6 +2150,9 @@ namespace Game.EditorTools
                 row.interactionWidth,
                 row.styleId);
         }
+        /// <summary>
+        /// GetPointX：执行当前模块的GetPointX逻辑。
+        /// </summary>
 
         private static float GetPointX(LocalRow row)
         {
@@ -1928,6 +2162,9 @@ namespace Game.EditorTools
             if (row is ExtractionRow extraction) return extraction.x;
             return 0f;
         }
+        /// <summary>
+        /// RemoveRow：执行当前模块的RemoveRow逻辑。
+        /// </summary>
 
         private void RemoveRow(ToolKind kind, int index)
         {
@@ -1948,6 +2185,9 @@ namespace Game.EditorTools
             selectedIndex = -1;
             OnAuthoringChanged();
         }
+        /// <summary>
+        /// CanRemoveFloor：执行当前模块的CanRemoveFloor逻辑。
+        /// </summary>
 
         private bool CanRemoveFloor(int index)
         {
@@ -1987,6 +2227,9 @@ namespace Game.EditorTools
                 if (rows[i].floorId == floorId) result.Add($"{label} {rows[i].localId}");
             }
         }
+        /// <summary>
+        /// GetCount：执行当前模块的GetCount逻辑。
+        /// </summary>
 
         private int GetCount(ToolKind kind)
         {
@@ -2002,6 +2245,9 @@ namespace Game.EditorTools
                 default: return 0;
             }
         }
+        /// <summary>
+        /// WorldToCanvas：执行当前模块的WorldToCanvas逻辑。
+        /// </summary>
 
         private Vector2 WorldToCanvas(Vector2 world, Rect canvas)
         {
@@ -2009,6 +2255,9 @@ namespace Game.EditorTools
             float y = Mathf.InverseLerp(document.bounds.yMin, document.bounds.yMax, world.y);
             return new Vector2(Mathf.Lerp(canvas.xMin, canvas.xMax, x), Mathf.Lerp(canvas.yMax, canvas.yMin, y));
         }
+        /// <summary>
+        /// CanvasToWorld：执行当前模块的CanvasToWorld逻辑。
+        /// </summary>
 
         private Vector2 CanvasToWorld(Vector2 point, Rect canvas)
         {
@@ -2016,11 +2265,17 @@ namespace Game.EditorTools
             float y = Mathf.InverseLerp(canvas.yMax, canvas.yMin, point.y);
             return new Vector2(Mathf.Lerp(document.bounds.xMin, document.bounds.xMax, x), Mathf.Lerp(document.bounds.yMin, document.bounds.yMax, y));
         }
+        /// <summary>
+        /// ValidateDocument：执行当前模块的ValidateDocument逻辑。
+        /// </summary>
 
         private void ValidateDocument()
         {
             ValidateDocument(document, validationIssues);
         }
+        /// <summary>
+        /// ValidateDocument：执行当前模块的ValidateDocument逻辑。
+        /// </summary>
 
         private void ValidateDocument(Document value, List<string> issues)
         {
@@ -2159,6 +2414,9 @@ namespace Game.EditorTools
             ValidateExternalRowIds(value.id, kind, rowIds, label, issues);
             return ids;
         }
+        /// <summary>
+        /// ValidateExternalRowIds：执行当前模块的ValidateExternalRowIds逻辑。
+        /// </summary>
 
         private void ValidateExternalRowIds(
             int currentSmallAreaId,
@@ -2208,6 +2466,9 @@ namespace Game.EditorTools
                     issues.Add($"{label} {row.localId} 的 x={x:0.###} 不在 Floor {floor.localId} 区间内。");
             }
         }
+        /// <summary>
+        /// ValidateFloorOverlaps：执行当前模块的ValidateFloorOverlaps逻辑。
+        /// </summary>
 
         private void ValidateFloorOverlaps(Document value, List<string> issues)
         {
@@ -2229,6 +2490,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// ValidateFloorStyle：执行当前模块的ValidateFloorStyle逻辑。
+        /// </summary>
 
         private void ValidateFloorStyle(FloorRow row, List<string> issues)
         {
@@ -2257,6 +2521,9 @@ namespace Game.EditorTools
             if (style.FillResourceId > 0 && fillSprite == null)
                 issues.Add($"Floor {row.localId} 的填充 Sprite 资源 {style.FillResourceId} 缺失。");
         }
+        /// <summary>
+        /// ValidateLadderStyle：执行当前模块的ValidateLadderStyle逻辑。
+        /// </summary>
 
         private void ValidateLadderStyle(
             LadderRow row,
@@ -2285,6 +2552,9 @@ namespace Game.EditorTools
             if (sprite == null)
                 issues.Add($"Ladder {row.localId} 的 Sprite 资源 {style.ResourceId} 缺失。");
         }
+        /// <summary>
+        /// ValidateDoorStyle：执行当前模块的ValidateDoorStyle逻辑。
+        /// </summary>
 
         private void ValidateDoorStyle(DoorRow row, List<string> issues)
         {
@@ -2298,6 +2568,9 @@ namespace Game.EditorTools
             if (LoadPreviewSprite(style.ResourceId) == null)
                 issues.Add($"Door {row.localId} 的 Sprite 资源 {style.ResourceId} 缺失。");
         }
+        /// <summary>
+        /// ValidateLootSource：执行当前模块的ValidateLootSource逻辑。
+        /// </summary>
 
         private void ValidateLootSource(LootRow row, List<string> issues)
         {
@@ -2311,6 +2584,9 @@ namespace Game.EditorTools
             if (LoadPreviewSprite(source.ResourceId) == null)
                 issues.Add($"Loot {row.localId} 的 Sprite 资源 {source.ResourceId} 缺失。");
         }
+        /// <summary>
+        /// ValidateInteractionConflicts：执行当前模块的ValidateInteractionConflicts逻辑。
+        /// </summary>
 
         private void ValidateInteractionConflicts(Document value, List<string> issues)
         {
@@ -2374,11 +2650,20 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// FindFloor：执行当前模块的FindFloor逻辑。
+        /// </summary>
 
         private FloorRow FindFloor(int floorId)
         {
+            /// <summary>
+            /// FindFloor：执行当前模块的FindFloor逻辑。
+            /// </summary>
             return FindFloor(document, floorId);
         }
+        /// <summary>
+        /// FindFloor：执行当前模块的FindFloor逻辑。
+        /// </summary>
 
         private static FloorRow FindFloor(Document value, int floorId)
         {
@@ -2391,26 +2676,41 @@ namespace Game.EditorTools
             }
             return null;
         }
+        /// <summary>
+        /// ContainsX：执行当前模块的ContainsX逻辑。
+        /// </summary>
 
         private static bool ContainsX(Rect bounds, float x)
         {
             return x >= bounds.xMin - 0.0001f && x <= bounds.xMax + 0.0001f;
         }
+        /// <summary>
+        /// ContainsX：执行当前模块的ContainsX逻辑。
+        /// </summary>
 
         private static bool ContainsX(FloorRow floor, float x)
         {
             return x >= floor.minX - 0.0001f && x <= floor.maxX + 0.0001f;
         }
+        /// <summary>
+        /// IntervalsOverlap：执行当前模块的IntervalsOverlap逻辑。
+        /// </summary>
 
         private static bool IntervalsOverlap(float leftMin, float leftMax, float rightMin, float rightMax)
         {
             return Mathf.Min(leftMax, rightMax) - Mathf.Max(leftMin, rightMin) > 0.0001f;
         }
+        /// <summary>
+        /// IsFinite：执行当前模块的IsFinite逻辑。
+        /// </summary>
 
         private static bool IsFinite(float value)
         {
             return !float.IsNaN(value) && !float.IsInfinity(value);
         }
+        /// <summary>
+        /// IsFiniteRect：执行当前模块的IsFiniteRect逻辑。
+        /// </summary>
 
         private static bool IsFiniteRect(Rect value)
         {
@@ -2420,6 +2720,9 @@ namespace Game.EditorTools
 
         private readonly struct InteractionFootprint
         {
+            /// <summary>
+            /// InteractionFootprint：执行当前模块的InteractionFootprint逻辑。
+            /// </summary>
             public InteractionFootprint(
                 string kind,
                 int localId,
@@ -2433,13 +2736,31 @@ namespace Game.EditorTools
                 X = x;
                 HalfWidth = halfWidth;
             }
+            /// <summary>
+            /// Kind：执行当前模块的Kind逻辑。
+            /// </summary>
 
             public string Kind { get; }
+            /// <summary>
+            /// LocalId：执行当前模块的LocalId逻辑。
+            /// </summary>
             public int LocalId { get; }
+            /// <summary>
+            /// FloorId：执行当前模块的FloorId逻辑。
+            /// </summary>
             public int FloorId { get; }
+            /// <summary>
+            /// X：执行当前模块的X逻辑。
+            /// </summary>
             public float X { get; }
+            /// <summary>
+            /// HalfWidth：执行当前模块的HalfWidth逻辑。
+            /// </summary>
             public float HalfWidth { get; }
         }
+        /// <summary>
+        /// TryPreparePreviewRefData：执行当前模块的TryPreparePreviewRefData逻辑。
+        /// </summary>
 
         private static bool TryPreparePreviewRefData(
             bool forceReload,
@@ -2509,6 +2830,9 @@ namespace Game.EditorTools
                 return false;
             }
         }
+        /// <summary>
+        /// EnsurePreviewRegistry：执行当前模块的EnsurePreviewRegistry逻辑。
+        /// </summary>
 
         private void EnsurePreviewRegistry()
         {
@@ -2529,6 +2853,9 @@ namespace Game.EditorTools
                 previewStatus = "运行时表现配置读取失败：" + error;
             }
         }
+        /// <summary>
+        /// ReloadPreviewRegistry：执行当前模块的ReloadPreviewRegistry逻辑。
+        /// </summary>
 
         private void ReloadPreviewRegistry()
         {
@@ -2546,6 +2873,9 @@ namespace Game.EditorTools
             Repaint();
             SceneView.RepaintAll();
         }
+        /// <summary>
+        /// LoadPreviewSprite：执行当前模块的LoadPreviewSprite逻辑。
+        /// </summary>
 
         private Sprite LoadPreviewSprite(int resourceId)
         {
@@ -2563,8 +2893,14 @@ namespace Game.EditorTools
             previewSprites[resourceId] = sprite;
             return sprite;
         }
+        /// <summary>
+        /// DraftKey：执行当前模块的DraftKey逻辑。
+        /// </summary>
 
         private string DraftKey => DraftKeyPrefix + Hash128.Compute(Application.dataPath).ToString();
+        /// <summary>
+        /// QueueDraftSave：执行当前模块的QueueDraftSave逻辑。
+        /// </summary>
 
         private void QueueDraftSave()
         {
@@ -2576,6 +2912,9 @@ namespace Game.EditorTools
                 if (this != null) SaveDraftNow();
             };
         }
+        /// <summary>
+        /// SaveDraftNow：执行当前模块的SaveDraftNow逻辑。
+        /// </summary>
 
         private void SaveDraftNow()
         {
@@ -2606,6 +2945,9 @@ namespace Game.EditorTools
             }
             EditorPrefs.SetString(DraftKey, JsonUtility.ToJson(envelope));
         }
+        /// <summary>
+        /// TryRestoreDraft：执行当前模块的TryRestoreDraft逻辑。
+        /// </summary>
 
         private void TryRestoreDraft()
         {
@@ -2667,6 +3009,9 @@ namespace Game.EditorTools
                 Debug.LogError($"[BattleSmallAreaVisualEditor] 草稿恢复失败：{exception}");
             }
         }
+        /// <summary>
+        /// HasStagedChanges：执行当前模块的HasStagedChanges逻辑。
+        /// </summary>
 
         private bool HasStagedChanges()
         {
@@ -2683,6 +3028,9 @@ namespace Game.EditorTools
             }
             return false;
         }
+        /// <summary>
+        /// HasStagedChangesOtherThan：执行当前模块的HasStagedChangesOtherThan逻辑。
+        /// </summary>
 
         private bool HasStagedChangesOtherThan(int smallAreaId)
         {
@@ -2699,11 +3047,17 @@ namespace Game.EditorTools
             }
             return false;
         }
+        /// <summary>
+        /// ClearDraft：执行当前模块的ClearDraft逻辑。
+        /// </summary>
 
         private void ClearDraft()
         {
             EditorPrefs.DeleteKey(DraftKey);
         }
+        /// <summary>
+        /// FocusSceneView：执行当前模块的FocusSceneView逻辑。
+        /// </summary>
 
         private void FocusSceneView()
         {
@@ -2715,6 +3069,9 @@ namespace Game.EditorTools
                 new Vector3(document.bounds.width, document.bounds.height, 1f)), false);
             view.Focus();
         }
+        /// <summary>
+        /// OnSceneGUI：执行当前模块的OnSceneGUI逻辑。
+        /// </summary>
 
         private void OnSceneGUI(SceneView sceneView)
         {
@@ -2810,6 +3167,9 @@ namespace Game.EditorTools
                     $"{kind} {row.localId}");
             }
         }
+        /// <summary>
+        /// DrawSceneRect：执行当前模块的DrawSceneRect逻辑。
+        /// </summary>
 
         private static void DrawSceneRect(Rect rect, Color fill)
         {
@@ -2820,6 +3180,9 @@ namespace Game.EditorTools
             };
             Handles.DrawSolidRectangleWithOutline(points, fill, new Color(fill.r, fill.g, fill.b, 0.85f));
         }
+        /// <summary>
+        /// SceneSelectButton：执行当前模块的SceneSelectButton逻辑。
+        /// </summary>
 
         private void SceneSelectButton(ToolKind kind, int index, Vector2 center, string label)
         {
@@ -2834,6 +3197,9 @@ namespace Game.EditorTools
             }
             Handles.Label(new Vector3(center.x, center.y + size * 1.6f, 0f), label);
         }
+        /// <summary>
+        /// DrawSelectedSceneHandles：执行当前模块的DrawSelectedSceneHandles逻辑。
+        /// </summary>
 
         private void DrawSelectedSceneHandles()
         {
@@ -2882,6 +3248,9 @@ namespace Game.EditorTools
                 DrawScenePointMoveHandle(snap);
             }
         }
+        /// <summary>
+        /// DrawSceneEndpoints：执行当前模块的DrawSceneEndpoints逻辑。
+        /// </summary>
 
         private void DrawSceneEndpoints(
             float minimumX,
@@ -2913,6 +3282,9 @@ namespace Game.EditorTools
             apply(newMinimum, newMaximum);
             OnAuthoringChanged();
         }
+        /// <summary>
+        /// DrawScenePointMoveHandle：执行当前模块的DrawScenePointMoveHandle逻辑。
+        /// </summary>
 
         private void DrawScenePointMoveHandle(float snap)
         {
@@ -2938,6 +3310,9 @@ namespace Game.EditorTools
             SetSelectedX(Snap(moved));
             OnAuthoringChanged();
         }
+        /// <summary>
+        /// SelectedRow：执行当前模块的SelectedRow逻辑。
+        /// </summary>
 
         private LocalRow SelectedRow()
         {
@@ -2954,6 +3329,9 @@ namespace Game.EditorTools
                 default: return null;
             }
         }
+        /// <summary>
+        /// SetSelectedX：执行当前模块的SetSelectedX逻辑。
+        /// </summary>
 
         private void SetSelectedX(float value)
         {
@@ -2976,12 +3354,18 @@ namespace Game.EditorTools
             else if (row is BossRow boss) boss.x = value;
             else if (row is ExtractionRow extraction) extraction.x = value;
         }
+        /// <summary>
+        /// ImportDocument：执行当前模块的ImportDocument逻辑。
+        /// </summary>
 
         private void ImportDocument()
         {
             string path = EditorUtility.OpenFilePanel("导入 BattleSmallArea DTO 或源行", string.Empty, "json,txt");
             if (!string.IsNullOrWhiteSpace(path)) TryImportText(File.ReadAllText(path, Encoding.UTF8), path);
         }
+        /// <summary>
+        /// LoadOfficialWorkbook：执行当前模块的LoadOfficialWorkbook逻辑。
+        /// </summary>
 
         private void LoadOfficialWorkbook()
         {
@@ -3028,6 +3412,9 @@ namespace Game.EditorTools
                 $"{workbookSnapshot.WorkbookPath}";
             LoadSelectedOfficialTemplate();
         }
+        /// <summary>
+        /// LoadSelectedOfficialTemplate：执行当前模块的LoadSelectedOfficialTemplate逻辑。
+        /// </summary>
 
         private void LoadSelectedOfficialTemplate()
         {
@@ -3109,6 +3496,9 @@ namespace Game.EditorTools
             workbookStatus =
                 $"正在编辑正式模板 {id}；切换模板时会暂存已通过校验的修改。";
         }
+        /// <summary>
+        /// RestoreWorkbookTemplateIndexToDocument：执行当前模块的RestoreWorkbookTemplateIndexToDocument逻辑。
+        /// </summary>
 
         private void RestoreWorkbookTemplateIndexToDocument()
         {
@@ -3116,6 +3506,9 @@ namespace Game.EditorTools
             int index = Array.IndexOf(workbookSnapshot.SmallAreaIds, document.id);
             if (index >= 0) workbookTemplateIndex = index;
         }
+        /// <summary>
+        /// WriteCurrentTemplateToOfficialWorkbook：执行当前模块的WriteCurrentTemplateToOfficialWorkbook逻辑。
+        /// </summary>
 
         private void WriteCurrentTemplateToOfficialWorkbook()
         {
@@ -3185,6 +3578,9 @@ namespace Game.EditorTools
             int editedId = document.id;
             ReloadWorkbookAfterWrite(editedId);
         }
+        /// <summary>
+        /// WriteAllTemplatesToOfficialWorkbook：执行当前模块的WriteAllTemplatesToOfficialWorkbook逻辑。
+        /// </summary>
 
         private void WriteAllTemplatesToOfficialWorkbook()
         {
@@ -3248,6 +3644,9 @@ namespace Game.EditorTools
             ShowNotification(new GUIContent("全部正式模板与 Output 已同步"));
             ReloadWorkbookAfterWrite(editedId);
         }
+        /// <summary>
+        /// TryStageCurrentTemplate：执行当前模块的TryStageCurrentTemplate逻辑。
+        /// </summary>
 
         private bool TryStageCurrentTemplate()
         {
@@ -3274,6 +3673,9 @@ namespace Game.EditorTools
             QueueDraftSave();
             return true;
         }
+        /// <summary>
+        /// TryPlanPartialStage：执行当前模块的TryPlanPartialStage逻辑。
+        /// </summary>
 
         private bool TryPlanPartialStage(out PartialStagePlan plan, out string error)
         {
@@ -3421,6 +3823,9 @@ namespace Game.EditorTools
                 return false;
             }
         }
+        /// <summary>
+        /// CommitPartialStage：执行当前模块的CommitPartialStage逻辑。
+        /// </summary>
 
         private void CommitPartialStage(PartialStagePlan plan)
         {
@@ -3434,6 +3839,9 @@ namespace Game.EditorTools
                 $"保留 {plan.Rejected.Count} 个未通过配置块在画布中。";
             QueueDraftSave();
         }
+        /// <summary>
+        /// MergePartialStageSections：执行当前模块的MergePartialStageSections逻辑。
+        /// </summary>
 
         private static Document MergePartialStageSections(
             Document baseline,
@@ -3486,6 +3894,9 @@ namespace Game.EditorTools
             }
             return merged;
         }
+        /// <summary>
+        /// PartialStageSectionHasDeletion：执行当前模块的PartialStageSectionHasDeletion逻辑。
+        /// </summary>
 
         private static bool PartialStageSectionHasDeletion(
             Document baseline,
@@ -3511,6 +3922,9 @@ namespace Game.EditorTools
             HashSet<int> currentRowIds = new HashSet<int>(current.Select(row => row.rowId));
             return baseline.Any(row => !currentRowIds.Contains(row.rowId));
         }
+        /// <summary>
+        /// CountBits：执行当前模块的CountBits逻辑。
+        /// </summary>
 
         private static int CountBits(int value)
         {
@@ -3522,6 +3936,9 @@ namespace Game.EditorTools
             }
             return count;
         }
+        /// <summary>
+        /// PartialStageSectionName：执行当前模块的PartialStageSectionName逻辑。
+        /// </summary>
 
         private static string PartialStageSectionName(PartialStageSection section)
         {
@@ -3538,6 +3955,9 @@ namespace Game.EditorTools
                 default: return section.ToString();
             }
         }
+        /// <summary>
+        /// ReloadWorkbookAfterWrite：执行当前模块的ReloadWorkbookAfterWrite逻辑。
+        /// </summary>
 
         private void ReloadWorkbookAfterWrite(int editedId)
         {
@@ -3575,6 +3995,9 @@ namespace Game.EditorTools
                 workbookStatus += $"；重新读取校验失败：{reloadError}";
             }
         }
+        /// <summary>
+        /// TryImportText：执行当前模块的TryImportText逻辑。
+        /// </summary>
 
         private bool TryImportText(
             string text,
@@ -3662,6 +4085,9 @@ namespace Game.EditorTools
                 return false;
             }
         }
+        /// <summary>
+        /// ExportDocument：执行当前模块的ExportDocument逻辑。
+        /// </summary>
 
         private void ExportDocument()
         {
@@ -3670,6 +4096,9 @@ namespace Game.EditorTools
             File.WriteAllText(path, JsonUtility.ToJson(document, true), new UTF8Encoding(false));
             ShowNotification(new GUIContent("DTO 已导出"));
         }
+        /// <summary>
+        /// EnsureLists：执行当前模块的EnsureLists逻辑。
+        /// </summary>
 
         private static void EnsureLists(Document value)
         {
@@ -3678,6 +4107,9 @@ namespace Game.EditorTools
             value.lootPoints ??= new List<LootRow>(); value.bossPoints ??= new List<BossRow>();
             value.extractionPoints ??= new List<ExtractionRow>();
         }
+        /// <summary>
+        /// CloneDocument：执行当前模块的CloneDocument逻辑。
+        /// </summary>
 
         private static Document CloneDocument(Document value)
         {
@@ -3686,6 +4118,9 @@ namespace Game.EditorTools
             EnsureLists(clone);
             return clone;
         }
+        /// <summary>
+        /// BuildSourceRows：执行当前模块的BuildSourceRows逻辑。
+        /// </summary>
 
         private static string BuildSourceRows(Document value)
         {
@@ -3702,42 +4137,66 @@ namespace Game.EditorTools
             AppendEnemyRows(text, value); AppendLootRows(text, value); AppendBossRows(text, value); AppendExtractionRows(text, value);
             return text.ToString();
         }
+        /// <summary>
+        /// AppendFloorRows：执行当前模块的AppendFloorRows逻辑。
+        /// </summary>
 
         private static void AppendFloorRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaFloor]"); text.AppendLine("id\tsmallAreaId\tfloorId\tcollisionType\tminX\tmaxX\ty\tisSafeSpawnFloor\tfloorStyleId");
             foreach (FloorRow row in value.floors) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.collisionType == 1 ? "OneWayPlatform" : "SolidGround").Append('\t').Append(F(row.minX)).Append('\t').Append(F(row.maxX)).Append('\t').Append(F(row.y)).Append('\t').Append(row.isSafeSpawnFloor ? "true" : "false").Append('\t').Append(row.styleId).AppendLine();
         }
+        /// <summary>
+        /// AppendLadderRows：执行当前模块的AppendLadderRows逻辑。
+        /// </summary>
         private static void AppendLadderRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaLadder]"); text.AppendLine("id\tsmallAreaId\tladderId\tlowerFloorId\tupperFloorId\tx\tinteractionWidth\tladderStyleId");
             foreach (LadderRow row in value.ladders) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.floorId).Append('\t').Append(row.upperFloorId).Append('\t').Append(F(row.x)).Append('\t').Append(F(row.interactionWidth)).Append('\t').Append(row.styleId).AppendLine();
         }
+        /// <summary>
+        /// AppendDoorRows：执行当前模块的AppendDoorRows逻辑。
+        /// </summary>
         private static void AppendDoorRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaDoorPoint]"); text.AppendLine("id\tsmallAreaId\tdoorId\tfloorId\tx\tdoorStyleId");
             foreach (DoorRow row in value.doors) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.floorId).Append('\t').Append(F(row.x)).Append('\t').Append(row.styleId).AppendLine();
         }
+        /// <summary>
+        /// AppendEnemyRows：执行当前模块的AppendEnemyRows逻辑。
+        /// </summary>
         private static void AppendEnemyRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaEnemySpawnArea]"); text.AppendLine("id\tsmallAreaId\tslotId\tfloorId\tminX\tmaxX\tspawnRuleId");
             foreach (EnemyAreaRow row in value.enemyAreas) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.floorId).Append('\t').Append(F(row.minX)).Append('\t').Append(F(row.maxX)).Append('\t').Append(row.spawnRuleId).AppendLine();
         }
+        /// <summary>
+        /// AppendLootRows：执行当前模块的AppendLootRows逻辑。
+        /// </summary>
         private static void AppendLootRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaLootSpawnPoint]"); text.AppendLine("id\tsmallAreaId\tslotId\tfloorId\tx\tbaseSpawnChance\tlootSourceId");
             foreach (LootRow row in value.lootPoints) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.floorId).Append('\t').Append(F(row.x)).Append('\t').Append(F(row.baseSpawnChance)).Append('\t').Append(row.lootSourceId).AppendLine();
         }
+        /// <summary>
+        /// AppendBossRows：执行当前模块的AppendBossRows逻辑。
+        /// </summary>
         private static void AppendBossRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaBossSpawnPoint]"); text.AppendLine("id\tsmallAreaId\tslotId\tfloorId\tx");
             foreach (BossRow row in value.bossPoints) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.floorId).Append('\t').Append(F(row.x)).AppendLine();
         }
+        /// <summary>
+        /// AppendExtractionRows：执行当前模块的AppendExtractionRows逻辑。
+        /// </summary>
         private static void AppendExtractionRows(StringBuilder text, Document value)
         {
             text.AppendLine("[BattleSmallAreaExtractionSpawnPoint]"); text.AppendLine("id\tsmallAreaId\tslotId\tfloorId\tx");
             foreach (ExtractionRow row in value.extractionPoints) text.Append(row.rowId).Append('\t').Append(value.id).Append('\t').Append(row.localId).Append('\t').Append(row.floorId).Append('\t').Append(F(row.x)).AppendLine();
         }
+        /// <summary>
+        /// ParseSourceRows：执行当前模块的ParseSourceRows逻辑。
+        /// </summary>
 
         private static Document ParseSourceRows(string text)
         {
@@ -3765,6 +4224,9 @@ namespace Game.EditorTools
                     if (!required.Contains(section)) throw new InvalidDataException($"未知源表段：{section}。");
                     if (!seen.Add(section)) throw new InvalidDataException($"源表段重复：{section}。");
                     if (++i >= lines.Length || string.IsNullOrWhiteSpace(lines[i]))
+                        /// <summary>
+                        /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                        /// </summary>
                         throw new InvalidDataException($"{section} 缺少表头。");
                     continue;
                 }
@@ -3803,40 +4265,73 @@ namespace Game.EditorTools
                     throw new InvalidDataException($"子表 smallAreaId={referencedAreaIds[i]} 与主表 id={value.id} 不一致。");
             return value;
         }
+        /// <summary>
+        /// C：执行当前模块的C逻辑。
+        /// </summary>
 
         private static string C(string[] c, int index) => index < c.Length ? c[index].Trim() : string.Empty;
+        /// <summary>
+        /// Required：执行当前模块的Required逻辑。
+        /// </summary>
         private static string Required(string[] c, int index, string section)
         {
             string value = C(c, index);
             if (string.IsNullOrWhiteSpace(value)) throw new InvalidDataException($"{section} 第 {index + 1} 列为空。");
             return value;
         }
+        /// <summary>
+        /// I：执行当前模块的I逻辑。
+        /// </summary>
         private static int I(string[] c, int index, string section)
         {
             if (!int.TryParse(Required(c, index, section), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                /// <summary>
+                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                /// </summary>
                 throw new InvalidDataException($"{section} 第 {index + 1} 列不是整数。");
             return value;
         }
+        /// <summary>
+        /// V：执行当前模块的V逻辑。
+        /// </summary>
         private static float V(string[] c, int index, string section)
         {
             if (!float.TryParse(Required(c, index, section), NumberStyles.Float, CultureInfo.InvariantCulture, out float value)
                 || !IsFinite(value))
+                /// <summary>
+                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                /// </summary>
                 throw new InvalidDataException($"{section} 第 {index + 1} 列不是有限数。");
             return value;
         }
+        /// <summary>
+        /// B：执行当前模块的B逻辑。
+        /// </summary>
         private static bool B(string[] c, int index, string section)
         {
             if (!bool.TryParse(Required(c, index, section), out bool value))
+                /// <summary>
+                /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                /// </summary>
                 throw new InvalidDataException($"{section} 第 {index + 1} 列不是 bool。");
             return value;
         }
+        /// <summary>
+        /// Collision：执行当前模块的Collision逻辑。
+        /// </summary>
         private static int Collision(string[] c, int index, string section)
         {
             string value = Required(c, index, section);
             if (value == "SolidGround") return 0;
             if (value == "OneWayPlatform") return 1;
+            /// <summary>
+            /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+            /// </summary>
             throw new InvalidDataException($"{section} collisionType 非法：{value}。");
         }
+        /// <summary>
+        /// F：执行当前模块的F逻辑。
+        /// </summary>
         private static string F(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 }

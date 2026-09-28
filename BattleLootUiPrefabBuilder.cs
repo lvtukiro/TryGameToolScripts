@@ -6,10 +6,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// 生成 2.0i 三栏搜刮 Addition 预制体。格子只是界面实例，
     /// 工具不会创建、复制或修改任何正式物品数据。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class BattleLootUiPrefabBuilder
     {
         private const string PrefabPath =
@@ -23,6 +23,9 @@ namespace Game.EditorTools
             "Game.BattleLootSkillSlotView";
         private const string LootSkillViewType =
             "Game.BattleLootSkillView";
+        /// <summary>
+        /// Rebuild：执行当前模块的Rebuild逻辑。
+        /// </summary>
 
         [MenuItem("TryGame/战斗世界区/重建 2.0i 搜刮界面", false, 435)]
         private static void Rebuild()
@@ -658,6 +661,9 @@ namespace Game.EditorTools
                 UnityEngine.Object.DestroyImmediate(root);
             }
         }
+        /// <summary>
+        /// CreateContainerRoot：执行当前模块的CreateContainerRoot逻辑。
+        /// </summary>
 
         private static GameObject CreateContainerRoot(
             Transform parent,
@@ -666,7 +672,7 @@ namespace Game.EditorTools
             Vector2 anchorMax)
         {
             // 这里直接复用仓库 BuildContainerGrid 的滚动容器结构：
-            // Panel -> CellsScroll -> Viewport -> Content。
+            // 实现说明：该注释描述当前模块的边界条件和运行时处理。
             // 搜刮格仍然使用自己的 BattleLootRobotContainerCellView，
             // 这样可以在同一套仓库布局上增加搜索遮罩和搜刮拖拽，而不会再造
             // 一套容易出现锚点/ContentSizeFitter 尺寸问题的容器。
@@ -713,10 +719,10 @@ namespace Game.EditorTools
             return scroll.Content.gameObject;
         }
 
-        /// <summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         /// 创建右栏统一滚动内容中的一个固定段。段高度由运行时按容器容量
         /// 微调，标题和格子都留在同一 Content 下，避免嵌套 ScrollRect 抢夺滚轮。
-        /// </summary>
+        /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
         private static RectTransform CreateRightSection(
             Transform parent,
             string name,
@@ -753,6 +759,9 @@ namespace Game.EditorTools
                 Vector2.zero);
             return sectionRect;
         }
+        /// <summary>
+        /// CreateSectionGridRoot：执行当前模块的CreateSectionGridRoot逻辑。
+        /// </summary>
 
         private static RectTransform CreateSectionGridRoot(
             Transform section,
@@ -778,6 +787,9 @@ namespace Game.EditorTools
             grid.childAlignment = TextAnchor.UpperLeft;
             return rect;
         }
+        /// <summary>
+        /// CreateEquipmentSlot：执行当前模块的CreateEquipmentSlot逻辑。
+        /// </summary>
 
         private static BattleLootEquipmentSlotView CreateEquipmentSlot(
             Transform parent,
@@ -857,6 +869,9 @@ namespace Game.EditorTools
                 dropHighlight);
             return view;
         }
+        /// <summary>
+        /// CreateItemGridRoot：执行当前模块的CreateItemGridRoot逻辑。
+        /// </summary>
 
         private static GameObject CreateItemGridRoot(
             Transform parent,
@@ -886,6 +901,9 @@ namespace Game.EditorTools
             grid.childAlignment = TextAnchor.UpperLeft;
             return root;
         }
+        /// <summary>
+        /// CreateContainerCellTemplate：执行当前模块的CreateContainerCellTemplate逻辑。
+        /// </summary>
 
         private static BattleLootRobotContainerCellView CreateContainerCellTemplate(
             Transform parent,
@@ -959,6 +977,9 @@ namespace Game.EditorTools
             view.EditorConfigure(background, icon, mask, highlight, cellText);
             return view;
         }
+        /// <summary>
+        /// CreateItemTemplate：执行当前模块的CreateItemTemplate逻辑。
+        /// </summary>
 
         private static BattleLootItemView CreateItemTemplate(
             Transform parent,
@@ -1037,6 +1058,9 @@ namespace Game.EditorTools
             view.EditorConfigure(background, icon, mask, progress, nameText, state, cell);
             return view;
         }
+        /// <summary>
+        /// CreateSkillSlotTemplate：执行当前模块的CreateSkillSlotTemplate逻辑。
+        /// </summary>
 
         private static BattleLootSkillSlotView CreateSkillSlotTemplate(
             Transform parent,
@@ -1103,6 +1127,9 @@ namespace Game.EditorTools
             view.EditorConfigure(1, background, icon, highlight, slotText, nameText);
             return view;
         }
+        /// <summary>
+        /// CreateSkillTemplate：执行当前模块的CreateSkillTemplate逻辑。
+        /// </summary>
 
         private static BattleLootSkillView CreateSkillTemplate(
             Transform parent,

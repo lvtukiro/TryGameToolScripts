@@ -8,10 +8,10 @@ using UnityEngine;
 
 namespace TryGame.HomeDebugTools.Editor
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// Home 调试工具的编辑器运行时辅助方法。
     /// 这些方法只修改当前 Play Mode 中的运行存档，方便测试，不参与正式解锁或经济流程。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class HomeAreaDebugUnlocks
     {
         public const string DefaultAreaIdsText = "10002";
@@ -20,6 +20,9 @@ namespace TryGame.HomeDebugTools.Editor
         public const string DefaultShopInstanceIdText = "90001";
 
         private static readonly Regex SplitRegex = new Regex(@"[,\s;，；]+", RegexOptions.Compiled);
+        /// <summary>
+        /// ParseAreaIds：执行当前模块的ParseAreaIds逻辑。
+        /// </summary>
 
         public static bool ParseAreaIds(string text, List<int> result, bool logErrors = true)
         {
@@ -58,6 +61,9 @@ namespace TryGame.HomeDebugTools.Editor
 
             return hasAny;
         }
+        /// <summary>
+        /// TryParsePositiveInt：执行当前模块的TryParsePositiveInt逻辑。
+        /// </summary>
 
         public static bool TryParsePositiveInt(string text, string fieldName, out int value)
         {
@@ -71,16 +77,31 @@ namespace TryGame.HomeDebugTools.Editor
             value = parsed;
             return true;
         }
+        /// <summary>
+        /// TryAddItem：执行当前模块的TryAddItem逻辑。
+        /// </summary>
 
         public static bool TryAddItem(int itemId, int count)
         {
+            /// <summary>
+            /// TryChangeItemCount：执行当前模块的TryChangeItemCount逻辑。
+            /// </summary>
             return TryChangeItemCount(itemId, count, true);
         }
+        /// <summary>
+        /// TryRemoveItem：执行当前模块的TryRemoveItem逻辑。
+        /// </summary>
 
         public static bool TryRemoveItem(int itemId, int count)
         {
+            /// <summary>
+            /// TryChangeItemCount：执行当前模块的TryChangeItemCount逻辑。
+            /// </summary>
             return TryChangeItemCount(itemId, count, false);
         }
+        /// <summary>
+        /// RandomRefreshHomeShop：执行当前模块的RandomRefreshHomeShop逻辑。
+        /// </summary>
 
         public static bool RandomRefreshHomeShop(int shopInstanceId)
         {
@@ -99,6 +120,9 @@ namespace TryGame.HomeDebugTools.Editor
                 $"shopInstanceId={shopInstanceId}, count={count}");
             return true;
         }
+        /// <summary>
+        /// TryGenerateRandomPendingPetFood：执行当前模块的TryGenerateRandomPendingPetFood逻辑。
+        /// </summary>
 
         public static bool TryGenerateRandomPendingPetFood(
             int count,
@@ -143,6 +167,9 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log($"[HomeAreaDebugUnlocks] {summary}");
             return true;
         }
+        /// <summary>
+        /// TrySetBattleRobotDamaged：执行当前模块的TrySetBattleRobotDamaged逻辑。
+        /// </summary>
 
         public static bool TrySetBattleRobotDamaged(
             string robotUid,
@@ -194,6 +221,9 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log($"[HomeAreaDebugUnlocks] {summary} robotUid={robotUid}");
             return true;
         }
+        /// <summary>
+        /// TryChangeItemCount：执行当前模块的TryChangeItemCount逻辑。
+        /// </summary>
 
         private static bool TryChangeItemCount(int itemId, int count, bool add)
         {
@@ -220,6 +250,9 @@ namespace TryGame.HomeDebugTools.Editor
             switch (itemConfig.Value.ItemType)
             {
                 case EnumItemType.Gold:
+                    /// <summary>
+                    /// TryChangeGold：执行当前模块的TryChangeGold逻辑。
+                    /// </summary>
                     return TryChangeGold(save, count, add);
                 case EnumItemType.Furniture:
                     return TryChangeFurniture(save, itemConfig.Value, count, add);
@@ -228,6 +261,9 @@ namespace TryGame.HomeDebugTools.Editor
                     return false;
             }
         }
+        /// <summary>
+        /// TryChangeGold：执行当前模块的TryChangeGold逻辑。
+        /// </summary>
 
         private static bool TryChangeGold(SaveData save, int count, bool add)
         {
@@ -259,6 +295,9 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log($"[HomeAreaDebugUnlocks] 已{(add ? "增加" : "减少")}金币：{oldGold} -> {save.economy.gold}");
             return true;
         }
+        /// <summary>
+        /// TryChangeFurniture：执行当前模块的TryChangeFurniture逻辑。
+        /// </summary>
 
         private static bool TryChangeFurniture(SaveData save, Item itemConfig, int count, bool add)
         {
@@ -441,6 +480,9 @@ namespace TryGame.HomeDebugTools.Editor
             Debug.Log($"[HomeAreaDebugUnlocks] 已{(add ? "增加" : "减少")}家具物品：itemId={itemConfig.Id}, furnitureId={furnitureId}, count={count}");
             return true;
         }
+        /// <summary>
+        /// CreateOwnershipCandidate：执行当前模块的CreateOwnershipCandidate逻辑。
+        /// </summary>
 
         private static SaveData CreateOwnershipCandidate(
             SaveData save,

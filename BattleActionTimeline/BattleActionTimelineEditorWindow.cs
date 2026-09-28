@@ -127,14 +127,23 @@ namespace Game.EditorTools
                 authoringState.document.EnsureLists();
             }
         }
+        /// <summary>
+        /// IsDirty：执行当前模块的IsDirty逻辑。
+        /// </summary>
 
         private bool IsDirty => !string.Equals(
             Document.CanonicalSignature(),
             authoringState.baselineSignature ?? string.Empty,
             StringComparison.Ordinal);
+        /// <summary>
+        /// DraftKey：执行当前模块的DraftKey逻辑。
+        /// </summary>
 
         private string DraftKey => DraftKeyPrefix +
             Hash128.Compute(Application.dataPath).ToString();
+        /// <summary>
+        /// Open：执行当前模块的Open逻辑。
+        /// </summary>
 
         [MenuItem("TryGame/战斗/动作时间轴编辑器", false, 432)]
         private static void Open()
@@ -145,6 +154,9 @@ namespace Game.EditorTools
             window.minSize = new Vector2(1080f, 680f);
             window.Show();
         }
+        /// <summary>
+        /// OnEnable：执行当前模块的OnEnable逻辑。
+        /// </summary>
 
         private void OnEnable()
         {
@@ -164,6 +176,9 @@ namespace Game.EditorTools
 
             ValidateDocument();
         }
+        /// <summary>
+        /// OnDisable：执行当前模块的OnDisable逻辑。
+        /// </summary>
 
         private void OnDisable()
         {
@@ -174,6 +189,9 @@ namespace Game.EditorTools
             StopAnimationPreview();
             SaveDraftNow();
         }
+        /// <summary>
+        /// OnDestroy：执行当前模块的OnDestroy逻辑。
+        /// </summary>
 
         private void OnDestroy()
         {
@@ -186,6 +204,9 @@ namespace Game.EditorTools
                 authoringState = null;
             }
         }
+        /// <summary>
+        /// EnsureState：执行当前模块的EnsureState逻辑。
+        /// </summary>
 
         private void EnsureState()
         {
@@ -209,6 +230,9 @@ namespace Game.EditorTools
                 authoringState.facing = (int)BattleActionTimelineFacing.Right;
             }
         }
+        /// <summary>
+        /// OnUndoRedo：执行当前模块的OnUndoRedo逻辑。
+        /// </summary>
 
         private void OnUndoRedo()
         {
@@ -221,6 +245,9 @@ namespace Game.EditorTools
             QueueDraftSave();
             Repaint();
         }
+        /// <summary>
+        /// QueueUndoRedo：执行当前模块的QueueUndoRedo逻辑。
+        /// </summary>
 
         private void QueueUndoRedo(bool redo)
         {
@@ -241,6 +268,9 @@ namespace Game.EditorTools
                 }
             };
         }
+        /// <summary>
+        /// OnEditorUpdate：执行当前模块的OnEditorUpdate逻辑。
+        /// </summary>
 
         private void OnEditorUpdate()
         {
@@ -269,6 +299,9 @@ namespace Game.EditorTools
             SampleAnimationPreview();
             Repaint();
         }
+        /// <summary>
+        /// OnGUI：执行当前模块的OnGUI逻辑。
+        /// </summary>
 
         private void OnGUI()
         {
@@ -288,6 +321,9 @@ namespace Game.EditorTools
                 Mathf.Max(200f, body.height - 12f));
             DrawTimelineAndPreview(content);
         }
+        /// <summary>
+        /// DrawToolbar：执行当前模块的DrawToolbar逻辑。
+        /// </summary>
 
         private void DrawToolbar()
         {
@@ -362,6 +398,9 @@ namespace Game.EditorTools
                 GUILayout.Width(104f));
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawInspectorArea：执行当前模块的DrawInspectorArea逻辑。
+        /// </summary>
 
         private void DrawInspectorArea()
         {
@@ -396,6 +435,9 @@ namespace Game.EditorTools
             DrawIssues();
             EditorGUILayout.EndScrollView();
         }
+        /// <summary>
+        /// DrawWaitingForStructure：执行当前模块的DrawWaitingForStructure逻辑。
+        /// </summary>
 
         private void DrawWaitingForStructure()
         {
@@ -425,6 +467,9 @@ namespace Game.EditorTools
                 "示例按钮只复制文本，不创建 Sheet、不导表、不写 Generated/Output。",
                 MessageType.Info);
         }
+        /// <summary>
+        /// DrawSelectionAndViewSettings：执行当前模块的DrawSelectionAndViewSettings逻辑。
+        /// </summary>
 
         private void DrawSelectionAndViewSettings()
         {
@@ -486,6 +531,9 @@ namespace Game.EditorTools
 
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// DrawAnimationPreviewSettings：执行当前模块的DrawAnimationPreviewSettings逻辑。
+        /// </summary>
 
         private void DrawAnimationPreviewSettings()
         {
@@ -531,6 +579,9 @@ namespace Game.EditorTools
                 "动画选择仅用于本次编辑器会话，不写入源表或项目草稿。",
                 EditorStyles.wordWrappedMiniLabel);
         }
+        /// <summary>
+        /// DrawActionFields：执行当前模块的DrawActionFields逻辑。
+        /// </summary>
 
         private void DrawActionFields(BattleActionTimelineDocument edited)
         {
@@ -641,6 +692,9 @@ namespace Game.EditorTools
                     BattleActionTimelineSchema.DurationAliases);
             }
         }
+        /// <summary>
+        /// DrawExecutionSteps：执行当前模块的DrawExecutionSteps逻辑。
+        /// </summary>
 
         private void DrawExecutionSteps(BattleActionTimelineDocument edited)
         {
@@ -760,6 +814,9 @@ namespace Game.EditorTools
                 GUI.changed = true;
             }
         }
+        /// <summary>
+        /// DrawSharedConfiguration：执行当前模块的DrawSharedConfiguration逻辑。
+        /// </summary>
 
         private void DrawSharedConfiguration(BattleActionTimelineDocument edited)
         {
@@ -801,6 +858,9 @@ namespace Game.EditorTools
 
             DrawKeyframes(edited, resolved);
         }
+        /// <summary>
+        /// DrawOwnerFields：执行当前模块的DrawOwnerFields逻辑。
+        /// </summary>
 
         private void DrawOwnerFields(ResolvedStep resolved)
         {
@@ -921,6 +981,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// DrawProjectileMovementFields：执行当前模块的DrawProjectileMovementFields逻辑。
+        /// </summary>
 
         private static void DrawProjectileMovementFields(
             BattleActionTimelineDocument document,
@@ -1008,6 +1071,9 @@ namespace Game.EditorTools
                     "speed");
             }
         }
+        /// <summary>
+        /// DrawAttackBody：执行当前模块的DrawAttackBody逻辑。
+        /// </summary>
 
         private void DrawAttackBody(ResolvedStep resolved)
         {
@@ -1075,6 +1141,9 @@ namespace Game.EditorTools
                 maxTotal,
                 "maxTotalHitCount");
         }
+        /// <summary>
+        /// DrawShapes：执行当前模块的DrawShapes逻辑。
+        /// </summary>
 
         private void DrawShapes(
             BattleActionTimelineDocument edited,
@@ -1240,6 +1309,9 @@ namespace Game.EditorTools
 
             EditorGUILayout.EndHorizontal();
         }
+        /// <summary>
+        /// AddShape：执行当前模块的AddShape逻辑。
+        /// </summary>
 
         private void AddShape(
             BattleActionTimelineTableData table,
@@ -1287,6 +1359,9 @@ namespace Game.EditorTools
             table.records.Add(shape);
             SelectShared(table.sheetName, shape.rowId);
         }
+        /// <summary>
+        /// DrawKeyframes：执行当前模块的DrawKeyframes逻辑。
+        /// </summary>
 
         private void DrawKeyframes(
             BattleActionTimelineDocument edited,
@@ -1439,6 +1514,9 @@ namespace Game.EditorTools
                 GUI.changed = true;
             }
         }
+        /// <summary>
+        /// DrawSelectionButton：执行当前模块的DrawSelectionButton逻辑。
+        /// </summary>
 
         private static void DrawSelectionButton(
             string label,
@@ -1460,6 +1538,9 @@ namespace Game.EditorTools
             GUI.changed = previousChanged;
             GUI.backgroundColor = previousColor;
         }
+        /// <summary>
+        /// DrawIssues：执行当前模块的DrawIssues逻辑。
+        /// </summary>
 
         private void DrawIssues()
         {
@@ -1488,6 +1569,9 @@ namespace Game.EditorTools
 
             EditorGUILayout.EndScrollView();
         }
+        /// <summary>
+        /// DrawTimelineAndPreview：执行当前模块的DrawTimelineAndPreview逻辑。
+        /// </summary>
 
         private void DrawTimelineAndPreview(Rect rect)
         {
@@ -1513,6 +1597,9 @@ namespace Game.EditorTools
             DrawTimeline(timeline);
             DrawPreview(preview);
         }
+        /// <summary>
+        /// DrawTimeline：执行当前模块的DrawTimeline逻辑。
+        /// </summary>
 
         private void DrawTimeline(Rect rect)
         {
@@ -1547,6 +1634,9 @@ namespace Game.EditorTools
                 EditorStyles.miniLabel);
             HandleTimelineInput(content, stageLane, stepLane, keyLane, duration);
         }
+        /// <summary>
+        /// LaneRect：执行当前模块的LaneRect逻辑。
+        /// </summary>
 
         private static Rect LaneRect(Rect content, int index)
         {
@@ -1556,6 +1646,9 @@ namespace Game.EditorTools
                 content.width,
                 LaneHeight - 2f);
         }
+        /// <summary>
+        /// DrawLaneLabel：执行当前模块的DrawLaneLabel逻辑。
+        /// </summary>
 
         private static void DrawLaneLabel(Rect outer, Rect lane, string label)
         {
@@ -1564,6 +1657,9 @@ namespace Game.EditorTools
                 label,
                 EditorStyles.miniBoldLabel);
         }
+        /// <summary>
+        /// DrawRuler：执行当前模块的DrawRuler逻辑。
+        /// </summary>
 
         private static void DrawRuler(Rect content, double duration)
         {
@@ -1589,6 +1685,9 @@ namespace Game.EditorTools
 
             Handles.EndGUI();
         }
+        /// <summary>
+        /// DrawStageLane：执行当前模块的DrawStageLane逻辑。
+        /// </summary>
 
         private void DrawStageLane(Rect lane, double duration)
         {
@@ -1616,6 +1715,9 @@ namespace Game.EditorTools
             DrawMarker(lane, phases.RecoveryStart, duration, Color.magenta);
             DrawMarker(lane, phases.Duration, duration, Color.white);
         }
+        /// <summary>
+        /// DrawTimeBand：执行当前模块的DrawTimeBand逻辑。
+        /// </summary>
 
         private static void DrawTimeBand(
             Rect lane,
@@ -1634,6 +1736,9 @@ namespace Game.EditorTools
                 GUI.Label(band, label, EditorStyles.centeredGreyMiniLabel);
             }
         }
+        /// <summary>
+        /// DrawStepLane：执行当前模块的DrawStepLane逻辑。
+        /// </summary>
 
         private void DrawStepLane(Rect lane, double duration)
         {
@@ -1674,6 +1779,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// DrawLifetimeLane：执行当前模块的DrawLifetimeLane逻辑。
+        /// </summary>
 
         private void DrawLifetimeLane(Rect lane, double duration)
         {
@@ -1725,6 +1833,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// DrawKeyframeLane：执行当前模块的DrawKeyframeLane逻辑。
+        /// </summary>
 
         private void DrawKeyframeLane(Rect lane, double duration)
         {
@@ -1754,6 +1865,9 @@ namespace Game.EditorTools
                     selected ? 7f : 5f);
             }
         }
+        /// <summary>
+        /// DrawMarker：执行当前模块的DrawMarker逻辑。
+        /// </summary>
 
         private static void DrawMarker(Rect lane, double time, double duration, Color color)
         {
@@ -1766,6 +1880,9 @@ namespace Game.EditorTools
                 new Vector3(x, lane.yMax - 2f));
             Handles.EndGUI();
         }
+        /// <summary>
+        /// DrawDiamond：执行当前模块的DrawDiamond逻辑。
+        /// </summary>
 
         private static void DrawDiamond(Vector2 center, Color color, float radius)
         {
@@ -1781,6 +1898,9 @@ namespace Game.EditorTools
             Handles.DrawAAConvexPolygon(points);
             Handles.EndGUI();
         }
+        /// <summary>
+        /// HandleTimelineInput：执行当前模块的HandleTimelineInput逻辑。
+        /// </summary>
 
         private void HandleTimelineInput(
             Rect content,
@@ -1859,6 +1979,9 @@ namespace Game.EditorTools
                 current.Use();
             }
         }
+        /// <summary>
+        /// TryBeginStageDrag：执行当前模块的TryBeginStageDrag逻辑。
+        /// </summary>
 
         private bool TryBeginStageDrag(float x, Rect lane, double duration)
         {
@@ -1892,6 +2015,9 @@ namespace Game.EditorTools
             dragRowId = action.rowId;
             return true;
         }
+        /// <summary>
+        /// TryBeginStepDrag：执行当前模块的TryBeginStepDrag逻辑。
+        /// </summary>
 
         private bool TryBeginStepDrag(float x, Rect lane, double duration)
         {
@@ -1939,6 +2065,9 @@ namespace Game.EditorTools
             dragRowId = nearestStep.rowId;
             return true;
         }
+        /// <summary>
+        /// TryBeginKeyframeDrag：执行当前模块的TryBeginKeyframeDrag逻辑。
+        /// </summary>
 
         private bool TryBeginKeyframeDrag(float x, Rect lane, double duration)
         {
@@ -1977,6 +2106,9 @@ namespace Game.EditorTools
             dragRowId = nearest.rowId;
             return true;
         }
+        /// <summary>
+        /// ApplyTimelineDrag：执行当前模块的ApplyTimelineDrag逻辑。
+        /// </summary>
 
         private void ApplyTimelineDrag(double absoluteTime)
         {
@@ -2052,6 +2184,9 @@ namespace Game.EditorTools
                     break;
             }
         }
+        /// <summary>
+        /// DrawPreview：执行当前模块的DrawPreview逻辑。
+        /// </summary>
 
         private void DrawPreview(Rect rect)
         {
@@ -2171,6 +2306,9 @@ namespace Game.EditorTools
                 " · shared AttackBody=" + resolved.Body.rowId,
                 EditorStyles.miniLabel);
         }
+        /// <summary>
+        /// DrawPreviewGrid：执行当前模块的DrawPreviewGrid逻辑。
+        /// </summary>
 
         private static void DrawPreviewGrid(
             Rect rect,
@@ -2211,6 +2349,9 @@ namespace Game.EditorTools
                 new Vector3(origin.x, rect.yMax));
             Handles.EndGUI();
         }
+        /// <summary>
+        /// DrawPreviewShape：执行当前模块的DrawPreviewShape逻辑。
+        /// </summary>
 
         private static Vector2 DrawPreviewShape(
             BattleActionTimelineTableData table,
@@ -2337,6 +2478,9 @@ namespace Game.EditorTools
             Handles.EndGUI();
             return center;
         }
+        /// <summary>
+        /// BuildCapsulePoints：执行当前模块的BuildCapsulePoints逻辑。
+        /// </summary>
 
         private static Vector2[] BuildCapsulePoints(
             Vector2 size,
@@ -2393,6 +2537,9 @@ namespace Game.EditorTools
 
             return points.ToArray();
         }
+        /// <summary>
+        /// HandlePreviewShapeOffsetDrag：执行当前模块的HandlePreviewShapeOffsetDrag逻辑。
+        /// </summary>
 
         private void HandlePreviewShapeOffsetDrag(
             Rect rect,
@@ -2490,6 +2637,9 @@ namespace Game.EditorTools
                 current.Use();
             }
         }
+        /// <summary>
+        /// HandlePreviewOffsetDrag：执行当前模块的HandlePreviewOffsetDrag逻辑。
+        /// </summary>
 
         private void HandlePreviewOffsetDrag(
             Rect rect,
@@ -2571,6 +2721,9 @@ namespace Game.EditorTools
                 current.Use();
             }
         }
+        /// <summary>
+        /// ProjectilePreviewOffset：执行当前模块的ProjectilePreviewOffset逻辑。
+        /// </summary>
 
         private Vector2 ProjectilePreviewOffset(
             BattleActionTimelineDocument document,
@@ -2633,6 +2786,9 @@ namespace Game.EditorTools
 
             return offset;
         }
+        /// <summary>
+        /// ResolveSelectedStep：执行当前模块的ResolveSelectedStep逻辑。
+        /// </summary>
 
         private ResolvedStep ResolveSelectedStep(BattleActionTimelineDocument document)
         {
@@ -2642,6 +2798,9 @@ namespace Game.EditorTools
                 value => value.rowId == authoringState.selectedStepRowId);
             return step == null ? null : ResolveStep(document, table, step);
         }
+        /// <summary>
+        /// ResolveStep：执行当前模块的ResolveStep逻辑。
+        /// </summary>
 
         private static ResolvedStep ResolveStep(
             BattleActionTimelineDocument document,
@@ -2769,6 +2928,9 @@ namespace Game.EditorTools
 
             return result;
         }
+        /// <summary>
+        /// FindKeyframeTable：执行当前模块的FindKeyframeTable逻辑。
+        /// </summary>
 
         private static BattleActionTimelineTableData FindKeyframeTable(
             BattleActionTimelineDocument document,
@@ -2811,6 +2973,9 @@ namespace Game.EditorTools
 
             return candidates.Count == 1 ? candidates[0] : null;
         }
+        /// <summary>
+        /// LoadOfficial：执行当前模块的LoadOfficial逻辑。
+        /// </summary>
 
         private void LoadOfficial(bool confirmDiscard, bool notify)
         {
@@ -2858,6 +3023,9 @@ namespace Game.EditorTools
 
             Repaint();
         }
+        /// <summary>
+        /// WriteOfficial：执行当前模块的WriteOfficial逻辑。
+        /// </summary>
 
         private void WriteOfficial()
         {
@@ -2932,11 +3100,17 @@ namespace Game.EditorTools
             ShowNotification(new GUIContent("源 xlsx 写回成功；请最后统一导表"));
             Repaint();
         }
+        /// <summary>
+        /// ValidateDocument：执行当前模块的ValidateDocument逻辑。
+        /// </summary>
 
         private void ValidateDocument()
         {
             BattleActionTimelineSchema.Validate(Document, validationIssues);
         }
+        /// <summary>
+        /// OnAuthoringChanged：执行当前模块的OnAuthoringChanged逻辑。
+        /// </summary>
 
         private void OnAuthoringChanged()
         {
@@ -2945,6 +3119,9 @@ namespace Game.EditorTools
             QueueDraftSave();
             Repaint();
         }
+        /// <summary>
+        /// QueueDraftSave：执行当前模块的QueueDraftSave逻辑。
+        /// </summary>
 
         private void QueueDraftSave()
         {
@@ -2963,6 +3140,9 @@ namespace Game.EditorTools
                 }
             };
         }
+        /// <summary>
+        /// SaveDraftNow：执行当前模块的SaveDraftNow逻辑。
+        /// </summary>
 
         private void SaveDraftNow()
         {
@@ -2995,6 +3175,9 @@ namespace Game.EditorTools
             };
             EditorPrefs.SetString(DraftKey, JsonUtility.ToJson(envelope));
         }
+        /// <summary>
+        /// TryRestoreDraft：执行当前模块的TryRestoreDraft逻辑。
+        /// </summary>
 
         private void TryRestoreDraft()
         {
@@ -3017,6 +3200,9 @@ namespace Game.EditorTools
                     BattleActionTimelineDocument>(envelope.documentJson);
                 if (restored == null)
                 {
+                    /// <summary>
+                    /// InvalidOperationException：执行当前模块的InvalidOperationException逻辑。
+                    /// </summary>
                     throw new InvalidOperationException("草稿文档为空。");
                 }
 
@@ -3068,11 +3254,17 @@ namespace Game.EditorTools
                 Debug.LogError("[BattleActionTimeline] 草稿恢复失败：" + exception);
             }
         }
+        /// <summary>
+        /// ClearDraft：执行当前模块的ClearDraft逻辑。
+        /// </summary>
 
         private void ClearDraft()
         {
             EditorPrefs.DeleteKey(DraftKey);
         }
+        /// <summary>
+        /// NormalizeSelection：执行当前模块的NormalizeSelection逻辑。
+        /// </summary>
 
         private void NormalizeSelection()
         {
@@ -3096,6 +3288,9 @@ namespace Game.EditorTools
                 authoringState.selectedSharedRowId = 0;
             }
         }
+        /// <summary>
+        /// SelectFirstActionIfNecessary：执行当前模块的SelectFirstActionIfNecessary逻辑。
+        /// </summary>
 
         private void SelectFirstActionIfNecessary()
         {
@@ -3117,6 +3312,9 @@ namespace Game.EditorTools
                 SelectAction(actions[0]);
             }
         }
+        /// <summary>
+        /// BuildActionReferences：执行当前模块的BuildActionReferences逻辑。
+        /// </summary>
 
         private static List<ActionReference> BuildActionReferences(
             BattleActionTimelineDocument document)
@@ -3140,6 +3338,9 @@ namespace Game.EditorTools
                 .ThenBy(value => value.Table.sheetName, StringComparer.Ordinal)
                 .ToList();
         }
+        /// <summary>
+        /// SelectAction：执行当前模块的SelectAction逻辑。
+        /// </summary>
 
         private void SelectAction(ActionReference action)
         {
@@ -3154,6 +3355,9 @@ namespace Game.EditorTools
             QueueDraftSave();
             Repaint();
         }
+        /// <summary>
+        /// SelectStep：执行当前模块的SelectStep逻辑。
+        /// </summary>
 
         private void SelectStep(string sheetName, int rowId)
         {
@@ -3164,6 +3368,9 @@ namespace Game.EditorTools
             QueueDraftSave();
             Repaint();
         }
+        /// <summary>
+        /// SelectShared：执行当前模块的SelectShared逻辑。
+        /// </summary>
 
         private void SelectShared(string sheetName, int rowId)
         {
@@ -3172,6 +3379,9 @@ namespace Game.EditorTools
             QueueDraftSave();
             Repaint();
         }
+        /// <summary>
+        /// TryGetSelectedAction：执行当前模块的TryGetSelectedAction逻辑。
+        /// </summary>
 
         private bool TryGetSelectedAction(
             BattleActionTimelineDocument document,
@@ -3183,6 +3393,9 @@ namespace Game.EditorTools
                 value => value.rowId == authoringState.selectedActionRowId);
             return action != null && BattleActionTimelineSchema.IsActiveSingleTable(table);
         }
+        /// <summary>
+        /// NormalizeStepOrderForSelectedAction：执行当前模块的NormalizeStepOrderForSelectedAction逻辑。
+        /// </summary>
 
         private void NormalizeStepOrderForSelectedAction()
         {
@@ -3227,6 +3440,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// NormalizeKeyframeOrder：执行当前模块的NormalizeKeyframeOrder逻辑。
+        /// </summary>
 
         private void NormalizeKeyframeOrder()
         {
@@ -3257,6 +3473,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// CreateRecord：执行当前模块的CreateRecord逻辑。
+        /// </summary>
 
         private static BattleActionTimelineRecordData CreateRecord(
             BattleActionTimelineTableData table)
@@ -3279,6 +3498,9 @@ namespace Game.EditorTools
 
             return record;
         }
+        /// <summary>
+        /// SampleAnimationPreview：执行当前模块的SampleAnimationPreview逻辑。
+        /// </summary>
 
         private void SampleAnimationPreview()
         {
@@ -3346,6 +3568,9 @@ namespace Game.EditorTools
                 animationPreviewStatus = "动画采样失败：" + exception.Message;
             }
         }
+        /// <summary>
+        /// StopAnimationPreview：执行当前模块的StopAnimationPreview逻辑。
+        /// </summary>
 
         private void StopAnimationPreview()
         {
@@ -3366,6 +3591,9 @@ namespace Game.EditorTools
                 ownsAnimationMode = false;
             }
         }
+        /// <summary>
+        /// StepFrame：执行当前模块的StepFrame逻辑。
+        /// </summary>
 
         private void StepFrame(int direction)
         {
@@ -3380,6 +3608,9 @@ namespace Game.EditorTools
                 authoringState.frameRate);
             Repaint();
         }
+        /// <summary>
+        /// CurrentFrame：执行当前模块的CurrentFrame逻辑。
+        /// </summary>
 
         private int CurrentFrame()
         {
@@ -3387,11 +3618,20 @@ namespace Game.EditorTools
                 Math.Max(0d, playheadSeconds),
                 authoringState.frameRate);
         }
+        /// <summary>
+        /// CurrentDuration：执行当前模块的CurrentDuration逻辑。
+        /// </summary>
 
         private double CurrentDuration()
         {
+            /// <summary>
+            /// CurrentDuration：执行当前模块的CurrentDuration逻辑。
+            /// </summary>
             return CurrentDuration(Document);
         }
+        /// <summary>
+        /// CurrentDuration：执行当前模块的CurrentDuration逻辑。
+        /// </summary>
 
         private double CurrentDuration(BattleActionTimelineDocument document)
         {
@@ -3404,6 +3644,9 @@ namespace Game.EditorTools
                     BattleActionTimelineSchema.ReadPhases(table, action).Duration)
                 : 0d;
         }
+        /// <summary>
+        /// ClampPlayhead：执行当前模块的ClampPlayhead逻辑。
+        /// </summary>
 
         private void ClampPlayhead()
         {
@@ -3411,6 +3654,9 @@ namespace Game.EditorTools
                 0d,
                 Math.Min(CurrentDuration(), playheadSeconds));
         }
+        /// <summary>
+        /// SnapNonNegative：执行当前模块的SnapNonNegative逻辑。
+        /// </summary>
 
         private double SnapNonNegative(double value)
         {
@@ -3425,11 +3671,17 @@ namespace Game.EditorTools
                     value,
                     authoringState.frameRate));
         }
+        /// <summary>
+        /// SnapAndClamp：执行当前模块的SnapAndClamp逻辑。
+        /// </summary>
 
         private double SnapAndClamp(double value, double maximum)
         {
             return Math.Max(0d, Math.Min(maximum, SnapNonNegative(value)));
         }
+        /// <summary>
+        /// FrameSeconds：执行当前模块的FrameSeconds逻辑。
+        /// </summary>
 
         private double FrameSeconds()
         {
@@ -3437,6 +3689,9 @@ namespace Game.EditorTools
                 1,
                 authoringState.frameRate);
         }
+        /// <summary>
+        /// CancelDrag：执行当前模块的CancelDrag逻辑。
+        /// </summary>
 
         private void CancelDrag()
         {
@@ -3445,6 +3700,9 @@ namespace Game.EditorTools
             dragRowId = 0;
             dragChanged = false;
         }
+        /// <summary>
+        /// TimeToX：执行当前模块的TimeToX逻辑。
+        /// </summary>
 
         private static float TimeToX(double time, Rect rect, double duration)
         {
@@ -3453,11 +3711,17 @@ namespace Game.EditorTools
                 rect.xMax,
                 duration <= 0d ? 0f : Mathf.Clamp01((float)(time / duration)));
         }
+        /// <summary>
+        /// XToTime：执行当前模块的XToTime逻辑。
+        /// </summary>
 
         private static double XToTime(float x, Rect rect, double duration)
         {
             return Mathf.InverseLerp(rect.x, rect.xMax, x) * duration;
         }
+        /// <summary>
+        /// Rotate：执行当前模块的Rotate逻辑。
+        /// </summary>
 
         private static Vector2 Rotate(Vector2 value, float degrees)
         {
@@ -3468,6 +3732,9 @@ namespace Game.EditorTools
                 cosine * value.x - sine * value.y,
                 sine * value.x + cosine * value.y);
         }
+        /// <summary>
+        /// ParseInt：执行当前模块的ParseInt逻辑。
+        /// </summary>
 
         private static int ParseInt(string value)
         {
@@ -3479,6 +3746,9 @@ namespace Game.EditorTools
                 ? result
                 : 0;
         }
+        /// <summary>
+        /// NearlyEqual：执行当前模块的NearlyEqual逻辑。
+        /// </summary>
 
         private static bool NearlyEqual(double first, double second)
         {

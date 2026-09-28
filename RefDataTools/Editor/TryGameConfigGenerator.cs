@@ -55,6 +55,9 @@ namespace TryGame.RefDataTools.Editor
                     {
                         continue;
                     }
+                    /// <summary>
+                    /// InvalidDataException：执行当前模块的InvalidDataException逻辑。
+                    /// </summary>
 
                     throw new InvalidDataException("生成表代码无法解析 Table 定义，拒绝静默跳过：" + files[i]);
                 }
@@ -136,6 +139,9 @@ namespace TryGame.RefDataTools.Editor
 
             UnityEngine.Debug.Log("Config 读取入口生成完成：" + generatedConfigAssetPath);
         }
+        /// <summary>
+        /// GenerateAndCommitConfigs：执行当前模块的GenerateAndCommitConfigs逻辑。
+        /// </summary>
 
         private static void GenerateAndCommitConfigs(string configDir, Dictionary<string, List<ConfigAccessor>> accessorsByModule, GeneralAccessor generalAccessor)
         {
@@ -181,6 +187,9 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// CommitGeneratedFiles：执行当前模块的CommitGeneratedFiles逻辑。
+        /// </summary>
 
         private static void CommitGeneratedFiles(string configDir, string stagingDir, string backupDir)
         {
@@ -210,12 +219,18 @@ namespace TryGame.RefDataTools.Editor
                 UnityEngine.Debug.LogError("[TryGameConfigGenerator] 提交新生成文件失败，开始恢复旧文件：configDir=" + configDir + "\n" + commitException);
                 if (!TryRestoreGeneratedFiles(configDir, backupDir))
                 {
+                    /// <summary>
+                    /// IOException：执行当前模块的IOException逻辑。
+                    /// </summary>
                     throw new IOException("提交失败，且旧生成文件恢复不完整。请从版本控制恢复 Config 目录。", commitException);
                 }
 
                 throw;
             }
         }
+        /// <summary>
+        /// TryRestoreGeneratedFiles：执行当前模块的TryRestoreGeneratedFiles逻辑。
+        /// </summary>
 
         private static bool TryRestoreGeneratedFiles(string configDir, string backupDir)
         {
@@ -247,6 +262,9 @@ namespace TryGame.RefDataTools.Editor
 
             return success;
         }
+        /// <summary>
+        /// CopyGeneratedFiles：执行当前模块的CopyGeneratedFiles逻辑。
+        /// </summary>
 
         private static void CopyGeneratedFiles(string sourceDir, string destinationDir, bool overwrite)
         {
@@ -262,6 +280,9 @@ namespace TryGame.RefDataTools.Editor
                 }
             }
         }
+        /// <summary>
+        /// TryDeleteTransactionDirectory：执行当前模块的TryDeleteTransactionDirectory逻辑。
+        /// </summary>
 
         private static void TryDeleteTransactionDirectory(string path, string label)
         {
@@ -279,6 +300,9 @@ namespace TryGame.RefDataTools.Editor
                 UnityEngine.Debug.LogError("[TryGameConfigGenerator] 清理" + label + "失败，请手动删除：" + path + "\n" + cleanupException);
             }
         }
+        /// <summary>
+        /// WriteModuleConfigs：执行当前模块的WriteModuleConfigs逻辑。
+        /// </summary>
 
         private static void WriteModuleConfigs(string configDir, Dictionary<string, List<ConfigAccessor>> accessorsByModule)
         {
@@ -339,6 +363,9 @@ namespace TryGame.RefDataTools.Editor
                     new UTF8Encoding(false));
             }
         }
+        /// <summary>
+        /// WriteGeneralConfig：执行当前模块的WriteGeneralConfig逻辑。
+        /// </summary>
 
         private static void WriteGeneralConfig(string configDir, GeneralAccessor accessor)
         {
@@ -368,6 +395,9 @@ namespace TryGame.RefDataTools.Editor
                 TryGameRefDataTextNormalizer.NormalizeLineEndings(sb.ToString()),
                 new UTF8Encoding(false));
         }
+        /// <summary>
+        /// CleanGeneratedConfigs：执行当前模块的CleanGeneratedConfigs逻辑。
+        /// </summary>
 
         private static void CleanGeneratedConfigs(string configDir)
         {
@@ -378,6 +408,9 @@ namespace TryGame.RefDataTools.Editor
                 DeleteMetaIfExists(files[i]);
             }
         }
+        /// <summary>
+        /// DeleteMetaIfExists：执行当前模块的DeleteMetaIfExists逻辑。
+        /// </summary>
 
         private static void DeleteMetaIfExists(string assetFilePath)
         {
@@ -387,6 +420,9 @@ namespace TryGame.RefDataTools.Editor
                 File.Delete(metaPath);
             }
         }
+        /// <summary>
+        /// AppendGeneratedHeader：执行当前模块的AppendGeneratedHeader逻辑。
+        /// </summary>
 
         private static void AppendGeneratedHeader(StringBuilder sb)
         {
@@ -395,6 +431,9 @@ namespace TryGame.RefDataTools.Editor
             sb.AppendLine("// </auto-generated>");
             sb.AppendLine();
         }
+        /// <summary>
+        /// TryBuildConfigName：执行当前模块的TryBuildConfigName逻辑。
+        /// </summary>
 
         private static bool TryBuildConfigName(string rowType, out ConfigName configName)
         {
@@ -410,6 +449,9 @@ namespace TryGame.RefDataTools.Editor
             configName = new ConfigName(moduleName, methodName);
             return true;
         }
+        /// <summary>
+        /// JoinWords：执行当前模块的JoinWords逻辑。
+        /// </summary>
 
         private static string JoinWords(string[] words, int startIndex, int count)
         {
@@ -421,6 +463,9 @@ namespace TryGame.RefDataTools.Editor
 
             return sb.ToString();
         }
+        /// <summary>
+        /// SplitPascalWords：执行当前模块的SplitPascalWords逻辑。
+        /// </summary>
 
         private static string[] SplitPascalWords(string value)
         {
@@ -433,6 +478,9 @@ namespace TryGame.RefDataTools.Editor
 
             return words.ToArray();
         }
+        /// <summary>
+        /// IsLanguageTable：执行当前模块的IsLanguageTable逻辑。
+        /// </summary>
 
         private static bool IsLanguageTable(string name)
         {
@@ -445,6 +493,9 @@ namespace TryGame.RefDataTools.Editor
         {
             public readonly string ModuleName;
             public readonly string MethodName;
+            /// <summary>
+            /// ConfigName：执行当前模块的ConfigName逻辑。
+            /// </summary>
 
             public ConfigName(string moduleName, string methodName)
             {
@@ -461,6 +512,9 @@ namespace TryGame.RefDataTools.Editor
             public readonly string TableClass;
             public readonly string ByKeyMethod;
             public readonly bool HasContainsKey;
+            /// <summary>
+            /// ConfigAccessor：执行当前模块的ConfigAccessor逻辑。
+            /// </summary>
 
             public ConfigAccessor(
                 string moduleName,
@@ -482,6 +536,9 @@ namespace TryGame.RefDataTools.Editor
         private sealed class GeneralAccessor
         {
             public readonly string TableClass;
+            /// <summary>
+            /// GeneralAccessor：执行当前模块的GeneralAccessor逻辑。
+            /// </summary>
 
             public GeneralAccessor(string tableClass)
             {

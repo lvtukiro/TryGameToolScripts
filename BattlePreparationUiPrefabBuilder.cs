@@ -7,10 +7,10 @@ using UnityEngine.UI;
 
 namespace Game.EditorTools
 {
-    /// <summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     /// 2.0b 备战间 UI Prefab 的纯生成实现。
     /// 运行时逻辑只存在于 Presentation/Application；这里仅创建层级、布局和序列化引用。
-    /// </summary>
+    /// 实现说明：该注释描述当前模块的边界条件和运行时处理。
     internal static class BattlePreparationUiPrefabBuilder
     {
         internal const string MainPrefabPath =
@@ -140,6 +140,9 @@ namespace Game.EditorTools
             new Rect(0.827f, 0.289f, 0.090f, 0.282f),
             new Rect(0.930f, 0.306f, 0.062f, 0.266f),
         };
+        /// <summary>
+        /// BuildAll：执行当前模块的BuildAll逻辑。
+        /// </summary>
 
         internal static void BuildAll(IReadOnlyDictionary<int, Sprite> sprites)
         {
@@ -151,6 +154,9 @@ namespace Game.EditorTools
             BuildWorkbenchPrefab();
             BattleStageSelectionUiPrefabBuilder.BuildAll();
         }
+        /// <summary>
+        /// BuildMainPrefab：执行当前模块的BuildMainPrefab逻辑。
+        /// </summary>
 
         private static void BuildMainPrefab(IReadOnlyDictionary<int, Sprite> sprites)
         {
@@ -339,6 +345,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildRosterSlot：执行当前模块的BuildRosterSlot逻辑。
+        /// </summary>
 
         private static Component BuildRosterSlot(
             Transform parent,
@@ -492,6 +501,9 @@ namespace Game.EditorTools
                 destroyImage);
             return view;
         }
+        /// <summary>
+        /// BuildProductionPrefab：执行当前模块的BuildProductionPrefab逻辑。
+        /// </summary>
 
         private static void BuildProductionPrefab(IReadOnlyDictionary<int, Sprite> sprites)
         {
@@ -628,6 +640,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildProductionCard：执行当前模块的BuildProductionCard逻辑。
+        /// </summary>
 
         private static Component BuildProductionCard(
             string name,
@@ -753,6 +768,9 @@ namespace Game.EditorTools
             card.SetActive(active);
             return view;
         }
+        /// <summary>
+        /// BuildNameInputPrefab：执行当前模块的BuildNameInputPrefab逻辑。
+        /// </summary>
 
         private static void BuildNameInputPrefab()
         {
@@ -897,6 +915,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildRobotDetailPrefabV5：执行当前模块的BuildRobotDetailPrefabV5逻辑。
+        /// </summary>
 
         private static void BuildRobotDetailPrefabV5(IReadOnlyDictionary<int, Sprite> sprites)
         {
@@ -1283,6 +1304,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildRobotDetailPrefab：执行当前模块的BuildRobotDetailPrefab逻辑。
+        /// </summary>
 
         private static void BuildRobotDetailPrefab(IReadOnlyDictionary<int, Sprite> sprites)
         {
@@ -1590,8 +1614,8 @@ namespace Game.EditorTools
                     root,
                     BattleDevelopmentEntryMarker);
 
-                // Builder markers are hidden implementation details. Keep the four
-                // runtime overlays above every marker and in their real render order.
+                // 实现说明：该注释描述当前模块的边界条件和运行时处理。
+                // 实现说明：该注释描述当前模块的边界条件和运行时处理。
                 itemDetailObject.transform.SetAsLastSibling();
                 skillDetail.transform.SetAsLastSibling();
                 comparison.transform.SetAsLastSibling();
@@ -1608,6 +1632,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildEquipmentSlot：执行当前模块的BuildEquipmentSlot逻辑。
+        /// </summary>
 
         private static Component BuildEquipmentSlot(
             string name,
@@ -1685,6 +1712,9 @@ namespace Game.EditorTools
             root.SetActive(active);
             return view;
         }
+        /// <summary>
+        /// BuildEquipmentSkillStrip：执行当前模块的BuildEquipmentSkillStrip逻辑。
+        /// </summary>
 
         private static Component BuildEquipmentSkillStrip(
             string name,
@@ -1728,6 +1758,9 @@ namespace Game.EditorTools
             root.SetActive(false);
             return view;
         }
+        /// <summary>
+        /// BuildSkillIcon：执行当前模块的BuildSkillIcon逻辑。
+        /// </summary>
 
         private static Component BuildSkillIcon(string name, Transform parent)
         {
@@ -1773,6 +1806,9 @@ namespace Game.EditorTools
                 highlight);
             return view;
         }
+        /// <summary>
+        /// BuildSkillSlot：执行当前模块的BuildSkillSlot逻辑。
+        /// </summary>
 
         private static Component BuildSkillSlot(
             string name,
@@ -1878,6 +1914,9 @@ namespace Game.EditorTools
             root.SetActive(false);
             return view;
         }
+        /// <summary>
+        /// BuildSkillList：执行当前模块的BuildSkillList逻辑。
+        /// </summary>
 
         private static Component BuildSkillList(
             string name,
@@ -1918,6 +1957,9 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.SetObject(view, "entryTemplate", template);
             return view;
         }
+        /// <summary>
+        /// BuildSkillListEntry：执行当前模块的BuildSkillListEntry逻辑。
+        /// </summary>
 
         private static Component BuildSkillListEntry(
             string name,
@@ -1991,6 +2033,9 @@ namespace Game.EditorTools
                 description);
             return view;
         }
+        /// <summary>
+        /// BuildEquipmentEffectList：执行当前模块的BuildEquipmentEffectList逻辑。
+        /// </summary>
 
         private static Component BuildEquipmentEffectList(
             string name,
@@ -2053,6 +2098,9 @@ namespace Game.EditorTools
                 sectionLayout);
             return view;
         }
+        /// <summary>
+        /// BuildMajorAffixView：执行当前模块的BuildMajorAffixView逻辑。
+        /// </summary>
 
         private static Component BuildMajorAffixView(
             string name,
@@ -2183,6 +2231,9 @@ namespace Game.EditorTools
                 sectionLayout);
             return view;
         }
+        /// <summary>
+        /// BuildComparisonSide：执行当前模块的BuildComparisonSide逻辑。
+        /// </summary>
 
         private static Component BuildComparisonSide(
             string name,
@@ -2439,6 +2490,9 @@ namespace Game.EditorTools
                 majorAffix);
             return view;
         }
+        /// <summary>
+        /// BuildSkillDetailView：执行当前模块的BuildSkillDetailView逻辑。
+        /// </summary>
 
         private static Component BuildSkillDetailView(Transform parent)
         {
@@ -2553,6 +2607,9 @@ namespace Game.EditorTools
             root.SetActive(false);
             return view;
         }
+        /// <summary>
+        /// BuildContainerGrid：执行当前模块的BuildContainerGrid逻辑。
+        /// </summary>
 
         private static Component BuildContainerGrid(
             string name,
@@ -2627,6 +2684,9 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.SetObject(view, "emptyText", empty);
             return view;
         }
+        /// <summary>
+        /// BuildItemCell：执行当前模块的BuildItemCell逻辑。
+        /// </summary>
 
         private static Component BuildItemCell(
             string name,
@@ -2755,6 +2815,9 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.SetObject(view, "slotLabelText", label);
             return view;
         }
+        /// <summary>
+        /// BuildItemDetailPrefab：执行当前模块的BuildItemDetailPrefab逻辑。
+        /// </summary>
 
         private static void BuildItemDetailPrefab()
         {
@@ -2940,6 +3003,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildItemDetailPrefabV5：执行当前模块的BuildItemDetailPrefabV5逻辑。
+        /// </summary>
 
         private static void BuildItemDetailPrefabV5()
         {
@@ -3103,6 +3169,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// BuildWorkbenchPrefab：执行当前模块的BuildWorkbenchPrefab逻辑。
+        /// </summary>
 
         private static void BuildWorkbenchPrefab()
         {
@@ -3482,6 +3551,9 @@ namespace Game.EditorTools
                 }
             }
         }
+        /// <summary>
+        /// CreateWindowRoot：执行当前模块的CreateWindowRoot逻辑。
+        /// </summary>
 
         private static GameObject CreateWindowRoot(
             string name,
@@ -3501,6 +3573,9 @@ namespace Game.EditorTools
                 string.IsNullOrEmpty(builderMarker) ? BuilderMarker : builderMarker);
             return root;
         }
+        /// <summary>
+        /// CreatePanel：执行当前模块的CreatePanel逻辑。
+        /// </summary>
 
         private static GameObject CreatePanel(
             string name,
@@ -3524,6 +3599,9 @@ namespace Game.EditorTools
                 offsetMax);
             return panel;
         }
+        /// <summary>
+        /// CreateStateRoot：执行当前模块的CreateStateRoot逻辑。
+        /// </summary>
 
         private static GameObject CreateStateRoot(string name, Transform parent)
         {
@@ -3531,6 +3609,9 @@ namespace Game.EditorTools
             BattlePreparationEditorUiFactory.Stretch(root.GetComponent<RectTransform>());
             return root;
         }
+        /// <summary>
+        /// CreateTransparentHotspot：执行当前模块的CreateTransparentHotspot逻辑。
+        /// </summary>
 
         private static BattlePreparationEditorUiFactory.ButtonParts CreateTransparentHotspot(
             string name,
@@ -3555,6 +3636,9 @@ namespace Game.EditorTools
                 image,
                 null);
         }
+        /// <summary>
+        /// SetNormalizedRect：执行当前模块的SetNormalizedRect逻辑。
+        /// </summary>
 
         private static void SetNormalizedRect(RectTransform rect, Rect normalizedRect)
         {
@@ -3565,6 +3649,9 @@ namespace Game.EditorTools
                 Vector2.zero,
                 Vector2.zero);
         }
+        /// <summary>
+        /// CreateLayoutText：执行当前模块的CreateLayoutText逻辑。
+        /// </summary>
 
         private static Text CreateLayoutText(
             string name,
@@ -3588,6 +3675,9 @@ namespace Game.EditorTools
             layout.preferredHeight = preferredHeight;
             return text;
         }
+        /// <summary>
+        /// CreateText：执行当前模块的CreateText逻辑。
+        /// </summary>
 
         private static Text CreateText(
             string name,
@@ -3615,6 +3705,9 @@ namespace Game.EditorTools
                 alignment,
                 color);
         }
+        /// <summary>
+        /// CreateImage：执行当前模块的CreateImage逻辑。
+        /// </summary>
 
         private static Image CreateImage(
             string name,
@@ -3641,11 +3734,17 @@ namespace Game.EditorTools
                 false,
                 preserveAspect);
         }
+        /// <summary>
+        /// Runtime：执行当前模块的Runtime逻辑。
+        /// </summary>
 
         private static Component Runtime(GameObject target, string typeName)
         {
             return BattlePreparationEditorUiFactory.AddRuntimeComponent(target, typeName);
         }
+        /// <summary>
+        /// SpriteAt：执行当前模块的SpriteAt逻辑。
+        /// </summary>
 
         private static Sprite SpriteAt(
             IReadOnlyDictionary<int, Sprite> sprites,
@@ -3661,6 +3760,9 @@ namespace Game.EditorTools
             throw new InvalidOperationException(
                 $"Battle preparation sprite is unavailable: resourceId={resourceId}");
         }
+        /// <summary>
+        /// SaveAndDestroy：执行当前模块的SaveAndDestroy逻辑。
+        /// </summary>
 
         private static void SaveAndDestroy(GameObject root, string path)
         {
