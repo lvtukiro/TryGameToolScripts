@@ -20,6 +20,12 @@ internal static class Program
         }
         Test("默认帧图目录与固定 Clip 目录分开", SeparateExportFolders);
         Test("旧默认目录只升级内存参数，自定义目录不变", LegacyOutputFolderUpgrade);
+        Test("新框模板默认512方框、中线256底线512，每个模板独立", GenerationDefaults);
+        Test("任意行列生成统一尺寸与锚点，保留网格位置和原有帧", GeneratedFrameSettings);
+        Test("生成模板只裁剪不缩放，RGBA逐字节保持", GeneratedFramePixels);
+        Test("按单格尺寸使用本次模板，不修改保存方案的参数", GeneratedCellSize);
+        Test("透明区域生成也应用统一模板，不猜测或移动内容", GeneratedTransparentFrames);
+        Test("生成模板非法或任一框越界时拒绝，输入帧不变", InvalidGenerationSettings);
         Test("动作取号检查未导出源表、角色引用和技能动作，不混用状态/技能 ID", NextActionIdSourceTables);
         Test("动作取号包含未登记 Clip、动画清单和自定义输出目录，只读且不占号", NextActionIdAssets);
         Test("动作取号包含尚未刷新的旧导出配置", NextActionIdExportedTables);
@@ -235,6 +241,102 @@ internal static class Program
             var document = new SpriteSheetAnimationDocument { outputFolder = path };
             Check(!document.UpgradeLegacyOutputFolder() && document.outputFolder == path);
         }
+    }
+
+    private static void GenerationDefaults()
+    {
+        var first = new SpriteSheetFrameGenerationSettings();
+        Check(first.width == 512 && first.height == 512 && first.anchorX == 256 && first.anchorY == 512);
+        first.width = 200; first.height = 300; first.anchorX = 10; first.anchorY = 20;
+        var reopened = new SpriteSheetFrameGenerationSettings();
+        Check(reopened.width == 512 && reopened.height == 512 && reopened.anchorX == 256 && reopened.anchorY == 512);
+    }
+
+    private static void GeneratedFrameSettings()
+    {
+        foreach (var dimensions in new[] { (3, 2), (3, 3), (4, 1), (1, 4) })
+        {
+            int width = dimensions.Item1 * 512, height = dimensions.Item2 * 512;
+            var document = new SpriteSheetAnimationDocument { columns = dimensions.Item1, rows = dimensions.Item2 };
+            var originals = SpriteSheetSlicing.GridByCount(width, height, document);
+            originals[0].included = false;
+            var template = new SpriteSheetFrameGenerationSettings { width = 256, height = 384, anchorX = 80, anchorY = 360 };
+            var generated = SpriteSheetSlicing.ApplyGenerationSettings(originals, template, width, height);
+            Check(generated.Count == dimensions.Item1 * dimensions.Item2);
+            for (int i = 0; i < generated.Count; i++)
+            {
+                var frame = generated[i];
+                Check(!ReferenceEquals(frame, originals[i]));
+                Check(frame.rect.x == originals[i].rect.x && frame.rect.y == originals[i].rect.y);
+                Check(frame.rect.width == 256 && frame.rect.height == 384 && frame.anchorX == 80 && frame.anchorY == 360);
+                Check(frame.name == originals[i].name && frame.included == originals[i].included);
+                Check(originals[i].rect.width == 512 && originals[i].rect.height == 512
+                    && originals[i].anchorX == 256 && originals[i].anchorY == 512);
+            }
+            template.width = 1;
+            generated[0].anchorX = 2;
+            Check(generated[1].rect.width == 256 && generated[1].anchorX == 80);
+        }
+    }
+
+    private static void GeneratedFramePixels()
+    {
+        var image = Image(18, 12);
+        var before = (byte[])image.rgba.Clone();
+        var document = new SpriteSheetAnimationDocument { columns = 3, rows = 2 };
+        var template = new SpriteSheetFrameGenerationSettings { width = 4, height = 5, anchorX = 1, anchorY = 4 };
+        var frames = SpriteSheetSlicing.ApplyGenerationSettings(
+            SpriteSheetSlicing.GridByCount(18, 12, document), template, 18, 12);
+        foreach (var frame in frames) AssertCrop(image, frame, SpriteSheetSlicing.Render(image, frame, document));
+        Check(before.SequenceEqual(image.rgba));
+    }
+
+    private static void GeneratedCellSize()
+    {
+        var document = new SpriteSheetAnimationDocument { cellWidth = 999, cellHeight = 777,
+            marginLeft = 1, marginTop = 2, marginRight = 1, marginBottom = 3, gapX = 2, gapY = 1 };
+        var template = new SpriteSheetFrameGenerationSettings { width = 4, height = 5, anchorX = 2, anchorY = 5 };
+        var frames = SpriteSheetSlicing.ApplyGenerationSettings(
+            SpriteSheetSlicing.GridBySize(20, 20, document, template.width, template.height), template, 20, 20);
+        Check(frames.Count == 6);
+        Check(frames[0].rect.x == 1 && frames[0].rect.y == 2);
+        Check(frames[5].rect.x == 13 && frames[5].rect.y == 8);
+        Check(frames.All(frame => frame.rect.width == 4 && frame.rect.height == 5));
+        Check(document.cellWidth == 999 && document.cellHeight == 777);
+    }
+
+    private static void GeneratedTransparentFrames()
+    {
+        var image = Transparent(32, 16);
+        Set(image, 2, 3); Set(image, 20, 3);
+        var before = (byte[])image.rgba.Clone();
+        var originals = SpriteSheetSlicing.DetectTransparentRegions(image, 8, 1, 0);
+        var template = new SpriteSheetFrameGenerationSettings { width = 6, height = 8, anchorX = 3, anchorY = 8 };
+        var frames = SpriteSheetSlicing.ApplyGenerationSettings(originals, template, 32, 16);
+        Check(frames.Count == 2 && frames[0].rect.x == 2 && frames[1].rect.x == 20);
+        Check(frames.All(frame => frame.rect.y == 3 && frame.rect.width == 6 && frame.rect.height == 8
+            && frame.anchorX == 3 && frame.anchorY == 8));
+        Check(originals.All(frame => frame.rect.width == 1 && frame.rect.height == 1));
+        foreach (var frame in frames) AssertCrop(image, frame, SpriteSheetSlicing.Crop(image, frame));
+        Check(before.SequenceEqual(image.rgba));
+    }
+
+    private static void InvalidGenerationSettings()
+    {
+        var frames = new List<SpriteSheetFrameData>
+        {
+            new SpriteSheetFrameData(new SpriteSheetSliceRect(0, 0, 2, 2), "first"),
+            new SpriteSheetFrameData(new SpriteSheetSliceRect(8, 0, 2, 2), "last"),
+        };
+        foreach (var template in new[]
+        {
+            new SpriteSheetFrameGenerationSettings { width = 0 },
+            new SpriteSheetFrameGenerationSettings { width = 2, height = 2, anchorX = -1, anchorY = 2 },
+            new SpriteSheetFrameGenerationSettings { width = 2, height = 2, anchorX = 1, anchorY = 3 },
+            new SpriteSheetFrameGenerationSettings { width = 3, height = 3, anchorX = 1, anchorY = 3 },
+        }) Throws(() => SpriteSheetSlicing.ApplyGenerationSettings(frames, template, 10, 10));
+        Check(frames.Count == 2 && frames[0].rect.width == 2 && frames[1].rect.x == 8
+            && frames[1].rect.width == 2 && frames.All(frame => frame.anchorX == 1 && frame.anchorY == 2));
     }
 
     private static void ArbitraryGrids()

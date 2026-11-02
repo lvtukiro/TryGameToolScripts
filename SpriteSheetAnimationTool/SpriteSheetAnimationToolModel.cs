@@ -44,6 +44,16 @@ namespace Game.EditorTools.SpriteSheetAnimation
     }
 
     /// <summary>
+    /// 本次生成裁框的统一模板，不属于已保存的逐帧数据。
+    /// 新开窗口恢复固定默认值；手工修改现有帧不反向改变该模板。
+    /// </summary>
+    public sealed class SpriteSheetFrameGenerationSettings
+    {
+        public int width = 512, height = 512;
+        public int anchorX = 256, anchorY = 512;
+    }
+
+    /// <summary>
     /// 新版非破坏性切割方案。只存原图、裁框、逐帧锚点和显式输出配置，
     /// 不再记录旧工具的自动抠图、内容高度归一化或临时标准化图片。
     /// </summary>
@@ -297,16 +307,60 @@ namespace Game.EditorTools.SpriteSheetAnimation
         public static List<SpriteSheetFrameData> GridBySize(int width, int height,
             SpriteSheetAnimationDocument settings)
         {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            return GridBySize(width, height, settings, settings.cellWidth, settings.cellHeight);
+        }
+
+        /// <summary>使用窗口当前裁框宽高计算格数，不覆盖已保存方案或旧裁框。</summary>
+        public static List<SpriteSheetFrameData> GridBySize(int width, int height,
+            SpriteSheetAnimationDocument settings, int cellWidth, int cellHeight)
+        {
             ValidateGrid(width, height, settings);
-            if (settings.cellWidth <= 0 || settings.cellHeight <= 0)
+            if (cellWidth <= 0 || cellHeight <= 0)
                 throw new ArgumentException("单格宽高必须大于 0。");
             int columns = (int)((width - settings.marginLeft - settings.marginRight
-                + (long)settings.gapX) / (settings.cellWidth + (long)settings.gapX));
+                + (long)settings.gapX) / (cellWidth + (long)settings.gapX));
             int rows = (int)((height - settings.marginTop - settings.marginBottom
-                + (long)settings.gapY) / (settings.cellHeight + (long)settings.gapY));
+                + (long)settings.gapY) / (cellHeight + (long)settings.gapY));
             if (columns <= 0 || rows <= 0 || (long)columns * rows > MaximumFrames)
                 throw new ArgumentException("没有可容纳的完整格子，或总帧数超过 4096。");
-            return CreateGrid(columns, rows, settings.cellWidth, settings.cellHeight, settings);
+            return CreateGrid(columns, rows, cellWidth, cellHeight, settings);
+        }
+
+        /// <summary>
+        /// 保留生成位置和顺序，统一新框的大小与框内锚点。先校验全部新框再返回，
+        /// 不修改输入列表，不静默夹紧越界裁框，也不处理或缩放图片像素。
+        /// </summary>
+        public static List<SpriteSheetFrameData> ApplyGenerationSettings(
+            IList<SpriteSheetFrameData> frames, SpriteSheetFrameGenerationSettings settings,
+            int imageWidth, int imageHeight)
+        {
+            if (frames == null) throw new ArgumentNullException(nameof(frames));
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            ValidatePixels(imageWidth, imageHeight);
+            ValidatePixels(settings.width, settings.height);
+            if (settings.anchorX < 0 || settings.anchorX > settings.width ||
+                settings.anchorY < 0 || settings.anchorY > settings.height)
+                throw new ArgumentException("生成裁框的中线/底线必须在框内，允许位于边界。");
+            if (frames.Count > MaximumFrames) throw new ArgumentException("裁框总数不能超过4096。");
+            var result = new List<SpriteSheetFrameData>(frames.Count);
+            for (int index = 0; index < frames.Count; index++)
+            {
+                var frame = frames[index];
+                if (frame == null) throw new ArgumentException("待生成裁框不能为空。");
+                var rect = new SpriteSheetSliceRect(frame.rect.x, frame.rect.y, settings.width, settings.height);
+                if (!rect.IsInside(imageWidth, imageHeight))
+                    throw new ArgumentException("第 " + (index + 1) + " 个裁框（X=" + rect.x +
+                        "，Y=" + rect.y + "，" + rect.width + "×" + rect.height +
+                        "）超出原图。请调整生成宽高、行列或边距；原有裁框未替换。");
+                result.Add(new SpriteSheetFrameData(rect, frame.name)
+                {
+                    included = frame.included,
+                    anchorX = settings.anchorX,
+                    anchorY = settings.anchorY,
+                });
+            }
+            return result;
         }
 
         private static List<SpriteSheetFrameData> CreateGrid(int columns, int rows,

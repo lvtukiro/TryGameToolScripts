@@ -21,6 +21,7 @@ namespace Game.EditorTools.SpriteSheetAnimation
         private static readonly string[] EditTools = { "选择 / 移动", "新建裁框", "逐帧锚点" };
         [SerializeField] private SpriteSheetAnimationDocument document = new SpriteSheetAnimationDocument();
         [SerializeField] private int selectedIndex = -1;
+        private SpriteSheetFrameGenerationSettings generationSettings = new SpriteSheetFrameGenerationSettings();
         private SpriteSheetPixels sourcePixels;
         private Texture2D sourceTexture, frameTexture, previousTexture, nextTexture, checker;
         private Vector2 leftScroll, rightScroll, pan;
@@ -49,6 +50,8 @@ namespace Game.EditorTools.SpriteSheetAnimation
 
         private void OnEnable()
         {
+            // 只重置左侧新框模板，不改动窗口恢复或方案加载的逐帧裁框。
+            generationSettings = new SpriteSheetFrameGenerationSettings();
             if (document == null || document.formatVersion != 2) document = new SpriteSheetAnimationDocument();
             bool upgradedOutputFolder = document.UpgradeLegacyOutputFolder();
             if (upgradedOutputFolder) dirty = true;
@@ -117,9 +120,7 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 }
                 else
                 {
-                    document.cellWidth = PositiveInt("单格宽度", document.cellWidth);
-                    document.cellHeight = PositiveInt("单格高度", document.cellHeight);
-                    EditorGUILayout.LabelField("末尾不足一整格的区域不生成裁框。", EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField("使用下方裁框宽高作为单格尺寸；末尾不足一整格的区域不生成裁框。", EditorStyles.wordWrappedMiniLabel);
                 }
                 document.marginLeft = NonnegativeInt("左边距", document.marginLeft);
                 document.marginTop = NonnegativeInt("上边距", document.marginTop);
@@ -137,6 +138,19 @@ namespace Game.EditorTools.SpriteSheetAnimation
             }
             else
                 EditorGUILayout.HelpBox("点击中间工具栏“新建裁框”，在原图上拖出矩形。没有固定行列要求。", MessageType.Info);
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("新生成裁框（统一参数）", EditorStyles.miniBoldLabel);
+            using (new EditorGUI.DisabledScope(document.sliceMode == SpriteSheetSliceMode.Manual))
+            {
+                generationSettings.width = PositiveInt("裁框宽度", generationSettings.width);
+                generationSettings.height = PositiveInt("裁框高度", generationSettings.height);
+                generationSettings.anchorX = EditorGUILayout.IntSlider("中线 X（框内）",
+                    generationSettings.anchorX, 0, generationSettings.width);
+                generationSettings.anchorY = EditorGUILayout.IntSlider("底线 Y（框内）",
+                    generationSettings.anchorY, 0, generationSettings.height);
+            }
+            EditorGUILayout.LabelField("仅用于新生成的框；位置按切割方式计算。重开工具默认512×512，中线256、底线512，已有帧不变。",
+                EditorStyles.wordWrappedMiniLabel);
             if (EditorGUI.EndChangeCheck())
             { Changed(); showDraft = true; UpdateDraft(); }
             if (!string.IsNullOrEmpty(draftError) && sourcePixels != null)
@@ -675,17 +689,24 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 if (document.sliceMode == SpriteSheetSliceMode.CellCount)
                     draftFrames = SpriteSheetSlicing.GridByCount(sourcePixels.width, sourcePixels.height, document);
                 else if (document.sliceMode == SpriteSheetSliceMode.CellSize)
-                    draftFrames = SpriteSheetSlicing.GridBySize(sourcePixels.width, sourcePixels.height, document);
+                    draftFrames = SpriteSheetSlicing.GridBySize(sourcePixels.width, sourcePixels.height, document,
+                        generationSettings.width, generationSettings.height);
+                draftFrames = SpriteSheetSlicing.ApplyGenerationSettings(draftFrames, generationSettings,
+                    sourcePixels.width, sourcePixels.height);
             }
-            catch (ArgumentException exception) { draftError = exception.Message; }
+            catch (ArgumentException exception) { draftFrames.Clear(); draftError = exception.Message; }
         }
 
         private void GenerateFrames()
         {
             List<SpriteSheetFrameData> frames;
             if (document.sliceMode == SpriteSheetSliceMode.TransparentRegions)
+            {
                 frames = SpriteSheetSlicing.DetectTransparentRegions(sourcePixels, document.alphaThreshold,
                     document.minimumRegionPixels, document.mergeDistance);
+                frames = SpriteSheetSlicing.ApplyGenerationSettings(frames, generationSettings,
+                    sourcePixels.width, sourcePixels.height);
+            }
             else
             {
                 UpdateDraft();
@@ -695,6 +716,11 @@ namespace Game.EditorTools.SpriteSheetAnimation
             if (frames.Count == 0) throw new ArgumentException("没有检测到可用裁框。可调整参数，或改用手动裁框。");
             if (document.frames.Count > 0 && !EditorUtility.DisplayDialog("替换裁框",
                 "将重新生成 " + frames.Count + " 个裁框，覆盖当前裁框和逐帧锚点。是否继续？", "替换", "取消")) return;
+            if (document.sliceMode == SpriteSheetSliceMode.CellSize)
+            {
+                document.cellWidth = generationSettings.width;
+                document.cellHeight = generationSettings.height;
+            }
             document.frames = frames; selectedIndex = 0; playing = false; showDraft = false; Changed();
             SetStatus("已生成 " + frames.Count + " 个可编辑裁框，顺序从左到右、从上到下。尚未导出或改变源图。");
         }
