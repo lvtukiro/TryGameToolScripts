@@ -1225,7 +1225,9 @@ namespace Game.EditorTools
 
             foreach (XElement sheet in workbook.Descendants(SpreadsheetNs + "sheet"))
             {
-                string name = (string)sheet.Attribute("name");
+                // 内部统一使用逻辑表名；写回仍按原 XML 路径定位，保留源表的合法短标签。
+                string name = TryGameCLTabtoyExcelCompatibility.ResolveLogicalSheetName(
+                    (string)sheet.Attribute("name"));
                 string relationshipId = (string)sheet.Attribute(OfficeRelNs + "id");
                 if (string.IsNullOrWhiteSpace(name)
                     || !relationshipTargets.TryGetValue(

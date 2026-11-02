@@ -1038,6 +1038,7 @@ namespace Game.EditorTools
                 BattlePreparationEditorUiFactory.SetObject(mono, "extractionCountdownText", extractionCountdown);
                 combatStatusPanel.SetActive(false);
                 BattlePreparationEditorUiFactory.AddBuilderMarker(root, UiMarker);
+                BattleSandboxUiInstaller.InstallHud(root);
                 BattlePreparationEditorUiFactory.SavePrefab(root, UiPrefabPath);
             }
             finally

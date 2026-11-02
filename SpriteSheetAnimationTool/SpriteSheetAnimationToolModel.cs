@@ -44,6 +44,9 @@ namespace Game.EditorTools.SpriteSheetAnimation
     [Serializable]
     public sealed class SpriteSheetAnimationDocument
     {
+        public const string DefaultFrameOutputFolder = "Assets/Resources/TryGameBuildRes/clip_sprite";
+        public const string ClipOutputFolder = DefaultFrameOutputFolder + "/sequence_animation";
+
         public int formatVersion = 2;
         public string sourceImagePath = "", sourceSha256 = "";
         public int sourceWidth, sourceHeight;
@@ -60,7 +63,16 @@ namespace Game.EditorTools.SpriteSheetAnimation
         public int actionId;
         public float frameRate = 12f;
         public bool loop = true, defaultFacingLeft = true;
-        public string outputFolder = "Assets/Resources/TryGameBuildRes/clip_sprite/sequence_animation";
+        public string outputFolder = DefaultFrameOutputFolder;
+
+        /// <summary>只纠正旧窗口/方案中的错误默认路径，不移动资源，也不改动其它自定义目录。</summary>
+        public bool UpgradeLegacyOutputFolder()
+        {
+            if (!string.Equals(outputFolder?.Replace('\\', '/').TrimEnd('/'),
+                ClipOutputFolder, StringComparison.OrdinalIgnoreCase)) return false;
+            outputFolder = DefaultFrameOutputFolder;
+            return true;
+        }
     }
 
     public sealed class SpriteSheetPixels

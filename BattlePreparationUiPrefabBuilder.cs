@@ -234,7 +234,7 @@ namespace Game.EditorTools
                     BattlePreparationEditorUiFactory.AddButton(
                         "BattleDevelopmentButton",
                         topBar.transform,
-                        "进入战斗区域",
+                        "临时战斗",
                         new Color(0.16f, 0.36f, 0.58f, 0.96f),
                         21);
                 BattlePreparationEditorUiFactory.Place(
@@ -243,7 +243,7 @@ namespace Game.EditorTools
                     new Vector2(0.5f, 0.5f),
                     new Vector2(0f, -34f),
                     new Vector2(190f, 48f));
-                battleDevelopment.Button.gameObject.SetActive(false);
+                battleDevelopment.Button.gameObject.SetActive(true);
 
                 BattlePreparationEditorUiFactory.ButtonParts battle =
                     BattlePreparationEditorUiFactory.AddButton(

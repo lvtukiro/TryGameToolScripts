@@ -212,6 +212,17 @@ namespace TryGame.RefDataTools.Editor
                 { "BattleProjectileBallisticMoveme", "BattleProjectileBallisticMovement" },
                 { "RobotLowHealthDamageReductionEf", "RobotLowHealthDamageReductionEffect" }
             };
+
+        /// <summary>
+        /// 将 Excel 短标签解析为逻辑表名，供导表和直接读取源工作簿的工具共用。
+        /// </summary>
+        internal static string ResolveLogicalSheetName(string sheetName)
+        {
+            return !string.IsNullOrEmpty(sheetName)
+                && LogicalSheetNames.TryGetValue(sheetName, out string logicalName)
+                    ? logicalName
+                    : sheetName;
+        }
         /// <summary>
         /// 创建导出复制。
         /// </summary>
@@ -349,10 +360,13 @@ namespace TryGame.RefDataTools.Editor
                              spreadsheetNamespace + "sheet"))
                 {
                     XAttribute nameAttribute = sheet.Attribute("name");
-                    if (nameAttribute == null ||
-                        !LogicalSheetNames.TryGetValue(
-                            nameAttribute.Value,
-                            out string logicalName))
+                    if (nameAttribute == null)
+                    {
+                        continue;
+                    }
+
+                    string logicalName = ResolveLogicalSheetName(nameAttribute.Value);
+                    if (string.Equals(nameAttribute.Value, logicalName, StringComparison.Ordinal))
                     {
                         continue;
                     }

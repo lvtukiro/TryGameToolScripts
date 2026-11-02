@@ -50,10 +50,14 @@ namespace Game.EditorTools.SpriteSheetAnimation
         private void OnEnable()
         {
             if (document == null || document.formatVersion != 2) document = new SpriteSheetAnimationDocument();
+            bool upgradedOutputFolder = document.UpgradeLegacyOutputFolder();
+            if (upgradedOutputFolder) dirty = true;
             minSize = new Vector2(1050, 720);
             EditorApplication.update += UpdatePlayback;
             if (!string.IsNullOrWhiteSpace(document.sourceImagePath))
                 Run(() => LoadSource(document.sourceImagePath, true));
+            if (upgradedOutputFolder && statusType != MessageType.Error)
+                SetStatus("已纠正旧版默认序列帧目录：PNG 和清单输出到 clip_sprite/导出名称；动画 Clip 仍输出到 sequence_animation。已有资源未移动，请保存切割方案。");
         }
 
         private void OnDisable()
@@ -176,9 +180,15 @@ namespace Game.EditorTools.SpriteSheetAnimation
             document.frameRate = Mathf.Clamp(EditorGUILayout.FloatField("播放 FPS", document.frameRate), 1, 120);
             document.loop = EditorGUILayout.Toggle("循环", document.loop);
             document.defaultFacingLeft = EditorGUILayout.Toggle("素材默认朝向左", document.defaultFacingLeft);
-            document.outputFolder = EditorGUILayout.TextField("Assets 输出目录", document.outputFolder);
+            document.outputFolder = EditorGUILayout.TextField(new GUIContent("序列帧输出目录",
+                "PNG、动作清单和切割方案会输出到此目录下的“导出名称”子文件夹。"), document.outputFolder);
             if (EditorGUI.EndChangeCheck()) Changed();
-            if (GUILayout.Button("选择输出目录")) ChooseOutputFolder();
+            if (GUILayout.Button("选择序列帧输出目录")) ChooseOutputFolder();
+            EditorGUILayout.LabelField("动画 Clip 目录（固定，只读）", EditorStyles.miniBoldLabel);
+            EditorGUILayout.SelectableLabel(SpriteSheetAnimationDocument.ClipOutputFolder,
+                EditorStyles.wordWrappedMiniLabel, GUILayout.Height(42));
+            EditorGUILayout.LabelField("PNG / 清单按导出名称分文件夹；Clip 按动作 ID 命名，目录与资源规则保持一致。",
+                EditorStyles.wordWrappedMiniLabel);
             using (new EditorGUI.DisabledScope(sourcePixels == null || IncludedCount() == 0))
             {
                 if (GUILayout.Button("导出 PNG 和动作清单")) Run(() => Export(false));
@@ -856,14 +866,16 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 try { LoadSource(source, true); }
                 catch { document = before; throw; }
                 selectedIndex = loaded.frames.Count > 0 ? 0 : -1;
-                dirty = false; showDraft = loaded.frames.Count == 0; playing = false; previewDirty = true;
-                SetStatus("已恢复裁框和逐帧锚点，原图尺寸与 SHA-256 校验一致。");
+                dirty = loaded.UpgradeLegacyOutputFolder();
+                showDraft = loaded.frames.Count == 0; playing = false; previewDirty = true;
+                SetStatus("已恢复裁框和逐帧锚点，原图尺寸与 SHA-256 校验一致。"
+                    + (dirty ? "已纠正旧版默认序列帧目录，已有资源未移动，请重新保存方案。" : ""));
             });
         }
 
         private void ChooseOutputFolder()
         {
-            string path = EditorUtility.OpenFolderPanel("选择 Assets 内输出目录", Application.dataPath, "");
+            string path = EditorUtility.OpenFolderPanel("选择 Assets 内序列帧输出目录", Application.dataPath, "");
             if (string.IsNullOrWhiteSpace(path)) return;
             if (!TryAssetPath(path, out string assetPath))
             { SetStatus("请选择当前项目 Assets 目录内部。", MessageType.Warning); return; }
@@ -941,7 +953,7 @@ namespace Game.EditorTools.SpriteSheetAnimation
 
             string folder = document.outputFolder.Replace('\\', '/').TrimEnd('/') + "/" + SafeName(document.animationId);
             string absoluteFolder = AbsoluteAssetPath(folder);
-            string clipPath = "Assets/Resources/TryGameBuildRes/clip_sprite/sequence_animation/clip_" + document.actionId + "_1.asset";
+            string clipPath = SpriteSheetAnimationDocument.ClipOutputFolder + "/clip_" + document.actionId + "_1.asset";
             var existingClip = generateClip ? AssetDatabase.LoadAssetAtPath<SequenceFrameClip>(clipPath) : null;
             if (generateClip && File.Exists(AbsoluteAssetPath(clipPath)) && existingClip == null)
                 throw new ArgumentException("Clip 目标路径已经被其它资源占用，无法覆盖。");
