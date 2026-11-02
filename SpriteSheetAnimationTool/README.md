@@ -1,0 +1,60 @@
+# 帧图切割工具（重建版）
+
+入口：`TryGame → 工具 → 帧图角色动画工具`。工具不要求固定行列，独立于视频拆帧工具。
+
+## 原则
+
+- 原图只读；切割、锚点编辑、输出预览不产生临时标准化 PNG。
+- 默认只复制裁框内的 RGBA 像素，不抠背景、不删除碎片、不根据透明边界调整大小。
+- 裁框决定取哪些像素，逐帧锚点决定角色基准，输出画布决定导出尺寸，三者分开。
+- 对齐/缩放只有显式开启后才生效。100% 使用整数平移；其它比例全帧统一最近邻采样。
+- 原图没有透明背景时不会猜测人物轮廓；图片本身的人物缺失、跨帧重叠不能通过切割恢复。
+
+## 操作
+
+1. 选择 PNG / JPEG。可以是横条、竖条、任意行列、非正方形格子或不规则排布。
+2. 选择初始裁框方式：按行列、按单格尺寸（支持四边边距及水平/垂直间距）、透明区域识别、手动裁框。
+3. 网格参数会在完整原图上显示蓝色预览框；点击生成后替换为可编辑的正式裁框。
+4. 选择/移动模式：拖动框内部移动，拖动八个边角手柄调整范围；空白区域左键或中键平移，滚轮缩放；Delete 删除。
+5. 新建裁框模式：在任意区域拖出矩形。右侧可以精确填写 X/Y/宽/高，坐标从原图左上角计算。
+6. 逐帧锚点模式：每帧分别拖动红色中线、蓝色底线，或点击设置交点。右侧数值是当前裁框内的像素坐标，底边为高度值。
+7. 如需稳定角色位置，开启逐帧锚点对齐。点击自动适配画布可容纳所有启用帧；不会改变每帧的裁框/锚点。尺寸不足会明确报错，不自动剪掉图像。
+8. 右侧输出预览与导出共用相同算法；可播放、逐帧切换、独立叠加上一帧（青色）和下一帧（橙色）、调整帧顺序和排除帧。叠加只影响预览，自动跳过排除帧，仅循环动画跨越首尾；预览不会按当前帧内容重新适配缩放。
+9. 导出 PNG 和动作清单，或填写动作 ID 后导出并生成正式 `SequenceFrameClip`。尺寸不一致的原样裁框可以导出 PNG，但生成角色 Clip 前需要统一画布。
+
+### 两类输出目录
+
+- “序列帧输出目录”可修改，默认是 `Assets/Resources/TryGameBuildRes/clip_sprite`。PNG、`.sequence.json` 和 `.slices.json` 存放在该目录下的“导出名称”子文件夹，例如 `clip_sprite/Warrior_Unarmed_Walk/`。
+- “动画 Clip 目录”在面板只读显示，固定为 `Assets/Resources/TryGameBuildRes/clip_sprite/sequence_animation`，与正式资源规则一致；例如动作 10 输出为 `sequence_animation/clip_10_1.asset`。
+- 重新加载窗口或读取旧方案时，若序列帧目录仍是旧版错误默认值（恰好等于上述 Clip 目录），只纠正当前内存参数并提示保存；其它自定义目录保持不变。已有图片、Clip 和方案文件不自动移动、删除或重写。
+
+透明检测会识别八连通 Alpha 图块。最小图块像素数只决定是否独立生成框，不会删除像素。断开的披风/特效可用合并距离或手动调整处理；合并距离太大也会合并相邻帧，应预览后确认。
+
+## 保存与兼容
+
+- `.slices.json`：新版切割方案，保留全部裁框、顺序、逐帧锚点、原图尺寸及 SHA-256。重新打开必须匹配同一原图，原图移动后可以重新定位。
+- `.sequence.json`：继续兼容现有序列帧角色预制体生成器。
+- 旧工具生成的 PNG / JSON / Clip 不删除、不批量重写。旧标准化参数不能可靠反推出原图裁框，因此不当作新版方案加载。
+- 重导出同名 PNG 保留 `.meta`；同名 Clip 原地更新，保留 GUID。不清空文件夹，不删除不属于本次导出的其它资源。
+- 正式导出前先校验全部帧，再在 Library 内生成暂存文件，最后复制到 Assets。原图永远不作为写入目标。
+
+## 回归
+
+在项目根目录执行：
+
+```powershell
+dotnet run --project Assets/TryGameToolScripts/SpriteSheetAnimationTool/Tests/SpriteSheetSlicing.Tests.csproj
+dotnet build TryAiGame.sln --no-restore
+```
+
+独立测试不启动或关闭现有 Unity，不依赖 NuGet 测试框架；构建产物写到项目 `Temp/SpriteSheetSlicingTests`，不写入 Assets。
+
+## 设计参考
+
+参考交互和职责划分，自行实现切割内核；未复制第三方实现或引入插件。
+
+- [Unity Sprite Editor：Automatic slicing](https://docs.unity3d.com/2022.3/Documentation/Manual/sprite-automatic-slicing.html)：透明/网格生成裁框、边距间隔、手动修正。
+- [Aseprite：Sprite sheets](https://www.aseprite.org/docs/sprite-sheet/)：偏移/间隔、导入与播放分离。
+- [Aseprite：Slices](https://www.aseprite.org/docs/slices/)：可编辑裁框、独立 Pivot、切片元数据。
+- [Aseprite：Animation](https://www.aseprite.org/docs/animation/)：时间轴、预览和上一帧叠加。
+- [Shoebox：Extract Sprites](https://renderhjs.net/shoebox/extractSprites.htm)：透明图块检测、合并、保留画布的思路。
