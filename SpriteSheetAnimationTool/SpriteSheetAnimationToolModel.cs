@@ -1,6 +1,12 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Game.EditorTools.SpriteSheetAnimation
 {
@@ -72,6 +78,157 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 ClipOutputFolder, StringComparison.OrdinalIgnoreCase)) return false;
             outputFolder = DefaultFrameOutputFolder;
             return true;
+        }
+    }
+
+    /// <summary>只读取号：合并已保存源表、现有 Clip 与清单，避免尚未导表的动作被重复分配。</summary>
+    public static class SpriteSheetActionIdFinder
+    {
+        private static readonly XNamespace SheetNs = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        private static readonly XNamespace RelNs = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        private static readonly Regex ActionIdField = new Regex(@"\bactionId""?\s*:\s*(-?\d+)", RegexOptions.IgnoreCase);
+        private static readonly Regex ClipName = new Regex(@"^clip_(\d+)_\d+\.asset$", RegexOptions.IgnoreCase);
+        private static readonly Regex ClipActionId = new Regex(@"^\s*actionId:\s*(-?\d+)\s*$", RegexOptions.Multiline);
+
+        /// <summary>取最大已用编号 + 1；0 是空动作，跳过。不写文件、不加载或重新初始化运行时 RefData。</summary>
+        public static int FindNext(string projectRoot, string additionalOutputFolder = null)
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot)) throw new ArgumentException("缺少项目根目录。");
+            projectRoot = Path.GetFullPath(projectRoot);
+            string assets = Path.Combine(projectRoot, "Assets");
+            if (!Directory.Exists(assets)) throw new DirectoryNotFoundException("找不到项目 Assets：" + assets);
+            string source = Path.Combine(projectRoot, "RefDataSource/TryGameRefdataRes/v2");
+            int maximum = 0;
+            ReadWorkbook(Path.Combine(source, "z.资源相关表.xlsx"), true, ref maximum);
+            ReadWorkbook(Path.Combine(source, "r.机器人表.xlsx"), false, ref maximum);
+            ScanAssets(assets, ref maximum);
+            if (!string.IsNullOrWhiteSpace(additionalOutputFolder))
+            {
+                string extra = Path.GetFullPath(Path.Combine(projectRoot, additionalOutputFolder));
+                string assetsPrefix = assets.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                if (!string.Equals(extra, assets, StringComparison.OrdinalIgnoreCase)
+                    && !extra.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)
+                    && Directory.Exists(extra)) ScanAssets(extra, ref maximum);
+            }
+
+            // 已导出的旧表仍可能引用源表后来移除的动作；同样保留这些编号。
+            string jsonFolder = Path.Combine(source, "Output/Json/client");
+            foreach (string table in new[] { "SequenceFrameActionResource", "BattleCharacterAction", "BattleActiveSingleSkill" })
+            {
+                string path = Path.Combine(jsonFolder, table + ".json");
+                if (!File.Exists(path)) continue;
+                string text = File.ReadAllText(path);
+                Regex fields = table == "SequenceFrameActionResource"
+                    ? new Regex(@"""id""\s*:\s*(-?\d+)") : ActionIdField;
+                CollectFields(text, fields, path, ref maximum);
+            }
+            if (maximum == int.MaxValue) throw new InvalidOperationException("动作 ID 已达到 int.MaxValue，无法继续顺延。");
+            return maximum + 1;
+        }
+
+        private static void ScanAssets(string folder, ref int maximum)
+        {
+            foreach (string path in Directory.EnumerateFiles(folder, "clip_*_*.asset", SearchOption.AllDirectories))
+            {
+                Match name = ClipName.Match(Path.GetFileName(path));
+                if (!name.Success) continue;
+                CollectId(name.Groups[1].Value, path, ref maximum);
+                CollectFields(File.ReadAllText(path), ClipActionId, path, ref maximum);
+            }
+            foreach (string pattern in new[] { "*.sequence.json", "*.slices.json" })
+                foreach (string path in Directory.EnumerateFiles(folder, pattern, SearchOption.AllDirectories))
+                {
+                    string text = File.ReadAllText(path);
+                    if (!ActionIdField.IsMatch(text)) throw new InvalidDataException("动画清单缺少有效动作 ID：" + path);
+                    CollectFields(text, ActionIdField, path, ref maximum);
+                }
+        }
+
+        private static void CollectFields(string text, Regex fields, string label, ref int maximum)
+        {
+            foreach (Match match in fields.Matches(text)) CollectId(match.Groups[1].Value, label, ref maximum);
+        }
+
+        private static void CollectId(string text, string label, ref int maximum)
+        {
+            if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) || id < 0)
+                throw new InvalidDataException("动作 ID 必须是非负整数：" + label + "，值=" + text);
+            maximum = Math.Max(maximum, id);
+        }
+
+        private static XDocument ReadXml(ZipArchive archive, string part)
+        {
+            var entry = archive.GetEntry(part);
+            if (entry == null) throw new InvalidDataException("源表缺少 XLSX 成员：" + part);
+            using (var stream = entry.Open()) return XDocument.Load(stream);
+        }
+
+        private static string CellValue(XElement cell, List<string> shared)
+        {
+            string type = (string)cell.Attribute("t");
+            if (type == "inlineStr") return string.Concat(cell.Descendants(SheetNs + "t").Select(t => t.Value));
+            string value = (string)cell.Element(SheetNs + "v") ?? "";
+            if (type != "s") return value;
+            if (!int.TryParse(value, out int index) || index < 0 || index >= shared.Count)
+                throw new InvalidDataException("源表共享字符串索引无效：" + value);
+            return shared[index];
+        }
+
+        private static string Column(XElement cell) =>
+            new string(((string)cell.Attribute("r") ?? "").TakeWhile(char.IsLetter).ToArray());
+
+        private static void ReadWorkbook(string path, bool resourceTable, ref int maximum)
+        {
+            if (!File.Exists(path)) throw new FileNotFoundException("取号需要读取已保存的动作源表：" + path, path);
+            // 允许 Excel 已打开，但只读取磁盘上已保存的数据；读取失败时保留窗口原 ID。
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
+            {
+                var shared = new List<string>();
+                if (archive.GetEntry("xl/sharedStrings.xml") != null)
+                    shared.AddRange(ReadXml(archive, "xl/sharedStrings.xml").Descendants(SheetNs + "si")
+                        .Select(si => string.Concat(si.Descendants(SheetNs + "t").Select(t => t.Value))));
+                var rels = ReadXml(archive, "xl/_rels/workbook.xml.rels").Root.Elements()
+                    .ToDictionary(e => (string)e.Attribute("Id"), e => (string)e.Attribute("Target"));
+                bool foundRequiredSheet = false;
+                foreach (var sheet in ReadXml(archive, "xl/workbook.xml").Descendants(SheetNs + "sheet"))
+                {
+                    string name = (string)sheet.Attribute("name");
+                    bool resource = name == "SequenceFrameActionResource";
+                    bool character = name == "BattleCharacterAction";
+                    if (resourceTable && !resource) continue;
+                    foundRequiredSheet |= resourceTable ? resource : character;
+                    string target = rels[(string)sheet.Attribute(RelNs + "id")];
+                    string part = new Uri(new Uri("http://xlsx/xl/workbook.xml"), target).AbsolutePath.TrimStart('/');
+                    var rows = ReadXml(archive, part).Descendants(SheetNs + "row").ToList();
+                    var header = rows.FirstOrDefault(row => (string)row.Attribute("r") == "1");
+                    if (header == null) continue;
+                    var columns = header.Elements(SheetNs + "c").ToDictionary(Column, cell => CellValue(cell, shared));
+                    var idColumns = columns.Where(pair => string.Equals(pair.Value,
+                        resource ? "id" : "actionId", StringComparison.OrdinalIgnoreCase)).Select(pair => pair.Key).ToArray();
+                    string entriesColumn = character ? columns.FirstOrDefault(pair => pair.Value == "entries").Key : null;
+                    if ((resource || character) && (resource ? idColumns.Length == 0 : entriesColumn == null))
+                        throw new InvalidDataException("源表缺少动作 ID/entries 列：" + path + " / " + name);
+                    if (idColumns.Length == 0 && entriesColumn == null) continue;
+                    foreach (var row in rows)
+                    {
+                        if (!int.TryParse((string)row.Attribute("r"), out int number) || number < 5) continue;
+                        foreach (var cell in row.Elements(SheetNs + "c"))
+                        {
+                            string column = Column(cell);
+                            if (!idColumns.Contains(column) && column != entriesColumn) continue;
+                            if (cell.Element(SheetNs + "f") != null)
+                                throw new InvalidDataException("动作 ID 不支持未计算的公式，请改为固定值：" + path + " / " + name);
+                            string value = CellValue(cell, shared);
+                            if (string.IsNullOrWhiteSpace(value)) continue;
+                            if (column == entriesColumn) CollectFields(value, ActionIdField, path + " / " + name, ref maximum);
+                            else CollectId(value, path + " / " + name, ref maximum);
+                        }
+                    }
+                }
+                if (!foundRequiredSheet) throw new InvalidDataException("找不到动作配置工作表：" + path);
+            }
         }
     }
 

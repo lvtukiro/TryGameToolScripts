@@ -177,6 +177,17 @@ namespace Game.EditorTools.SpriteSheetAnimation
             EditorGUI.BeginChangeCheck();
             document.animationId = EditorGUILayout.TextField("导出名称", document.animationId);
             document.actionId = EditorGUILayout.IntField("动作 ID", document.actionId);
+            if (GUILayout.Button(new GUIContent("获取下一个未使用动作 ID",
+                "读取已保存源表、现有 Clip 和动画清单，在最大已用编号后顺延。只填入编号，不占号、不写配表。")))
+                Run(() =>
+                {
+                    int nextId = SpriteSheetActionIdFinder.FindNext(
+                        Path.GetFullPath(Path.Combine(Application.dataPath, "..")), document.outputFolder);
+                    document.actionId = nextId;
+                    Changed();
+                    SetStatus("已填入未使用动作 ID：" + nextId
+                        + "（已检查源表、Clip 和动画清单）。取号不占号，请正常导出并登记配表。");
+                });
             document.frameRate = Mathf.Clamp(EditorGUILayout.FloatField("播放 FPS", document.frameRate), 1, 120);
             document.loop = EditorGUILayout.Toggle("循环", document.loop);
             document.defaultFacingLeft = EditorGUILayout.Toggle("素材默认朝向左", document.defaultFacingLeft);

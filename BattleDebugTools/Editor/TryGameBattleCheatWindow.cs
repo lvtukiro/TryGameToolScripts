@@ -64,6 +64,8 @@ namespace TryGame.BattleDebugTools.Editor
 
             DrawEnemySpawnSection(runtime);
             DrawPlayerNoDamageSection(runtime);
+            EditorGUILayout.Space(8f);
+            EditorGUILayout.HelpBox(commandStatus, commandStatusType);
             EditorGUILayout.EndScrollView();
         }
         /// <summary>
@@ -91,7 +93,6 @@ namespace TryGame.BattleDebugTools.Editor
                 }
             }
 
-            EditorGUILayout.HelpBox(commandStatus, commandStatusType);
         }
         /// <summary>
         /// 绘制玩家无伤害区段。
@@ -124,6 +125,28 @@ namespace TryGame.BattleDebugTools.Editor
                 EditorGUILayout.LabelField(
                     "未处于有效战场时，开关不可用。",
                     EditorStyles.miniLabel);
+            }
+
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.HelpBox(
+                "直接加满玩家架势，走正常的动作打断、击破动画和恢复计时；不扣血、不改技能配置。" +
+                "正式战场和临时战斗均可使用。",
+                MessageType.None);
+            using (new EditorGUI.DisabledScope(
+                !EditorApplication.isPlaying || EditorApplication.isPaused || runtime == null ||
+                !runtime.IsSceneApplied || !runtime.HasActiveRun))
+            {
+                if (GUILayout.Button("触发玩家架势击破"))
+                {
+                    if (runtime.TryTriggerPlayerPostureBreakCheat(out string error))
+                    {
+                        SetCommandStatus("已触发玩家架势击破，将按 General 配置自动恢复。", MessageType.Info);
+                    }
+                    else
+                    {
+                        SetCommandStatus("触发失败：" + error, MessageType.Warning);
+                    }
+                }
             }
         }
         /// <summary>

@@ -1,17 +1,29 @@
 #if SPRITESHEET_SLICING_TESTS
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Xml.Linq;
 using Game.EditorTools.SpriteSheetAnimation;
 
 // 独立 .NET 回归，不启动或关闭 Unity，不依赖 NuGet 测试包。
 internal static class Program
 {
     private static int passed;
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--next-action-id")
+        {
+            Console.WriteLine("Next unused action ID: " + SpriteSheetActionIdFinder.FindNext(args[1]));
+            return;
+        }
         Test("默认帧图目录与固定 Clip 目录分开", SeparateExportFolders);
         Test("旧默认目录只升级内存参数，自定义目录不变", LegacyOutputFolderUpgrade);
+        Test("动作取号检查未导出源表、角色引用和技能动作，不混用状态/技能 ID", NextActionIdSourceTables);
+        Test("动作取号包含未登记 Clip、动画清单和自定义输出目录，只读且不占号", NextActionIdAssets);
+        Test("动作取号包含尚未刷新的旧导出配置", NextActionIdExportedTables);
+        Test("动作取号源表缺失/损坏及编号耗尽时明确失败", NextActionIdFailures);
         Test("任意行列/横条/竖条/非方格，逐字节裁剪", ArbitraryGrids);
         Test("边距、间隔与固定尺寸网格", MarginsAndSpacing);
         Test("非整除、负参数、超限明确报错", InvalidGrid);
@@ -42,6 +54,138 @@ internal static class Program
         bool thrown = false;
         try { test(); } catch (ArgumentException) { thrown = true; }
         Check(thrown, "expected a validation error");
+    }
+
+    private static readonly XNamespace SheetNs = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    private static readonly XNamespace RelNs = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+    private static XDocument ActionSheet(string[] headers, params string[][] data)
+    {
+        var rows = new List<XElement>();
+        var values = new List<string[]> { headers, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>() };
+        values.AddRange(data);
+        for (int i = 0; i < values.Count; i++)
+            rows.Add(new XElement(SheetNs + "row", new XAttribute("r", i + 1),
+                values[i].Select((value, column) => new XElement(SheetNs + "c",
+                    new XAttribute("r", ((char)('A' + column)).ToString() + (i + 1)), new XAttribute("t", "inlineStr"),
+                    new XElement(SheetNs + "is", new XElement(SheetNs + "t", value))))));
+        return new XDocument(new XElement(SheetNs + "worksheet", new XElement(SheetNs + "sheetData", rows)));
+    }
+
+    private static void WriteActionWorkbook(string path, params (string name, XDocument sheet)[] sheets)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            var workbook = new XDocument(new XElement(SheetNs + "workbook", new XElement(SheetNs + "sheets",
+                sheets.Select((sheet, i) => new XElement(SheetNs + "sheet", new XAttribute("name", sheet.name),
+                    new XAttribute(RelNs + "id", "rId" + (i + 1)))))));
+            XNamespace package = "http://schemas.openxmlformats.org/package/2006/relationships";
+            var relationships = new XDocument(new XElement(package + "Relationships", sheets.Select((sheet, i) =>
+                new XElement(package + "Relationship", new XAttribute("Id", "rId" + (i + 1)),
+                    // 同时覆盖绝对和相对 XLSX 关系路径。
+                    new XAttribute("Target", (i % 2 == 0 ? "/xl/" : "") + "worksheets/sheet" + (i + 1) + ".xml")))));
+            using (var output = archive.CreateEntry("xl/workbook.xml").Open()) workbook.Save(output);
+            using (var output = archive.CreateEntry("xl/_rels/workbook.xml.rels").Open()) relationships.Save(output);
+            for (int i = 0; i < sheets.Length; i++)
+                using (var output = archive.CreateEntry("xl/worksheets/sheet" + (i + 1) + ".xml").Open()) sheets[i].sheet.Save(output);
+        }
+    }
+
+    private static void WithActionProject(Action<string> test, int resourceId = 12, int characterAction = 9, int skillAction = 11)
+    {
+        string parent = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "ActionIdFixtures"));
+        string root = Path.Combine(parent, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Assets"));
+        string source = Path.Combine(root, "RefDataSource/TryGameRefdataRes/v2");
+        try
+        {
+            WriteActionWorkbook(Path.Combine(source, "z.资源相关表.xlsx"),
+                ("Unrelated", ActionSheet(new[] { "id" }, new[] { "999999" })),
+                ("SequenceFrameActionResource", ActionSheet(new[] { "id", "ruleId" }, new[] { resourceId.ToString(), "10" })));
+            WriteActionWorkbook(Path.Combine(source, "r.机器人表.xlsx"),
+                ("BattleCharacterAction", ActionSheet(new[] { "id", "entries" },
+                    new[] { "999999", "[{ActionId:" + characterAction + ",CharacterId:99999}]" })),
+                ("BattleActiveSingleSkill", ActionSheet(new[] { "id", "actionId" }, new[] { "888888", skillAction.ToString() })));
+            test(root);
+        }
+        finally
+        {
+            // 只清理由本次测试生成、位于固定测试产物目录内的唯一夹具。
+            Check(Path.GetFullPath(root).StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.Ordinal));
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void NextActionIdSourceTables()
+    {
+        WithActionProject(root => Check(SpriteSheetActionIdFinder.FindNext(root) == 13));
+        WithActionProject(root => Check(SpriteSheetActionIdFinder.FindNext(root) == 31), characterAction: 30);
+        WithActionProject(root => Check(SpriteSheetActionIdFinder.FindNext(root) == 42), skillAction: 41);
+        WithActionProject(root => Check(SpriteSheetActionIdFinder.FindNext(root) == 1), 0, 0, 0);
+    }
+
+    private static void NextActionIdAssets()
+    {
+        WithActionProject(root =>
+        {
+            string assets = Path.Combine(root, "Assets");
+            File.WriteAllText(Path.Combine(assets, "clip_15_1.asset"), "actionId: 16\n");
+            File.WriteAllText(Path.Combine(assets, "clip_999_1.asset.meta"), "not an animation");
+            Check(SpriteSheetActionIdFinder.FindNext(root) == 17);
+            File.WriteAllText(Path.Combine(assets, "test.sequence.json"), "{\"actionId\":18}");
+            File.WriteAllText(Path.Combine(assets, "test.slices.json"), "{\"actionId\":20}");
+            Check(SpriteSheetActionIdFinder.FindNext(root) == 21);
+            string custom = Path.Combine(root, "Frames");
+            Directory.CreateDirectory(custom);
+            File.WriteAllText(Path.Combine(custom, "test.sequence.json"), "{\"actionId\":25}");
+            var before = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
+                .ToDictionary(path => path, path => File.ReadAllBytes(path));
+            Check(SpriteSheetActionIdFinder.FindNext(root, "Frames") == 26);
+            Check(SpriteSheetActionIdFinder.FindNext(root, "Frames") == 26, "只取号不应创建占号记录");
+            Check(before.Count == Directory.GetFiles(root, "*", SearchOption.AllDirectories).Length);
+            foreach (var pair in before) Check(pair.Value.SequenceEqual(File.ReadAllBytes(pair.Key)), "取号修改了文件");
+        });
+    }
+
+    private static void NextActionIdExportedTables()
+    {
+        WithActionProject(root =>
+        {
+            string json = Path.Combine(root, "RefDataSource/TryGameRefdataRes/v2/Output/Json/client");
+            Directory.CreateDirectory(json);
+            File.WriteAllText(Path.Combine(json, "SequenceFrameActionResource.json"), "{\"Rows\":[{\"id\":40}]}");
+            File.WriteAllText(Path.Combine(json, "BattleCharacterAction.json"), "{\"Rows\":[{\"id\":999999,\"entries\":[{\"ActionId\":50}]}]}");
+            File.WriteAllText(Path.Combine(json, "BattleActiveSingleSkill.json"), "{\"Rows\":[{\"id\":888888,\"actionId\":60}]}");
+            Check(SpriteSheetActionIdFinder.FindNext(root) == 61);
+        });
+    }
+
+    private static void NextActionIdFailures()
+    {
+        WithActionProject(root => ExpectActionIdFailure(() => SpriteSheetActionIdFinder.FindNext(root)), int.MaxValue);
+        WithActionProject(root =>
+        {
+            File.Delete(Path.Combine(root, "RefDataSource/TryGameRefdataRes/v2/z.资源相关表.xlsx"));
+            ExpectActionIdFailure(() => SpriteSheetActionIdFinder.FindNext(root));
+        });
+        WithActionProject(root =>
+        {
+            File.WriteAllText(Path.Combine(root, "RefDataSource/TryGameRefdataRes/v2/r.机器人表.xlsx"), "broken xlsx");
+            ExpectActionIdFailure(() => SpriteSheetActionIdFinder.FindNext(root));
+        });
+        WithActionProject(root =>
+        {
+            File.WriteAllText(Path.Combine(root, "Assets/broken.slices.json"), "{}");
+            ExpectActionIdFailure(() => SpriteSheetActionIdFinder.FindNext(root));
+        });
+    }
+
+    private static void ExpectActionIdFailure(Action action)
+    {
+        bool thrown = false;
+        try { action(); } catch (Exception) { thrown = true; }
+        Check(thrown, "取号数据不完整时必须失败，不能静默返回可能冲突的编号");
     }
     private static SpriteSheetPixels Image(int width, int height)
     {
