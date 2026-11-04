@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Game.SequenceFrameAnimation;
 using UnityEditor;
 using UnityEngine;
 
@@ -20,8 +21,20 @@ namespace Game.EditorTools
             Duration,
             Step,
             Keyframe,
-            PreviewKeyframeOffset,
-            PreviewShapeOffset,
+            PreviewShapeGizmo,
+        }
+
+        private enum ShapeGizmoTool { Move, Size, Scale, Rotate }
+
+        private sealed class PreviewShape
+        {
+            public BattleActionTimelineTableData Table;
+            public BattleActionTimelineRecordData Shape;
+            public BattleActionTimelineTransform Transform;
+            public BattleAttackShapeType Type;
+            public Vector2 Offset, BaseSize, Center, Size;
+            public float LocalRotation, ScreenRotation;
+            public bool Horizontal;
         }
 
         [Serializable]
@@ -30,6 +43,8 @@ namespace Game.EditorTools
             public BattleActionTimelineDocument document =
                 new BattleActionTimelineDocument();
             public string baselineSignature = string.Empty;
+            public string sourceWorkbookPath = string.Empty;
+            public string sourceWorkbookHash = string.Empty;
             public string selectedActionSheet = string.Empty;
             public int selectedActionRowId;
             public string selectedStepSheet = string.Empty;
@@ -37,9 +52,18 @@ namespace Game.EditorTools
             public string selectedSharedSheet = string.Empty;
             public int selectedSharedRowId;
             public float frameRate = 30f;
+            public bool snapToFrames;
             public int facing = (int)BattleActionTimelineFacing.Right;
-            public GameObject animationPreviewTarget;
-            public AnimationClip animationPreviewClip;
+            public SequenceFrameClip sequencePreviewClip;
+            public int sequencePreviewActionId;
+            public int explicitSingleSkillId;
+            public int filterCharacterId;
+            public int filterActionType;
+            public int filterSkillId;
+            public bool filterApplied;
+            public float previewHeight = 1.18f;
+            public bool previewOriginAtCenter;
+            public float previewZoom = 1f;
         }
 
         [Serializable]
@@ -54,17 +78,13 @@ namespace Game.EditorTools
             public string selectedSharedSheet;
             public int selectedSharedRowId;
             public float frameRate;
+            public bool snapToFrames;
             public int facing;
+            public int sequencePreviewActionId;
+            public int explicitSingleSkillId;
             public double playheadSeconds;
             public string workbookPath;
             public string workbookHash;
-        }
-
-        private sealed class ActionReference
-        {
-            public BattleActionTimelineTableData Table;
-            public BattleActionTimelineRecordData Record;
-            public string Label;
         }
 
         private sealed class ResolvedStep
@@ -80,6 +100,8 @@ namespace Game.EditorTools
             public BattleActionTimelineRecordData Projectile;
             public BattleActionTimelineTableData BodyTable;
             public BattleActionTimelineRecordData Body;
+            public BattleActionTimelineTableData ShapeTable;
+            public BattleActionTimelineRecordData SelectedShape;
             public BattleActionTimelineTableData KeyframeTable;
             public List<BattleActionTimelineRecordData> Keyframes =
                 new List<BattleActionTimelineRecordData>();
@@ -109,8 +131,34 @@ namespace Game.EditorTools
         private string dragSheet = string.Empty;
         private int dragRowId;
         private bool dragChanged;
-        private bool ownsAnimationMode;
-        private string animationPreviewStatus = string.Empty;
+        private SequenceFrameClip[] availablePreviewClips;
+        private int automaticPreviewActionId = int.MinValue;
+        private SequenceFrameClip automaticPreviewClip;
+        private string automaticPreviewError = string.Empty;
+        private string actionSelectionStatus = string.Empty;
+        private string attackAuthoringStatus = string.Empty;
+        [SerializeField] private int newAttackTypeIndex;
+        [SerializeField] private int newProjectileMovementIndex;
+        private bool attackAuthoringError;
+        private BattleActionTimelineDocument filterSourceDocument;
+        private BattleActionTimelineFilterCatalog filterCatalog;
+        private RefDataLanguageProvider filterLanguage;
+        private bool filterLanguageLoaded;
+        private int filterCatalogCharacterId;
+        private int filterCatalogSkillId;
+        private string filterStatus = string.Empty;
+        // 折叠仅属于窗口视图，不写入配置，也不参与草稿脏标记和 Undo。
+        private readonly Dictionary<string, bool> hierarchyExpanded =
+            new Dictionary<string, bool>(StringComparer.Ordinal);
+        [SerializeField] private ShapeGizmoTool shapeGizmoTool;
+        [SerializeField] private bool previewEditKeyframes;
+        // 仅保存窗口视图偏好；默认关闭，不写入技能配置或源表。
+        [SerializeField] private bool showInactiveShapes;
+        private Vector2 gizmoStartMouse, gizmoStartOffset, gizmoHandle, gizmoPivot;
+        private float gizmoStartRotation;
+        private PreviewShape gizmoStartShape;
+        private int gizmoHotControl;
+        private const int ShapeGizmoControlHint = 0x42A17;
 
         private BattleActionTimelineDocument Document
         {
@@ -167,11 +215,17 @@ namespace Game.EditorTools
             AssemblyReloadEvents.beforeAssemblyReload += SaveDraftNow;
             EditorApplication.update -= OnEditorUpdate;
             EditorApplication.update += OnEditorUpdate;
+            EditorApplication.projectChanged -= OnPreviewAssetsChanged;
+            EditorApplication.projectChanged += OnPreviewAssetsChanged;
             previousEditorTime = EditorApplication.timeSinceStartup;
             TryRestoreDraft();
-            if (!draftRestored || Document.tables.Count == 0)
+            if (Document.tables.Count == 0)
             {
                 LoadOfficial(false, false);
+            }
+            else if (workbookSnapshot == null || !workbookSnapshot.HasActionStructure)
+            {
+                RestoreWorkbookBinding();
             }
 
             ValidateDocument();
@@ -185,8 +239,8 @@ namespace Game.EditorTools
             Undo.undoRedoPerformed -= OnUndoRedo;
             AssemblyReloadEvents.beforeAssemblyReload -= SaveDraftNow;
             EditorApplication.update -= OnEditorUpdate;
+            EditorApplication.projectChanged -= OnPreviewAssetsChanged;
             playing = false;
-            StopAnimationPreview();
             SaveDraftNow();
         }
         /// <summary>
@@ -195,7 +249,6 @@ namespace Game.EditorTools
 
         private void OnDestroy()
         {
-            StopAnimationPreview();
             SaveDraftNow();
             if (authoringState != null)
             {
@@ -229,6 +282,18 @@ namespace Game.EditorTools
             {
                 authoringState.facing = (int)BattleActionTimelineFacing.Right;
             }
+
+            if (!BattleActionTimelineTime.IsFinite(authoringState.previewHeight) ||
+                authoringState.previewHeight <= 0f)
+            {
+                authoringState.previewHeight = 1.18f;
+            }
+
+            if (!BattleActionTimelineTime.IsFinite(authoringState.previewZoom))
+            {
+                authoringState.previewZoom = 1f;
+            }
+            authoringState.previewZoom = Mathf.Clamp(authoringState.previewZoom, 0.5f, 3f);
         }
         /// <summary>
         /// 响应撤销重做事件，并同步当前组件状态。
@@ -237,6 +302,7 @@ namespace Game.EditorTools
         private void OnUndoRedo()
         {
             EnsureState();
+            filterCatalog = null;
             playing = false;
             CancelDrag();
             NormalizeSelection();
@@ -282,7 +348,7 @@ namespace Game.EditorTools
                 return;
             }
 
-            double duration = CurrentDuration();
+            double duration = CurrentPreviewDuration();
             if (duration <= 0d)
             {
                 playing = false;
@@ -296,7 +362,6 @@ namespace Game.EditorTools
                 playing = false;
             }
 
-            SampleAnimationPreview();
             Repaint();
         }
         /// <summary>
@@ -368,7 +433,7 @@ namespace Game.EditorTools
             {
                 playing = !playing;
                 previousEditorTime = EditorApplication.timeSinceStartup;
-                if (playheadSeconds >= CurrentDuration() -
+                if (playheadSeconds >= CurrentPreviewDuration() -
                     BattleActionTimelineTime.Epsilon)
                 {
                     playheadSeconds = 0d;
@@ -387,10 +452,10 @@ namespace Game.EditorTools
 
             GUILayout.Space(6f);
             GUILayout.Label(
-                "帧 " + CurrentFrame().ToString(CultureInfo.InvariantCulture) +
+                "帧 " + (playheadSeconds * authoringState.frameRate).ToString("0.###", CultureInfo.InvariantCulture) +
                 " / " + playheadSeconds.ToString("0.###", CultureInfo.InvariantCulture) + "s",
                 EditorStyles.miniLabel,
-                GUILayout.Width(112f));
+                GUILayout.Width(142f));
             GUILayout.FlexibleSpace();
             GUILayout.Label(
                 IsDirty ? "● 草稿未写回" : "✓ 与读取基线一致",
@@ -406,7 +471,8 @@ namespace Game.EditorTools
         {
             inspectorScroll = EditorGUILayout.BeginScrollView(inspectorScroll);
             EditorGUILayout.HelpBox(status, MessageType.None);
-            if (workbookSnapshot == null || !workbookSnapshot.HasActionStructure)
+            DrawSelectionAndViewSettings();
+            if (!Document.HasActionStructure)
             {
                 DrawWaitingForStructure();
                 DrawIssues();
@@ -414,12 +480,17 @@ namespace Game.EditorTools
                 return;
             }
 
-            DrawSelectionAndViewSettings();
+            if (workbookSnapshot == null || !workbookSnapshot.HasActionStructure)
+            {
+                EditorGUILayout.HelpBox(
+                    "当前配置和组合形状仍可编辑、预览并保留草稿；源表基线未绑定，安全写回已禁用。\n" + status,
+                    MessageType.Warning);
+            }
+
             BattleActionTimelineDocument edited = Document.Clone();
             EditorGUI.BeginChangeCheck();
             DrawActionFields(edited);
             DrawExecutionSteps(edited);
-            DrawSharedConfiguration(edited);
             bool changed = EditorGUI.EndChangeCheck();
             if (changed)
             {
@@ -473,38 +544,45 @@ namespace Game.EditorTools
 
         private void DrawSelectionAndViewSettings()
         {
-            List<ActionReference> actions = BuildActionReferences(Document);
-            if (actions.Count == 0)
+            DrawSequencePreviewSettings();
+            if (!string.IsNullOrEmpty(actionSelectionStatus))
             {
-                EditorGUILayout.HelpBox("工作集没有 ActiveSingle 数据行。", MessageType.Warning);
-                return;
+                EditorGUILayout.HelpBox(actionSelectionStatus, MessageType.Info);
+            }
+            if (authoringState.sequencePreviewActionId > 0)
+            {
+                int explicitId = EditorGUILayout.DelayedIntField(
+                    new GUIContent("指定单段技能 ID（可选）", "多个单段引用同一动作时填写；0 表示仅在唯一匹配时定位。不是动画动作 ID。"),
+                    authoringState.explicitSingleSkillId);
+                if (explicitId != authoringState.explicitSingleSkillId)
+                {
+                    Undo.RecordObject(authoringState, "指定动作对应单段");
+                    authoringState.explicitSingleSkillId = Mathf.Max(0, explicitId);
+                    authoringState.filterApplied = false;
+                    NormalizeSelection();
+                    QueueDraftSave();
+                    Repaint();
+                }
+            }
+            if (TryGetSelectedAction(Document, out BattleActionTimelineTableData table,
+                out BattleActionTimelineRecordData action))
+            {
+                EditorGUILayout.LabelField("当前编辑单段", table.sheetName + " / " +
+                    BattleActionTimelineSchema.DisplayName(table, action), EditorStyles.wordWrappedLabel);
+            }
+            bool snapToFrames = EditorGUILayout.Toggle(
+                new GUIContent("吸附到整帧", "关闭后，拖动和时间输入可精确到小数秒；开启后按下方 FPS 吸附。切换本身不修改已有配置或播放头，素材仍逐帧显示。"),
+                authoringState.snapToFrames);
+            if (snapToFrames != authoringState.snapToFrames)
+            {
+                Undo.RecordObject(authoringState, "切换时间轴帧吸附");
+                authoringState.snapToFrames = snapToFrames;
+                QueueDraftSave();
             }
 
-            int selectedIndex = actions.FindIndex(value =>
-                string.Equals(
-                    value.Table.sheetName,
-                    authoringState.selectedActionSheet,
-                    StringComparison.Ordinal) &&
-                value.Record.rowId == authoringState.selectedActionRowId);
-            if (selectedIndex < 0)
-            {
-                selectedIndex = 0;
-            }
-
-            int newIndex = EditorGUILayout.Popup(
-                "单技能动作（稳定 ID）",
-                selectedIndex,
-                actions.Select(value => value.Label).ToArray());
-            if (newIndex != selectedIndex ||
-                authoringState.selectedActionRowId <= 0)
-            {
-                SelectAction(actions[Mathf.Clamp(newIndex, 0, actions.Count - 1)]);
-            }
-
-            DrawAnimationPreviewSettings();
             EditorGUILayout.BeginHorizontal();
             float frameRate = EditorGUILayout.FloatField(
-                "预览 FPS",
+                new GUIContent("步进／吸附 FPS", "控制逐帧按钮的步长；开启“吸附到整帧”后也控制编辑吸附精度，不改变素材播放速度。"),
                 authoringState.frameRate);
             if (!Mathf.Approximately(frameRate, authoringState.frameRate) &&
                 frameRate > 0f && !float.IsNaN(frameRate) &&
@@ -512,7 +590,7 @@ namespace Game.EditorTools
             {
                 Undo.RecordObject(authoringState, "修改动作时间轴 FPS");
                 authoringState.frameRate = frameRate;
-                playheadSeconds = SnapAndClamp(playheadSeconds, CurrentDuration());
+                // 修改编辑精度不重新吸附当前时间或已有配置。
                 QueueDraftSave();
             }
 
@@ -530,54 +608,213 @@ namespace Game.EditorTools
             }
 
             EditorGUILayout.EndHorizontal();
+            double previewTime = EditorGUILayout.DelayedDoubleField(
+                new GUIContent("预览时间（秒）", "可直接输入例如 0.185；关闭帧吸附时保留小数秒，不改变技能或素材时长。"),
+                playheadSeconds);
+            if (BattleActionTimelineTime.IsFinite(previewTime) && !NearlyEqual(previewTime, playheadSeconds))
+            {
+                playing = false;
+                playheadSeconds = SnapAndClamp(previewTime, CurrentPreviewDuration());
+                QueueDraftSave();
+                Repaint();
+            }
         }
         /// <summary>
-        /// 绘制动画预览设置。
+        /// 直接预览生成工具的 SequenceFrameClip，不采样或改动场景对象。
         /// </summary>
 
-        private void DrawAnimationPreviewSettings()
+        private void DrawSequencePreviewSettings()
         {
-            GameObject target = (GameObject)EditorGUILayout.ObjectField(
-                "动画预览对象（场景）",
-                authoringState.animationPreviewTarget,
-                typeof(GameObject),
-                true);
-            AnimationClip clip = (AnimationClip)EditorGUILayout.ObjectField(
-                "动作动画（仅预览）",
-                authoringState.animationPreviewClip,
-                typeof(AnimationClip),
-                false);
-            if (target != authoringState.animationPreviewTarget ||
-                clip != authoringState.animationPreviewClip)
+            DrawAnimationFilters();
+            int actionId = EditorGUILayout.DelayedIntField(
+                new GUIContent("动画资源 ID（可直接填）", "填写序列帧资源 ID，例如 22；也可在上方独立一行直接填写技能 ID。最后操作的入口生效。"),
+                authoringState.sequencePreviewActionId);
+            if (actionId != authoringState.sequencePreviewActionId)
             {
-                StopAnimationPreview();
-                Undo.RecordObject(authoringState, "修改动作动画预览");
-                authoringState.animationPreviewTarget = target;
-                authoringState.animationPreviewClip = clip;
-                animationPreviewStatus = string.Empty;
+                SetPreviewInput(Mathf.Max(0, actionId), null);
+            }
+
+            SequenceFrameClip currentClip = ResolveSequencePreviewClip(out string lookupError);
+            SequenceFrameClip clip = (SequenceFrameClip)EditorGUILayout.ObjectField(
+                "序列帧动画（仅预览）",
+                currentClip,
+                typeof(SequenceFrameClip),
+                false);
+            if (clip != currentClip)
+            {
+                SetPreviewInput(clip != null ? clip.ActionId : 0, clip);
+                lookupError = string.Empty;
+            }
+
+            if (GUILayout.Button("按填写的动作 ID 重新加载"))
+            {
+                Undo.RecordObject(authoringState, "按动作 ID 加载序列帧");
+                authoringState.sequencePreviewClip = null;
+                OnPreviewAssetsChanged();
+                clip = ResolveSequencePreviewClip(out lookupError);
+                playing = false;
+                playheadSeconds = 0d;
+            }
+
+            if (!string.IsNullOrEmpty(lookupError))
+            {
+                EditorGUILayout.HelpBox(lookupError, MessageType.Warning);
+            }
+            else if (clip != null)
+            {
+                if (!TrySampleSequencePreview(clip, out _, out int index, out string error))
+                {
+                    EditorGUILayout.HelpBox(error, MessageType.Error);
+                }
+                else
+                {
+                    EditorGUILayout.LabelField(
+                        $"素材帧 {index + 1}/{clip.FrameCount} · {clip.FrameRate:0.###} FPS · " +
+                        $"{clip.FrameCount / (double)clip.FrameRate:0.###} 秒 · " +
+                        (clip.Loop ? "循环" : "非循环，播完停在末帧"),
+                        EditorStyles.wordWrappedMiniLabel);
+                }
+
+                if (TryGetSelectedAction(Document, out _, out _) &&
+                    clip.ActionId != CurrentEditedActionAnimationId())
+                {
+                    EditorGUILayout.HelpBox(
+                        $"当前仅试播动作 {clip.ActionId}；技能配置的 actionId=" +
+                        $"{CurrentEditedActionAnimationId()} 不会因此改变。",
+                        MessageType.Warning);
+                }
+
+                if (BattleActionTimelineTime.IsFinite(clip.FrameRate) && clip.FrameRate > 0f &&
+                    clip.FrameCount / (double)clip.FrameRate > CurrentDuration() + BattleActionTimelineTime.Epsilon)
+                {
+                    EditorGUILayout.HelpBox(
+                        "素材比技能持续时间更长，时间轴会延长供完整试播；游戏仍按技能配置结束。" +
+                        "若要延长实际动作，请调整“动作持续时间”。",
+                        MessageType.Info);
+                }
+
+                if (GUILayout.Button("时间轴吸附 FPS 使用素材 FPS") &&
+                    BattleActionTimelineTime.IsFinite(clip.FrameRate) && clip.FrameRate > 0f)
+                {
+                    Undo.RecordObject(authoringState, "使用素材 FPS 吸附时间轴");
+                    authoringState.frameRate = clip.FrameRate;
+                    // 只改变之后的吸附精度，不改已有事件、阶段或当前播放时间。
+                    QueueDraftSave();
+                    Repaint();
+                }
+            }
+
+            float height = EditorGUILayout.FloatField(
+                new GUIContent("预览画布高度（世界单位）", "对应战斗中的角色占位高度；战士当前为 1.18。只影响预览，不改角色或素材。"),
+                authoringState.previewHeight);
+            bool atCenter = EditorGUILayout.Toggle(
+                new GUIContent("CombatOrigin 在画布中心", "玩家通常不勾选（原点在脚底）；敌人占位原点在中心时勾选。"),
+                authoringState.previewOriginAtCenter);
+            if (BattleActionTimelineTime.IsFinite(height) && height > 0f &&
+                (!Mathf.Approximately(height, authoringState.previewHeight) ||
+                 atCenter != authoringState.previewOriginAtCenter))
+            {
+                Undo.RecordObject(authoringState, "修改序列帧预览布局");
+                authoringState.previewHeight = height;
+                authoringState.previewOriginAtCenter = atCenter;
                 Repaint();
             }
 
-            if (clip != null && target == null)
+            EditorGUILayout.LabelField(
+                "可拖入刚生成的 clip_动作ID_1.asset，无须场景对象或先导表。" +
+                "也可直接填写动画资源 ID 或技能 ID；唯一匹配时定位技能单段，不修改表内动作绑定。" +
+                "素材按自身 FPS 播放；时间轴吸附 FPS 不改变动画速度。预览输入和布局不写表。",
+                EditorStyles.wordWrappedMiniLabel);
+            authoringState.previewZoom = EditorGUILayout.Slider(
+                "预览缩放", authoringState.previewZoom, 0.5f, 3f);
+        }
+
+        /// <summary>角色／动作类型辅助筛选与直接技能ID入口；最后操作的入口决定预览和编辑目标。</summary>
+        private void DrawAnimationFilters()
+        {
+            EnsureFilterCatalog();
+            if (!filterLanguageLoaded)
             {
-                EditorGUILayout.HelpBox(
-                    "已选择动画；再指定场景中的机器人对象即可按当前动作时钟采样。",
-                    MessageType.Info);
-            }
-            else if (target != null && EditorUtility.IsPersistent(target))
-            {
-                EditorGUILayout.HelpBox(
-                    "动画预览对象必须是场景实例，不能直接采样 Prefab 资源。",
-                    MessageType.Warning);
-            }
-            else if (!string.IsNullOrWhiteSpace(animationPreviewStatus))
-            {
-                EditorGUILayout.HelpBox(animationPreviewStatus, MessageType.Warning);
+                filterLanguageLoaded = true;
+                RefDataLanguageProvider.TryCreate(out filterLanguage);
             }
 
-            EditorGUILayout.LabelField(
-                "动画选择仅用于本次编辑器会话，不写入源表或项目草稿。",
-                EditorStyles.wordWrappedMiniLabel);
+            string CharacterName(BattleActionTimelineCharacterFilter value)
+            {
+                string name = filterLanguage != null && filterLanguage.TryGet(value.NameLanguageKey, out string text)
+                    ? text : value.CodeName;
+                return $"{value.Id} · {name}";
+            }
+
+            string[] characters = new[] { "— 选择角色 —" }
+                .Concat(filterCatalog.Characters.Select(CharacterName)).ToArray();
+            int selectedCharacter = filterCatalog.Characters.FindIndex(value => value.Id == authoringState.filterCharacterId) + 1;
+            int newCharacter = EditorGUILayout.Popup(
+                new GUIContent("角色筛选", "角色 + 动作类型按角色默认/空手映射定位；技能动作另填技能 ID。"),
+                selectedCharacter, characters.Select(value => new GUIContent(value)).ToArray());
+            bool changed = false;
+            if (newCharacter != selectedCharacter)
+            {
+                Undo.RecordObject(authoringState, "筛选动作所属角色");
+                authoringState.filterCharacterId = newCharacter == 0 ? 0 : filterCatalog.Characters[newCharacter - 1].Id;
+                changed = true;
+            }
+
+            var types = new[] { RefData.EnumBattleCharacterActionState.Invalid }.Concat(
+                Enum.GetValues(typeof(RefData.EnumBattleCharacterActionState)).Cast<RefData.EnumBattleCharacterActionState>()
+                    .Where(value => value > RefData.EnumBattleCharacterActionState.None)).ToArray();
+            int selectedType = Math.Max(0, Array.FindIndex(types, value => (int)value == authoringState.filterActionType));
+            int newType = EditorGUILayout.Popup("动作类型", selectedType, types.Select(value =>
+                value == RefData.EnumBattleCharacterActionState.Invalid ? "— 选择动作类型 —" :
+                BattleActionTimelineFilterCatalog.StateLabel(value.ToString())).ToArray());
+            if (newType != selectedType)
+            {
+                Undo.RecordObject(authoringState, "筛选动作类型");
+                authoringState.filterActionType = (int)types[newType];
+                changed = true;
+            }
+            EditorGUILayout.BeginHorizontal();
+            int skill = EditorGUILayout.DelayedIntField(
+                new GUIContent("技能 ID（可直接填）", "BattleSkill.id，例如 2008；不需要先选角色或“技能”动作类型。多装备映射需要选择角色。与动画资源 ID 两种入口均可使用，最后操作的入口生效。"),
+                authoringState.filterSkillId);
+            bool loadSkill = GUILayout.Button("加载", GUILayout.Width(46f));
+            EditorGUILayout.EndHorizontal();
+            if (skill != authoringState.filterSkillId || loadSkill)
+            {
+                Undo.RecordObject(authoringState, "按技能 ID 加载动作");
+                authoringState.filterSkillId = Math.Max(0, skill);
+                authoringState.filterActionType = (int)RefData.EnumBattleCharacterActionState.Skill;
+                changed = true;
+            }
+            if (changed) authoringState.filterApplied = true;
+            EnsureFilterCatalog();
+            if (authoringState.filterApplied)
+            {
+                if (filterCatalog.TryResolve(authoringState.filterCharacterId, authoringState.filterActionType,
+                    authoringState.filterSkillId, out var value, out filterStatus))
+                {
+                    if (value.ActionId != authoringState.sequencePreviewActionId ||
+                        value.SingleSkillId != authoringState.explicitSingleSkillId || authoringState.sequencePreviewClip != null)
+                        SetPreviewInput(value.ActionId, null, value.SingleSkillId);
+                }
+                else if (authoringState.sequencePreviewActionId != 0 || authoringState.sequencePreviewClip != null)
+                    SetPreviewInput(0, null);
+                authoringState.filterApplied = true;
+            }
+            if (authoringState.filterApplied && !string.IsNullOrEmpty(filterStatus))
+                EditorGUILayout.HelpBox(filterStatus, MessageType.Info);
+        }
+
+        private void EnsureFilterCatalog()
+        {
+            int skillId = authoringState.filterActionType == (int)RefData.EnumBattleCharacterActionState.Skill
+                ? authoringState.filterSkillId : 0;
+            if (filterCatalog != null && ReferenceEquals(filterSourceDocument, Document) &&
+                filterCatalogCharacterId == authoringState.filterCharacterId && filterCatalogSkillId == skillId) return;
+            filterSourceDocument = Document;
+            filterCatalogCharacterId = authoringState.filterCharacterId;
+            filterCatalogSkillId = skillId;
+            filterCatalog = BattleActionTimelineFilterCatalog.Build(Document, filterCatalogCharacterId, skillId);
         }
         /// <summary>
         /// 绘制动作字段。
@@ -613,7 +850,7 @@ namespace Game.EditorTools
                 phases.Duration);
             double currentTime = SnapNonNegative(playheadSeconds);
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("前摇结束 = 当前帧"))
+            if (GUILayout.Button("前摇结束 = 当前时间"))
             {
                 BattleActionTimelineSchema.SetDouble(
                     table,
@@ -623,7 +860,7 @@ namespace Game.EditorTools
                 GUI.changed = true;
             }
 
-            if (GUILayout.Button("切换窗 = 当前帧"))
+            if (GUILayout.Button("切换窗 = 当前时间"))
             {
                 BattleActionTimelineSchema.SetDouble(
                     table,
@@ -635,7 +872,7 @@ namespace Game.EditorTools
 
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("后摇开始 = 当前帧"))
+            if (GUILayout.Button("后摇开始 = 当前时间"))
             {
                 BattleActionTimelineSchema.SetDouble(
                     table,
@@ -645,12 +882,12 @@ namespace Game.EditorTools
                 GUI.changed = true;
             }
 
-            if (GUILayout.Button("动作结束 = 当前帧"))
+            if (GUILayout.Button("动作结束 = 当前时间"))
             {
                 BattleActionTimelineSchema.SetDouble(
                     table,
                     action,
-                    Math.Max(FrameSeconds(), currentTime),
+                    Math.Max(MinimumActionDuration(), currentTime),
                     BattleActionTimelineSchema.DurationAliases);
                 GUI.changed = true;
             }
@@ -688,7 +925,7 @@ namespace Game.EditorTools
                 BattleActionTimelineSchema.SetDouble(
                     table,
                     action,
-                    Math.Max(FrameSeconds(), SnapNonNegative(duration)),
+                    Math.Max(MinimumActionDuration(), SnapNonNegative(duration)),
                     BattleActionTimelineSchema.DurationAliases);
             }
         }
@@ -704,7 +941,9 @@ namespace Game.EditorTools
             }
 
             EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("执行步骤事件轨", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("步骤 → Shape → 关键帧", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("展开标题编辑这一层；每层的新增按钮只添加到标明的所属对象。",
+                EditorStyles.wordWrappedMiniLabel);
             BattleActionTimelineTableData stepTable = edited.tables.FirstOrDefault(
                 BattleActionTimelineSchema.IsExecutionStepTable);
             if (stepTable == null)
@@ -723,18 +962,18 @@ namespace Game.EditorTools
             {
                 BattleActionTimelineRecordData step = steps[index];
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.BeginHorizontal();
-                DrawSelectionButton(
-                    "步骤 " + step.rowId,
-                    string.Equals(
-                        authoringState.selectedStepSheet,
-                        stepTable.sheetName,
-                        StringComparison.Ordinal) &&
-                    authoringState.selectedStepRowId == step.rowId,
-                    () => SelectStep(stepTable.sheetName, step.rowId));
-                if (GUILayout.Button("删除", GUILayout.Width(42f)))
+                string stepLabel = "步骤 " + (index + 1);
+                string typeLabel = BattleActionTimelineSchema.StepIsMelee(stepTable, step)
+                    ? "近战" : BattleActionTimelineSchema.StepIsProjectile(stepTable, step)
+                        ? "投射物" : BattleActionTimelineSchema.Get(
+                            stepTable, step, BattleActionTimelineSchema.StepTypeAliases);
+                bool expanded = DrawHierarchyHeader(stepTable, step,
+                    stepLabel + " · " + typeLabel, 1,
+                    IsSelectedStep(stepTable, step),
+                    () => SelectStep(stepTable.sheetName, step.rowId), out bool delete);
+                if (delete)
                 {
-                    stepTable.records.Remove(step);
+                    BattleActionTimelineAttackAuthoring.DeleteStep(edited, stepTable.sheetName, step.rowId);
                     if (authoringState.selectedStepRowId == step.rowId &&
                         string.Equals(
                             authoringState.selectedStepSheet,
@@ -746,15 +985,32 @@ namespace Game.EditorTools
                     }
 
                     GUI.changed = true;
+                    EditorGUILayout.EndVertical();
+                    continue;
                 }
 
-                EditorGUILayout.EndHorizontal();
+                if (!expanded)
+                {
+                    EditorGUILayout.EndVertical();
+                    continue;
+                }
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10f);
+                EditorGUILayout.BeginVertical();
                 double trigger = BattleActionTimelineSchema.GetDouble(
                     stepTable,
                     step,
                     0d,
                     BattleActionTimelineSchema.TriggerTimeAliases);
+                EditorGUI.BeginChangeCheck();
                 double editedTrigger = EditorGUILayout.DoubleField("触发时间", trigger);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    BattleActionTimelineSchema.SetDouble(
+                        stepTable, step, SnapNonNegative(editedTrigger),
+                        BattleActionTimelineSchema.TriggerTimeAliases);
+                }
                 string stepType = EditorGUILayout.TextField(
                     "步骤类型",
                     BattleActionTimelineSchema.Get(
@@ -762,17 +1018,12 @@ namespace Game.EditorTools
                         step,
                         BattleActionTimelineSchema.StepTypeAliases));
                 int configId = EditorGUILayout.IntField(
-                    "步骤配置 ID",
+                    new GUIContent("步骤配置 ID（高级）", "指向生成配置，不是技能或动画ID。手工改为已有ID表示主动复用；默认新增会自动分配独立配置。"),
                     BattleActionTimelineSchema.GetInt(
                         stepTable,
                         step,
                         0,
                         BattleActionTimelineSchema.StepConfigAliases));
-                BattleActionTimelineSchema.SetDouble(
-                    stepTable,
-                    step,
-                    SnapNonNegative(editedTrigger),
-                    BattleActionTimelineSchema.TriggerTimeAliases);
                 BattleActionTimelineSchema.Set(
                     stepTable,
                     step,
@@ -783,62 +1034,137 @@ namespace Game.EditorTools
                     step,
                     configId,
                     BattleActionTimelineSchema.StepConfigAliases);
+                DrawStepConfiguration(edited, ResolveStep(edited, stepTable, step), stepLabel);
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.EndHorizontal();
                 EditorGUILayout.EndVertical();
             }
 
-            if (GUILayout.Button("+ 在当前帧新增执行步骤"))
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("为当前技能 " + action.rowId + " 新增步骤", EditorStyles.boldLabel);
+            newAttackTypeIndex = EditorGUILayout.Popup("新增攻击体类型", newAttackTypeIndex,
+                new[] { "近战攻击体", "投射物攻击体" });
+            if (newAttackTypeIndex == 1)
+                newProjectileMovementIndex = EditorGUILayout.Popup("投射物移动类型", newProjectileMovementIndex,
+                    new[] { "直线", "抛物线" });
+            if (GUILayout.Button("+ 给当前技能新增步骤（当前时间）"))
             {
-                BattleActionTimelineRecordData step = CreateRecord(stepTable);
-                BattleActionTimelineSchema.SetInt(
-                    stepTable,
-                    step,
-                    action.rowId,
-                    BattleActionTimelineSchema.StepOwnerAliases);
-                BattleActionTimelineSchema.SetDouble(
-                    stepTable,
-                    step,
-                    SnapAndClamp(playheadSeconds, CurrentDuration(edited)),
-                    BattleActionTimelineSchema.TriggerTimeAliases);
-                BattleActionTimelineSchema.Set(
-                    stepTable,
-                    step,
-                    "SpawnMeleeAttackBody",
-                    BattleActionTimelineSchema.StepTypeAliases);
-                BattleActionTimelineSchema.SetInt(
-                    stepTable,
-                    step,
-                    1,
-                    BattleActionTimelineSchema.StepConfigAliases);
-                stepTable.records.Add(step);
-                SelectStep(stepTable.sheetName, step.rowId);
-                GUI.changed = true;
+                if (BattleActionTimelineAttackAuthoring.TryAddAttackStep(edited, authoringState.selectedActionSheet,
+                    action.rowId, SnapAndClamp(playheadSeconds, CurrentDuration(edited)),
+                    newAttackTypeIndex == 1 ? RefData.EnumBattleExecutionStepType.LaunchProjectile : RefData.EnumBattleExecutionStepType.SpawnMeleeAttackBody,
+                    newProjectileMovementIndex == 1 ? RefData.EnumBattleProjectileMovementType.Ballistic : RefData.EnumBattleProjectileMovementType.Linear,
+                    authoringState.selectedStepSheet, authoringState.selectedStepRowId, out var created, out string error))
+                {
+                    SelectStep(created.StepTable.sheetName, created.Step.rowId);
+                    attackAuthoringStatus = created.IsProjectile
+                        ? $"已新增独立投射物步骤：发射配置 {created.SpawnId} / 投射物 {created.ProjectileId} / 攻击体 {created.BodyId} / 移动配置 {created.MovementId}。"
+                        : $"已新增独立近战步骤：生成配置 {created.SpawnId} / 攻击体 {created.BodyId}。";
+                    attackAuthoringStatus +=
+                        (created.Blank ? "当前为默认空白判定，未自动附加伤害效果。" + (created.IsProjectile ? "投射物尚未配置表现资源。" : "")
+                            : "初始配置来自当前动作的同类型步骤，后续修改互不影响。") +
+                        "尚未写回源表。";
+                    attackAuthoringError = false;
+                    GUI.changed = true;
+                }
+                else
+                {
+                    attackAuthoringStatus = error;
+                    attackAuthoringError = true;
+                }
             }
+            EditorGUILayout.LabelField("近战、投射物新增均默认独立；投射物的移动配置也独立。仅手填已有配置 ID 时主动复用。", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("新 ID 只统计当前仍存在步骤所用的同类新增配置；删除步骤后的无引用草稿配置不占号。没有有效新增记录时，取正式配置最大 ID + 1。", EditorStyles.wordWrappedMiniLabel);
+            if (!string.IsNullOrEmpty(attackAuthoringStatus))
+                EditorGUILayout.HelpBox(attackAuthoringStatus, attackAuthoringError ? MessageType.Warning : MessageType.Info);
+            EditorGUILayout.EndVertical();
         }
         /// <summary>
-        /// 绘制共享配置。
+        /// 在所属步骤下绘制公共参数和 Shape，不能依赖全局当前选择决定编辑对象。
         /// </summary>
 
-        private void DrawSharedConfiguration(BattleActionTimelineDocument edited)
+        private void DrawStepConfiguration(
+            BattleActionTimelineDocument edited,
+            ResolvedStep resolved,
+            string stepLabel)
         {
-            ResolvedStep resolved = ResolveSelectedStep(edited);
             if (resolved == null)
             {
-                EditorGUILayout.Space(8f);
-                EditorGUILayout.HelpBox(
-                    "选择 executionStep 后可编辑它引用的共享记录。共享记录按正式 id " +
-                    "独立保存，不会为当前动作复制。",
-                    MessageType.Info);
                 return;
             }
 
-            EditorGUILayout.Space(8f);
-            EditorGUILayout.LabelField("共享记录（不会随动作复制）", EditorStyles.boldLabel);
+            if (resolved.Owner == null || resolved.Body == null)
+            {
+                EditorGUILayout.HelpBox("此步骤缺少对应的生成／发射配置或攻击体。", MessageType.Error);
+                return;
+            }
+
+            EditorGUILayout.Space(6f);
+            bool showParameters = DrawViewFoldout(
+                "parameters:" + HierarchyKey(resolved.StepTable, resolved.Step),
+                "公共参数（生成、命中、独立配置）");
+            if (showParameters)
+            {
+                DrawStepCommonFields(edited, resolved);
+                // 独立复制可能改了引用，按当前步骤重新解析，不能跳到别的选中步骤。
+                resolved = ResolveStep(edited, resolved.StepTable, resolved.Step);
+            }
+
+            DrawShapes(edited, resolved, stepLabel);
+        }
+
+        private void DrawStepCommonFields(BattleActionTimelineDocument edited, ResolvedStep resolved)
+        {
+            if ((resolved.IsMelee || resolved.IsProjectile) && resolved.Owner != null && resolved.Body != null)
+            {
+                int stepReferences = BattleActionTimelineAttackAuthoring.CountStepReferences(edited, resolved.Owner.rowId, resolved.IsProjectile);
+                int bodyReferences = BattleActionTimelineAttackAuthoring.CountBodyReferences(edited, resolved.Body.rowId);
+                int projectileReferences = 0, movementReferences = 0;
+                if (resolved.IsProjectile && resolved.Projectile != null)
+                {
+                    projectileReferences = BattleActionTimelineAttackAuthoring.CountProjectileReferences(edited, resolved.Projectile.rowId);
+                    if (BattleActionTimelineAttackAuthoring.TryReadMovementType(
+                        BattleActionTimelineSchema.Get(resolved.ProjectileTable, resolved.Projectile, "movementType"), out var movementType))
+                        movementReferences = BattleActionTimelineAttackAuthoring.CountMovementReferences(edited, movementType,
+                            BattleActionTimelineSchema.GetInt(resolved.ProjectileTable, resolved.Projectile, 0, "movementConfigId"));
+                }
+                bool shared = stepReferences > 1 || bodyReferences > 1 || projectileReferences > 1 || movementReferences > 1;
+                string projectileCounts = resolved.IsProjectile
+                    ? $"投射物被 {projectileReferences} 份发射配置引用，移动配置被 {movementReferences} 个投射物引用。" : "";
+                EditorGUILayout.HelpBox(shared
+                    ? $"当前仍在共用：生成／发射配置被 {stepReferences} 个步骤引用，攻击体被 {bodyReferences} 份生成／投射物配置引用。" +
+                        projectileCounts + "先复制为独立配置，再单独调整。"
+                    : resolved.IsProjectile ? "当前步骤的发射配置、投射物、攻击体、移动和变轨均独立。"
+                        : "当前步骤使用独立的近战生成配置、攻击体和变轨，修改不会串到其它步骤。",
+                    shared ? MessageType.Warning : MessageType.Info);
+                using (new EditorGUI.DisabledScope(!shared))
+                {
+                    if (GUILayout.Button(resolved.IsProjectile ? "复制为当前步骤独立配置（形状＋变轨＋移动）" : "复制为当前步骤独立配置（形状＋变轨）"))
+                    {
+                        if (BattleActionTimelineAttackAuthoring.TryMakeStepIndependent(edited,
+                            resolved.StepTable.sheetName, resolved.Step.rowId, out var copied, out string error))
+                        {
+                            attackAuthoringStatus = copied.IsProjectile
+                                ? $"当前投射物步骤已独立：发射配置 {copied.SpawnId} / 投射物 {copied.ProjectileId} / 攻击体 {copied.BodyId} / 移动配置 {copied.MovementId}。"
+                                : $"当前近战步骤已独立：生成配置 {copied.SpawnId} / 攻击体 {copied.BodyId}。";
+                            attackAuthoringStatus += "原记录和其它步骤保持不变，尚未写回。";
+                            attackAuthoringError = false;
+                            SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
+                            resolved = ResolveStep(edited, resolved.StepTable, resolved.Step);
+                            GUI.changed = true;
+                        }
+                        else
+                        {
+                            attackAuthoringStatus = error;
+                            attackAuthoringError = true;
+                        }
+                    }
+                }
+            }
             if (resolved.Owner != null)
             {
-                EditorGUILayout.HelpBox(
-                    resolved.OwnerTable.sheetName + " id=" + resolved.Owner.rowId +
-                    " 是全工作簿共享记录；修改会影响所有引用它的动作。",
-                    MessageType.Warning);
+                EditorGUILayout.LabelField(resolved.OwnerTable.sheetName + " id=" + resolved.Owner.rowId,
+                    EditorStyles.miniBoldLabel);
                 DrawOwnerFields(resolved);
                 DrawProjectileMovementFields(edited, resolved);
             }
@@ -853,10 +1179,7 @@ namespace Game.EditorTools
             if (resolved.Body != null)
             {
                 DrawAttackBody(resolved);
-                DrawShapes(edited, resolved);
             }
-
-            DrawKeyframes(edited, resolved);
         }
         /// <summary>
         /// 绘制所有者字段。
@@ -868,6 +1191,7 @@ namespace Game.EditorTools
             BattleActionTimelineRecordData owner = resolved.Owner;
             if (resolved.IsMelee)
             {
+                EditorGUI.BeginChangeCheck();
                 double duration = EditorGUILayout.DoubleField(
                     "activeDuration",
                     BattleActionTimelineSchema.GetDouble(
@@ -875,11 +1199,11 @@ namespace Game.EditorTools
                         owner,
                         0d,
                         "activeDuration"));
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    owner,
-                    SnapNonNegative(duration),
-                    "activeDuration");
+                if (EditorGUI.EndChangeCheck())
+                {
+                    BattleActionTimelineSchema.SetDouble(
+                        table, owner, SnapNonNegative(duration), "activeDuration");
+                }
             }
             else if (resolved.IsProjectile)
             {
@@ -943,6 +1267,7 @@ namespace Game.EditorTools
                         resolved.ProjectileTable.sheetName + " id=" +
                         resolved.Projectile.rowId,
                         EditorStyles.miniBoldLabel);
+                    EditorGUI.BeginChangeCheck();
                     double lifetime = EditorGUILayout.DoubleField(
                         "maxLifetime",
                         BattleActionTimelineSchema.GetDouble(
@@ -950,11 +1275,12 @@ namespace Game.EditorTools
                             resolved.Projectile,
                             0d,
                             "maxLifetime"));
-                    BattleActionTimelineSchema.SetDouble(
-                        resolved.ProjectileTable,
-                        resolved.Projectile,
-                        SnapNonNegative(lifetime),
-                        "maxLifetime");
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        BattleActionTimelineSchema.SetDouble(
+                            resolved.ProjectileTable, resolved.Projectile,
+                            SnapNonNegative(lifetime), "maxLifetime");
+                    }
                     string movementType = EditorGUILayout.TextField(
                         "movementType",
                         BattleActionTimelineSchema.Get(
@@ -1004,10 +1330,12 @@ namespace Game.EditorTools
                 resolved.ProjectileTable,
                 resolved.Projectile,
                 "movementType");
-            bool ballistic = movementType.IndexOf(
-                    "Ballistic",
-                    StringComparison.OrdinalIgnoreCase) >= 0 ||
-                movementType == "1";
+            if (!BattleActionTimelineAttackAuthoring.TryReadMovementType(movementType, out var parsedMovementType))
+            {
+                EditorGUILayout.HelpBox("movementType 无效，未回退编辑其它移动配置。", MessageType.Error);
+                return;
+            }
+            bool ballistic = parsedMovementType == RefData.EnumBattleProjectileMovementType.Ballistic;
             BattleActionTimelineTableData table = ballistic
                 ? document.tables.FirstOrDefault(
                     BattleActionTimelineSchema.IsBallisticMovementTable)
@@ -1020,13 +1348,13 @@ namespace Game.EditorTools
                 EditorGUILayout.HelpBox(
                     "movementConfigId=" + movementId +
                     " 没有对应的 " + (ballistic ? "Ballistic" : "Linear") +
-                    " 共享移动记录。",
+                    " 移动配置。",
                     MessageType.Warning);
                 return;
             }
 
             EditorGUILayout.LabelField(
-                table.sheetName + " id=" + movement.rowId + "（共享移动记录）",
+                table.sheetName + " id=" + movement.rowId + "（移动配置）",
                 EditorStyles.miniBoldLabel);
             if (ballistic)
             {
@@ -1147,7 +1475,8 @@ namespace Game.EditorTools
 
         private void DrawShapes(
             BattleActionTimelineDocument edited,
-            ResolvedStep resolved)
+            ResolvedStep resolved,
+            string stepLabel)
         {
             BattleActionTimelineTableData table = edited.tables.FirstOrDefault(
                 BattleActionTimelineSchema.IsShapeTable);
@@ -1164,26 +1493,48 @@ namespace Game.EditorTools
                     0,
                     BattleActionTimelineSchema.AttackBodyIdAliases) ==
                     resolved.Body.rowId).ToList();
-            EditorGUILayout.LabelField("组合形状", EditorStyles.miniBoldLabel);
-            foreach (BattleActionTimelineRecordData shape in shapes)
+            shapes = shapes.OrderBy(record => BattleActionTimelineSchema.GetInt(
+                table,
+                record,
+                int.MaxValue,
+                "shapeIndex",
+                "index")).ToList();
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField(stepLabel + " / 组合形状（" + shapes.Count + "）", EditorStyles.miniBoldLabel);
+            ResolvedStep preview = ResolveSelectedStep(edited);
+            for (int shapeIndex = 0; shapeIndex < shapes.Count; shapeIndex++)
             {
+                BattleActionTimelineRecordData shape = shapes[shapeIndex];
+                string shapeLabel = "Shape " + (shapeIndex + 1);
+                string ownerLabel = stepLabel + " / " + shapeLabel;
+                BindShapeKeyframes(edited, resolved, shape);
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.BeginHorizontal();
-                DrawSelectionButton(
-                    "Shape " + shape.rowId,
-                    string.Equals(
-                        authoringState.selectedSharedSheet,
-                        table.sheetName,
-                        StringComparison.Ordinal) &&
-                    authoringState.selectedSharedRowId == shape.rowId,
-                    () => SelectShared(table.sheetName, shape.rowId));
-                if (GUILayout.Button("删除", GUILayout.Width(42f)))
+                bool expanded = DrawHierarchyHeader(table, shape,
+                    shapeLabel + " · " + BattleActionTimelineSchema.Get(table, shape, "shapeType"), 2,
+                    IsSelectedStep(resolved.StepTable, resolved.Step) &&
+                        preview?.SelectedShape?.rowId == shape.rowId,
+                    () => SelectStepChild(resolved, table, shape), out bool delete);
+                if (delete)
                 {
+                    if (IsSelectedStep(resolved.StepTable, resolved.Step) &&
+                        preview?.SelectedShape?.rowId == shape.rowId)
+                        SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
                     table.records.Remove(shape);
+                    RemoveShapeKeyframes(edited, shape.rowId);
                     GUI.changed = true;
+                    EditorGUILayout.EndVertical();
+                    continue;
                 }
 
-                EditorGUILayout.EndHorizontal();
+                if (!expanded)
+                {
+                    EditorGUILayout.EndVertical();
+                    continue;
+                }
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10f);
+                EditorGUILayout.BeginVertical();
+                EditorGUILayout.LabelField("所属：" + ownerLabel, EditorStyles.miniLabel);
                 string type = EditorGUILayout.TextField(
                     "形状类型",
                     BattleActionTimelineSchema.Get(table, shape, "shapeType"));
@@ -1285,35 +1636,45 @@ namespace Game.EditorTools
                     capsuleDirection,
                     "capsuleDirection",
                     "direction");
+                DrawKeyframes(edited, resolved, ownerLabel);
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.EndHorizontal();
                 EditorGUILayout.EndVertical();
             }
 
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("为 " + stepLabel + " 新增 Shape", EditorStyles.miniBoldLabel);
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("+ 矩形"))
             {
-                AddShape(table, resolved.Body.rowId, "Box");
+                SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
+                AddShape(edited, table, resolved.Body.rowId, "Box");
                 GUI.changed = true;
             }
 
             if (GUILayout.Button("+ 圆形"))
             {
-                AddShape(table, resolved.Body.rowId, "Circle");
+                SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
+                AddShape(edited, table, resolved.Body.rowId, "Circle");
                 GUI.changed = true;
             }
 
             if (GUILayout.Button("+ 胶囊"))
             {
-                AddShape(table, resolved.Body.rowId, "Capsule");
+                SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
+                AddShape(edited, table, resolved.Body.rowId, "Capsule");
                 GUI.changed = true;
             }
 
             EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
         }
         /// <summary>
         /// 添加形状。
         /// </summary>
 
         private void AddShape(
+            BattleActionTimelineDocument edited,
             BattleActionTimelineTableData table,
             int attackBodyId,
             string shapeType)
@@ -1324,6 +1685,16 @@ namespace Game.EditorTools
                 shape,
                 attackBodyId,
                 BattleActionTimelineSchema.AttackBodyIdAliases);
+            int nextShapeIndex = table.records
+                .Where(record => BattleActionTimelineSchema.GetInt(
+                    table,
+                    record,
+                    0,
+                    BattleActionTimelineSchema.AttackBodyIdAliases) == attackBodyId)
+                .Select(record => BattleActionTimelineSchema.GetInt(table, record, -1, "shapeIndex", "index"))
+                .DefaultIfEmpty(-1)
+                .Max() + 1;
+            BattleActionTimelineSchema.SetInt(table, shape, nextShapeIndex, "shapeIndex", "index");
             BattleActionTimelineSchema.Set(table, shape, shapeType, "shapeType");
             bool circle = string.Equals(
                 shapeType,
@@ -1357,7 +1728,88 @@ namespace Game.EditorTools
                 "capsuleDirection",
                 "direction");
             table.records.Add(shape);
+            AddDefaultShapeKeyframe(edited, shape.rowId);
+            SetHierarchyExpanded(table, shape);
             SelectShared(table.sheetName, shape.rowId);
+        }
+
+        private static void RemoveShapeKeyframes(
+            BattleActionTimelineDocument document,
+            int shapeId)
+        {
+            BattleActionTimelineTableData keyframeTable = document?.tables.FirstOrDefault(table =>
+                BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (keyframeTable == null)
+            {
+                return;
+            }
+
+            int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(keyframeTable);
+            if (ownerColumn < 0)
+            {
+                return;
+            }
+
+            keyframeTable.records.RemoveAll(record =>
+                int.TryParse(
+                    record.cells[ownerColumn],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int ownerId) && ownerId == shapeId);
+            keyframeTable.inlineOwners.RemoveAll(owner => owner.ownerRowId == shapeId);
+        }
+
+        private static void AddDefaultShapeKeyframe(
+            BattleActionTimelineDocument document,
+            int shapeId)
+        {
+            AddShapeKeyframe(document, shapeId, 0d);
+        }
+
+        // 新增轨道始终由明确的 Shape 拥有，不能用步骤的 Spawn/Launch ID 代替。
+        private static BattleActionTimelineRecordData AddShapeKeyframe(
+            BattleActionTimelineDocument document,
+            int shapeId,
+            double localTime)
+        {
+            BattleActionTimelineTableData keyframeTable = document?.tables.FirstOrDefault(table =>
+                BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (keyframeTable == null || shapeId <= 0)
+            {
+                return null;
+            }
+
+            int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(keyframeTable);
+            BattleActionTimelineTableData shapes = document.tables.FirstOrDefault(
+                BattleActionTimelineSchema.IsShapeTable);
+            BattleActionTimelineRecordData shape = BattleActionTimelineSchema.FindById(shapes, shapeId);
+            if (ownerColumn < 0 || shape == null || double.IsNaN(localTime) || double.IsInfinity(localTime))
+            {
+                return null;
+            }
+
+            if (keyframeTable.isInlineProjection &&
+                !keyframeTable.inlineOwners.Any(owner => owner.ownerRowId == shapeId))
+            {
+                BattleActionTimelineSchema.Set(shapes, shape, "[]", keyframeTable.inlineSourceColumnName);
+                keyframeTable.inlineOwners.Add(new BattleActionTimelineInlineOwnerData
+                {
+                    ownerRowId = shapeId, originalCell = "[]", baselineSignature = string.Empty,
+                });
+            }
+
+            BattleActionTimelineRecordData keyframe = CreateRecord(keyframeTable);
+            keyframe.cells[ownerColumn] = shapeId.ToString(CultureInfo.InvariantCulture);
+            BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, Math.Max(0d, localTime), BattleActionTimelineSchema.LocalTimeAliases);
+            BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 1d, BattleActionTimelineSchema.ScaleXAliases);
+            BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 1d, BattleActionTimelineSchema.ScaleYAliases);
+            BattleActionTimelineSchema.Set(keyframeTable, keyframe, "Linear", BattleActionTimelineSchema.InterpolationAliases);
+            keyframeTable.records.Add(keyframe);
+            return keyframe;
         }
         /// <summary>
         /// 绘制关键帧。
@@ -1365,38 +1817,54 @@ namespace Game.EditorTools
 
         private void DrawKeyframes(
             BattleActionTimelineDocument edited,
-            ResolvedStep resolved)
+            ResolvedStep resolved,
+            string ownerLabel)
         {
-            if (resolved.KeyframeTable == null)
+            if (resolved.SelectedShape == null || resolved.KeyframeTable == null)
             {
                 EditorGUILayout.HelpBox(
-                    "当前共享记录没有可识别的 TransformKeyframe Sheet。",
+                    "当前 Shape 没有可识别的关键帧工作表。",
                     MessageType.Info);
                 return;
             }
 
             BattleActionTimelineTableData table = resolved.KeyframeTable;
             int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(table);
-            EditorGUILayout.LabelField("变换关键帧轨", EditorStyles.miniBoldLabel);
-            foreach (BattleActionTimelineRecordData keyframe in resolved.Keyframes)
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("此 Shape 的关键帧（" + resolved.Keyframes.Count + "）", EditorStyles.miniBoldLabel);
+            for (int index = 0; index < resolved.Keyframes.Count; index++)
             {
+                BattleActionTimelineRecordData keyframe = resolved.Keyframes[index];
+                double time = BattleActionTimelineSchema.GetDouble(
+                    table, keyframe, 0d, BattleActionTimelineSchema.LocalTimeAliases);
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.BeginHorizontal();
-                DrawSelectionButton(
-                    "Key " + keyframe.rowId,
-                    string.Equals(
+                bool expanded = DrawHierarchyHeader(table, keyframe,
+                    "关键帧 " + (index + 1) + " · " + time.ToString("0.###", CultureInfo.InvariantCulture) + "s", 3,
+                    IsSelectedStep(resolved.StepTable, resolved.Step) && string.Equals(
                         authoringState.selectedSharedSheet,
                         table.sheetName,
                         StringComparison.Ordinal) &&
                     authoringState.selectedSharedRowId == keyframe.rowId,
-                    () => SelectShared(table.sheetName, keyframe.rowId));
-                if (GUILayout.Button("删除", GUILayout.Width(42f)))
+                    () => SelectStepChild(resolved, table, keyframe), out bool delete);
+                if (delete)
                 {
+                    if (IsSelectedStep(resolved.StepTable, resolved.Step) &&
+                        authoringState.selectedSharedSheet == table.sheetName &&
+                        authoringState.selectedSharedRowId == keyframe.rowId)
+                        SelectStepChild(resolved, resolved.ShapeTable, resolved.SelectedShape);
                     table.records.Remove(keyframe);
                     GUI.changed = true;
+                    EditorGUILayout.EndVertical();
+                    continue;
                 }
 
-                EditorGUILayout.EndHorizontal();
+                if (!expanded)
+                {
+                    EditorGUILayout.EndVertical();
+                    continue;
+                }
+                EditorGUILayout.LabelField("所属：" + ownerLabel, EditorStyles.miniLabel);
+                EditorGUI.BeginChangeCheck();
                 double localTime = EditorGUILayout.DoubleField(
                     "局部时间",
                     BattleActionTimelineSchema.GetDouble(
@@ -1404,6 +1872,13 @@ namespace Game.EditorTools
                         keyframe,
                         0d,
                         BattleActionTimelineSchema.LocalTimeAliases));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    BattleActionTimelineSchema.SetDouble(
+                        table, keyframe,
+                        Math.Max(0d, Math.Min(resolved.Lifetime, SnapNonNegative(localTime))),
+                        BattleActionTimelineSchema.LocalTimeAliases);
+                }
                 Vector2 offset = EditorGUILayout.Vector2Field(
                     "偏移",
                     new Vector2(
@@ -1446,11 +1921,6 @@ namespace Game.EditorTools
                 BattleActionTimelineSchema.SetDouble(
                     table,
                     keyframe,
-                    Math.Max(0d, Math.Min(resolved.Lifetime, SnapNonNegative(localTime))),
-                    BattleActionTimelineSchema.LocalTimeAliases);
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    keyframe,
                     offset.x,
                     BattleActionTimelineSchema.OffsetXAliases);
                 BattleActionTimelineSchema.SetDouble(
@@ -1481,62 +1951,96 @@ namespace Game.EditorTools
                 EditorGUILayout.EndVertical();
             }
 
-            if (ownerColumn >= 0 && GUILayout.Button("+ 在当前帧新增变换关键帧"))
+            if (ownerColumn >= 0 && GUILayout.Button("+ 给 " + ownerLabel + " 新增关键帧"))
             {
-                BattleActionTimelineRecordData keyframe = CreateRecord(table);
-                keyframe.cells[ownerColumn] = resolved.Owner.rowId.ToString(
-                    CultureInfo.InvariantCulture);
                 double local = Math.Max(
                     0d,
                     Math.Min(resolved.Lifetime, playheadSeconds - resolved.TriggerTime));
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    keyframe,
-                    SnapNonNegative(local),
-                    BattleActionTimelineSchema.LocalTimeAliases);
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    keyframe,
-                    1d,
-                    BattleActionTimelineSchema.ScaleXAliases);
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    keyframe,
-                    1d,
-                    BattleActionTimelineSchema.ScaleYAliases);
-                BattleActionTimelineSchema.Set(
-                    table,
-                    keyframe,
-                    "Linear",
-                    BattleActionTimelineSchema.InterpolationAliases);
-                table.records.Add(keyframe);
-                SelectShared(table.sheetName, keyframe.rowId);
-                GUI.changed = true;
+                BattleActionTimelineRecordData keyframe = AddShapeKeyframe(
+                    edited, resolved.SelectedShape.rowId, SnapNonNegative(local));
+                if (keyframe != null)
+                {
+                    SetHierarchyExpanded(table, keyframe);
+                    SelectStepChild(resolved, table, keyframe);
+                    GUI.changed = true;
+                }
             }
         }
         /// <summary>
-        /// 绘制选择按钮。
+        /// 绘制分级标题；折叠、预览和删除按钮本身不把窗口视图计为数据修改。
         /// </summary>
 
-        private static void DrawSelectionButton(
-            string label,
+        private bool DrawHierarchyHeader(
+            BattleActionTimelineTableData table,
+            BattleActionTimelineRecordData record,
+            string title,
+            int level,
             bool selected,
-            Action onClick)
+            Action onSelect,
+            out bool delete)
         {
-            Color previousColor = GUI.backgroundColor;
             bool previousChanged = GUI.changed;
-            if (selected)
-            {
-                GUI.backgroundColor = new Color(0.35f, 0.72f, 1f, 1f);
-            }
-
-            if (GUILayout.Button(label))
-            {
-                onClick?.Invoke();
-            }
-
+            string key = HierarchyKey(table, record);
+            bool expanded = !hierarchyExpanded.TryGetValue(key, out bool stored)
+                ? level < 3 : stored;
+            Rect header = EditorGUILayout.GetControlRect(false, 26f);
+            Color tint = selected ? new Color(0.2f, 0.55f, 0.9f, 0.32f)
+                : level == 1 ? new Color(0.25f, 0.5f, 0.8f, 0.18f)
+                : level == 2 ? new Color(0.3f, 0.7f, 0.55f, 0.15f)
+                : new Color(0.6f, 0.6f, 0.6f, 0.13f);
+            EditorGUI.DrawRect(header, tint);
+            EditorGUI.LabelField(new Rect(header.x + 4f, header.y + 4f, 30f, 18f),
+                level == 1 ? "一级" : level == 2 ? "二级" : "三级", EditorStyles.miniBoldLabel);
+            expanded = EditorGUI.Foldout(
+                new Rect(header.x + 48f, header.y + 4f, Math.Max(40f, header.width - 136f), 18f),
+                expanded, new GUIContent(title, table.sheetName + " / 内部行号 " + record.rowId), true);
+            hierarchyExpanded[key] = expanded;
+            if (GUI.Button(new Rect(header.xMax - 83f, header.y + 3f, 40f, 20f),
+                new GUIContent("预览", "在时间轴和画面中选中这一项")))
+                onSelect?.Invoke();
+            delete = GUI.Button(new Rect(header.xMax - 41f, header.y + 3f, 38f, 20f), "删除");
             GUI.changed = previousChanged;
-            GUI.backgroundColor = previousColor;
+            return expanded;
+        }
+
+        private static string HierarchyKey(
+            BattleActionTimelineTableData table, BattleActionTimelineRecordData record) =>
+            table.sheetName + ":" + record.rowId.ToString(CultureInfo.InvariantCulture);
+
+        private bool DrawViewFoldout(string key, string label)
+        {
+            bool previousChanged = GUI.changed;
+            bool expanded = hierarchyExpanded.TryGetValue(key, out bool stored) && stored;
+            expanded = EditorGUILayout.Foldout(expanded, label, true);
+            hierarchyExpanded[key] = expanded;
+            GUI.changed = previousChanged;
+            return expanded;
+        }
+
+        private void SetHierarchyExpanded(
+            BattleActionTimelineTableData table, BattleActionTimelineRecordData record)
+        {
+            hierarchyExpanded[HierarchyKey(table, record)] = true;
+        }
+
+        private bool IsSelectedStep(
+            BattleActionTimelineTableData table, BattleActionTimelineRecordData step) =>
+            authoringState.selectedStepSheet == table.sheetName &&
+            authoringState.selectedStepRowId == step.rowId;
+
+        private void SelectStepChild(
+            ResolvedStep resolved, BattleActionTimelineTableData table, BattleActionTimelineRecordData record)
+        {
+            SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
+            if (resolved.SelectedShape != null)
+                SetHierarchyExpanded(resolved.ShapeTable, resolved.SelectedShape);
+            SetHierarchyExpanded(table, record);
+            SelectShared(table.sheetName, record.rowId);
+            if (BattleActionTimelineSchema.IsKeyframeTable(table))
+            {
+                previewEditKeyframes = true;
+                LocatePreviewKeyframe(resolved, record);
+            }
         }
         /// <summary>
         /// 绘制`Issues`。
@@ -1556,7 +2060,9 @@ namespace Game.EditorTools
             if (validationIssues.Count == 0)
             {
                 EditorGUILayout.HelpBox(
-                    "当前动作工作集可安全写回源 xlsx；本工具不会调用导表。",
+                    workbookSnapshot != null && workbookSnapshot.HasActionStructure
+                        ? "当前动作工作集可安全写回源 xlsx；本工具不会调用导表。"
+                        : "当前草稿结构校验通过，但源表基线未绑定，不能安全写回。",
                     MessageType.Info);
             }
             else
@@ -1576,17 +2082,6 @@ namespace Game.EditorTools
         private void DrawTimelineAndPreview(Rect rect)
         {
             GUI.Box(rect, GUIContent.none, EditorStyles.helpBox);
-            if (!TryGetSelectedAction(Document, out _, out _))
-            {
-                GUI.Label(
-                    new Rect(rect.x + 16f, rect.y + 16f, rect.width - 32f, 60f),
-                    "读取包含 ActiveSingle 的正式源表后，这里会显示阶段、事件、" +
-                    "攻击体存活和 transform 关键帧四条独立轨道。",
-                    EditorStyles.wordWrappedLabel);
-                return;
-            }
-
-            SampleAnimationPreview();
             Rect timeline = new Rect(rect.x + 8f, rect.y + 8f, rect.width - 16f,
                 Mathf.Min(TimelineHeight, rect.height * 0.43f));
             Rect preview = new Rect(
@@ -1605,7 +2100,7 @@ namespace Game.EditorTools
         {
             EditorGUI.DrawRect(rect, new Color(0.045f, 0.058f, 0.075f, 1f));
             Rect content = new Rect(rect.x + 112f, rect.y, rect.width - 120f, rect.height);
-            double duration = Math.Max(FrameSeconds(), CurrentDuration());
+            double duration = Math.Max(FrameSeconds(), CurrentPreviewDuration());
             DrawRuler(content, duration);
             Rect stageLane = LaneRect(content, 0);
             Rect stepLane = LaneRect(content, 1);
@@ -1630,7 +2125,7 @@ namespace Game.EditorTools
             Handles.EndGUI();
             GUI.Label(
                 new Rect(playheadX + 3f, content.y + 2f, 70f, 18f),
-                CurrentFrame().ToString(CultureInfo.InvariantCulture),
+                (playheadSeconds * authoringState.frameRate).ToString("0.###", CultureInfo.InvariantCulture),
                 EditorStyles.miniLabel);
             HandleTimelineInput(content, stageLane, stepLane, keyLane, duration);
         }
@@ -1909,6 +2404,8 @@ namespace Game.EditorTools
             Rect keyLane,
             double duration)
         {
+            // 预览已捕获鼠标时，不能被上方时间轴当成时间拖拽消费。
+            if (dragKind == DragKind.PreviewShapeGizmo) return;
             Event current = Event.current;
             if (current.type == EventType.MouseDown && current.button == 0 &&
                 content.Contains(current.mousePosition))
@@ -2190,42 +2687,54 @@ namespace Game.EditorTools
 
         private void DrawPreview(Rect rect)
         {
+            // 固定预览视口，角色和攻击体都不能绘制/拖拽到时间轴或检视面板上。
+            GUI.BeginGroup(rect);
+            try
+            {
+                DrawPreviewContents(new Rect(0f, 0f, rect.width, rect.height));
+            }
+            finally
+            {
+                GUI.EndGroup();
+            }
+        }
+
+        private void DrawPreviewContents(Rect rect)
+        {
             EditorGUI.DrawRect(rect, new Color(0.035f, 0.045f, 0.06f, 1f));
             GUI.Box(rect, GUIContent.none, EditorStyles.helpBox);
             float pixelsPerUnit = Mathf.Clamp(
-                Mathf.Min(rect.width, rect.height) / 10f,
-                28f,
-                72f);
+                Mathf.Min(rect.width / 6f, (rect.height - 60f) /
+                    (authoringState.previewHeight * 2f)),
+                24f,
+                240f) * authoringState.previewZoom;
             Vector2 origin = new Vector2(rect.center.x, rect.center.y + rect.height * 0.18f);
             DrawPreviewGrid(rect, origin, pixelsPerUnit);
+            DrawSequencePreview(rect, origin, pixelsPerUnit);
             GUI.Label(
                 new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 20f),
-                "CombatOrigin 预览 · " +
+                "序列帧 + CombatOrigin 判定预览 · " +
                 (authoringState.facing == (int)BattleActionTimelineFacing.Left
                     ? "朝左镜像"
                     : "朝右配置") +
-                " · 白色拖关键帧原点，黄色拖选中 Shape",
+                " · 点选形状后用手柄编辑",
                 EditorStyles.whiteLabel);
 
             ResolvedStep resolved = ResolveSelectedStep(Document);
             if (resolved == null || resolved.Body == null)
             {
+                DrawPreviewShapeToolbar(rect, resolved);
                 GUI.Label(
-                    new Rect(rect.x + 12f, rect.y + 38f, rect.width - 24f, 42f),
+                    new Rect(rect.x + 12f, rect.yMax - 40f, rect.width - 24f, 36f),
                     "选择 Melee/Projectile executionStep 后显示组合攻击形状。",
                     EditorStyles.wordWrappedMiniLabel);
                 return;
             }
 
-            double localTime = playheadSeconds - resolved.TriggerTime;
-            bool active = localTime >= -BattleActionTimelineTime.Epsilon &&
-                localTime <= resolved.Lifetime + BattleActionTimelineTime.Epsilon;
-            localTime = Math.Max(0d, Math.Min(resolved.Lifetime, localTime));
-            BattleActionTimelineTransform transform =
-                BattleActionTimelineSchema.EvaluateKeyframes(
-                    resolved.KeyframeTable,
-                    resolved.Keyframes,
-                    localTime);
+            double elapsed = playheadSeconds - resolved.TriggerTime;
+            bool active = BattleActionTimelinePreviewLifetime.IsActive(elapsed, resolved.Lifetime);
+            bool visible = BattleActionTimelinePreviewLifetime.IsVisible(elapsed, resolved.Lifetime, showInactiveShapes);
+            double localTime = Math.Max(0d, Math.Min(resolved.Lifetime, elapsed));
             Vector2 ownerOffset = resolved.IsProjectile
                 ? ProjectilePreviewOffset(Document, resolved, localTime)
                 : Vector2.zero;
@@ -2233,16 +2742,14 @@ namespace Game.EditorTools
                 (int)BattleActionTimelineFacing.Left ? -1 : 1;
             Vector2 previewOwnerOffset = ownerOffset;
             previewOwnerOffset.x *= facingSign;
-            Vector2 transformOffset = transform.Offset;
-            transformOffset.x *= facingSign;
-            float transformRotation = transform.RotationDegrees * facingSign;
             Vector2 bodyOrigin = origin + new Vector2(
-                (previewOwnerOffset.x + transformOffset.x) * pixelsPerUnit,
-                -(previewOwnerOffset.y + transformOffset.y) * pixelsPerUnit);
+                previewOwnerOffset.x * pixelsPerUnit,
+                -previewOwnerOffset.y * pixelsPerUnit);
 
+            List<PreviewShape> previews = new List<PreviewShape>();
             BattleActionTimelineTableData shapeTable = Document.tables.FirstOrDefault(
                 BattleActionTimelineSchema.IsShapeTable);
-            if (shapeTable != null)
+            if (shapeTable != null && visible)
             {
                 foreach (BattleActionTimelineRecordData shape in shapeTable.records.Where(
                     value => BattleActionTimelineSchema.GetInt(
@@ -2252,58 +2759,31 @@ namespace Game.EditorTools
                         BattleActionTimelineSchema.AttackBodyIdAliases) ==
                         resolved.Body.rowId))
                 {
-                    Vector2 shapeCenter = DrawPreviewShape(
-                        shapeTable,
+                    BattleActionTimelineTransform transform = EvaluateShapeTransform(
+                        Document,
                         shape,
-                        bodyOrigin,
-                        transform,
-                        transformRotation,
-                        facingSign,
-                        pixelsPerUnit,
-                        active ? 1f : 0.3f);
-                    bool selected = string.Equals(
-                            authoringState.selectedSharedSheet,
-                            shapeTable.sheetName,
-                            StringComparison.Ordinal) &&
-                        authoringState.selectedSharedRowId == shape.rowId;
-                    if (selected)
-                    {
-                        EditorGUI.DrawRect(
-                            new Rect(
-                                shapeCenter.x - 4f,
-                                shapeCenter.y - 4f,
-                                8f,
-                                8f),
-                            new Color(1f, 0.82f, 0.15f, 1f));
-                        HandlePreviewShapeOffsetDrag(
-                            rect,
-                            shapeCenter,
-                            bodyOrigin,
-                            transform,
-                            shapeTable,
-                            shape,
-                            pixelsPerUnit,
-                            facingSign);
-                    }
+                        localTime);
+                    PreviewShape preview = BuildPreviewShape(shapeTable, shape, bodyOrigin,
+                        transform, facingSign, pixelsPerUnit);
+                    previews.Add(preview);
+                    DrawPreviewShape(preview, active ? 1f : 0.3f,
+                        resolved.SelectedShape?.rowId == shape.rowId);
                 }
             }
 
-            EditorGUI.DrawRect(
-                new Rect(bodyOrigin.x - 4f, bodyOrigin.y - 4f, 8f, 8f),
-                Color.white);
-            HandlePreviewOffsetDrag(
-                rect,
-                bodyOrigin,
-                origin,
-                ownerOffset,
-                resolved,
-                pixelsPerUnit,
-                facingSign);
+            if (visible)
+                EditorGUI.DrawRect(new Rect(bodyOrigin.x - 4f, bodyOrigin.y - 4f, 8f, 8f),
+                    new Color(1f, 1f, 1f, active ? 1f : 0.3f));
+            Rect interaction = new Rect(rect.x, rect.y + 102f, rect.width, Math.Max(0f, rect.height - 130f));
+            HandlePreviewShapeGizmos(interaction, previews, resolved, bodyOrigin, pixelsPerUnit, facingSign, active ? 1f : 0.3f);
+            DrawPreviewShapeToolbar(rect, resolved);
             GUI.Label(
                 new Rect(rect.x + 10f, rect.yMax - 25f, rect.width - 20f, 18f),
-                (active ? "ACTIVE" : "inactive") +
-                " · localTime=" + localTime.ToString("0.###", CultureInfo.InvariantCulture) +
-                " · shared AttackBody=" + resolved.Body.rowId,
+                (active ? "有效判定" : elapsed < 0d ? "尚未生成" : "已失效") +
+                (!active ? visible ? "（仅编辑预览）" : "（已隐藏）" : string.Empty) +
+                " · localTime=" + elapsed.ToString("0.###", CultureInfo.InvariantCulture) +
+                " · AttackBody=" + resolved.Body.rowId +
+                (previewEditKeyframes ? " · 正在编辑所选关键帧" : " · 正在编辑 Shape 本体（缩放写入尺寸）"),
                 EditorStyles.miniLabel);
         }
         /// <summary>
@@ -2353,15 +2833,13 @@ namespace Game.EditorTools
         /// 绘制预览形状。
         /// </summary>
 
-        private static Vector2 DrawPreviewShape(
+        private static PreviewShape BuildPreviewShape(
             BattleActionTimelineTableData table,
             BattleActionTimelineRecordData shape,
             Vector2 bodyOrigin,
             BattleActionTimelineTransform transform,
-            float transformRotation,
             int facingSign,
-            float pixelsPerUnit,
-            float alpha)
+            float pixelsPerUnit)
         {
             Vector2 localOffset = new Vector2(
                 (float)BattleActionTimelineSchema.GetDouble(
@@ -2376,67 +2854,65 @@ namespace Game.EditorTools
                     0d,
                     "offsetY",
                     "localOffsetY"));
-            localOffset = Vector2.Scale(localOffset, transform.Scale);
-            localOffset = Rotate(localOffset, transform.RotationDegrees);
-            localOffset.x *= facingSign;
-            Vector2 center = bodyOrigin + new Vector2(
-                localOffset.x * pixelsPerUnit,
-                -localOffset.y * pixelsPerUnit);
+            Vector2 center = bodyOrigin + BattleActionTimelineShapeGizmoMath.ToScreen(
+                BattleActionTimelineShapeGizmoMath.Center(localOffset, transform), pixelsPerUnit, facingSign);
             float localRotation = (float)BattleActionTimelineSchema.GetDouble(
                 table,
                 shape,
                 0d,
                 "rotationDegrees",
                 "localRotationDegrees");
-            float rotation = -(transformRotation + localRotation * facingSign);
             string type = BattleActionTimelineSchema.Get(table, shape, "shapeType");
-            Color fill = new Color(1f, 0.25f, 0.2f, 0.22f * alpha);
-            Color outline = new Color(1f, 0.55f, 0.35f, 0.95f * alpha);
-            if (type.IndexOf("Circle", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                type == "1")
-            {
-                float radius = (float)BattleActionTimelineSchema.GetDouble(
-                    table,
-                    shape,
-                    0.5d,
-                    "radius") *
-                    Mathf.Max(Mathf.Abs(transform.Scale.x), Mathf.Abs(transform.Scale.y)) *
-                    pixelsPerUnit;
-                Handles.BeginGUI();
-                Handles.color = fill;
-                Handles.DrawSolidDisc(center, Vector3.forward, radius);
-                Handles.color = outline;
-                Handles.DrawWireDisc(center, Vector3.forward, radius);
-                Handles.EndGUI();
-                return center;
-            }
-
+            bool circle = type.IndexOf("Circle", StringComparison.OrdinalIgnoreCase) >= 0 || type == "1";
+            bool capsule = type.IndexOf("Capsule", StringComparison.OrdinalIgnoreCase) >= 0 || type == "2";
             Vector2 size = new Vector2(
                 (float)BattleActionTimelineSchema.GetDouble(
                     table,
                     shape,
                     1d,
                     "width",
-                    "sizeX") * Mathf.Abs(transform.Scale.x) * pixelsPerUnit,
+                    "sizeX"),
                 (float)BattleActionTimelineSchema.GetDouble(
                     table,
                     shape,
                     1d,
                     "height",
-                    "sizeY") * Mathf.Abs(transform.Scale.y) * pixelsPerUnit);
-            if (type.IndexOf("Capsule", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                type == "2")
+                    "sizeY"));
+            if (circle)
+                size = Vector2.one * (float)BattleActionTimelineSchema.GetDouble(table, shape, 0.5d, "radius") * 2f;
+            string direction = BattleActionTimelineSchema.Get(table, shape, "capsuleDirection", "direction");
+            return new PreviewShape
             {
-                string direction = BattleActionTimelineSchema.Get(
-                    table,
-                    shape,
-                    "capsuleDirection",
-                    "direction");
-                bool horizontal = direction.IndexOf(
-                        "Horizontal",
-                        StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    direction == "1";
-                Vector3[] capsulePoints = BuildCapsulePoints(size, horizontal)
+                Table = table, Shape = shape, Transform = transform, Offset = localOffset,
+                BaseSize = size, Center = center,
+                Size = circle ? size * Mathf.Max(Mathf.Abs(transform.Scale.x), Mathf.Abs(transform.Scale.y)) * pixelsPerUnit
+                    : Vector2.Scale(size, new Vector2(Mathf.Abs(transform.Scale.x), Mathf.Abs(transform.Scale.y))) * pixelsPerUnit,
+                LocalRotation = localRotation, ScreenRotation = -(transform.RotationDegrees + localRotation) * facingSign,
+                Type = circle ? BattleAttackShapeType.Circle : capsule ? BattleAttackShapeType.Capsule : BattleAttackShapeType.Box,
+                Horizontal = direction.IndexOf("Horizontal", StringComparison.OrdinalIgnoreCase) >= 0 || direction == "1",
+            };
+        }
+
+        private static void DrawPreviewShape(PreviewShape shape, float alpha, bool selected)
+        {
+            Vector2 center = shape.Center, size = shape.Size;
+            float rotation = shape.ScreenRotation;
+            Color fill = new Color(1f, selected ? 0.6f : 0.25f, 0.2f, 0.22f * alpha);
+            Color outline = selected ? new Color(1f, 0.85f, 0.2f, alpha)
+                : new Color(1f, 0.55f, 0.35f, 0.95f * alpha);
+            if (shape.Type == BattleAttackShapeType.Circle)
+            {
+                Handles.BeginGUI();
+                Handles.color = fill;
+                Handles.DrawSolidDisc(center, Vector3.forward, size.x * 0.5f);
+                Handles.color = outline;
+                Handles.DrawWireDisc(center, Vector3.forward, size.x * 0.5f);
+                Handles.EndGUI();
+                return;
+            }
+            if (shape.Type == BattleAttackShapeType.Capsule)
+            {
+                Vector3[] capsulePoints = BuildCapsulePoints(size, shape.Horizontal)
                     .Select(value =>
                     {
                         Vector2 rotated = Rotate(value, rotation);
@@ -2453,7 +2929,7 @@ namespace Game.EditorTools
                     2f,
                     capsulePoints.Concat(new[] { capsulePoints[0] }).ToArray());
                 Handles.EndGUI();
-                return center;
+                return;
             }
 
             Vector2[] corners =
@@ -2476,7 +2952,43 @@ namespace Game.EditorTools
                 2f,
                 points[0], points[1], points[2], points[3], points[0]);
             Handles.EndGUI();
-            return center;
+        }
+
+        private static BattleActionTimelineTransform EvaluateShapeTransform(
+            BattleActionTimelineDocument document,
+            BattleActionTimelineRecordData shape,
+            double localTime)
+        {
+            if (document == null || shape == null)
+            {
+                return BattleActionTimelineTransform.Identity;
+            }
+
+            BattleActionTimelineTableData keyframeTable = document.tables.FirstOrDefault(table =>
+                BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (keyframeTable == null)
+            {
+                return BattleActionTimelineTransform.Identity;
+            }
+
+            int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(keyframeTable);
+            if (ownerColumn < 0)
+            {
+                return BattleActionTimelineTransform.Identity;
+            }
+
+            List<BattleActionTimelineRecordData> keyframes = keyframeTable.records.Where(record =>
+                int.TryParse(
+                    record.cells[ownerColumn],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int ownerId) && ownerId == shape.rowId).ToList();
+            return BattleActionTimelineSchema.EvaluateKeyframes(
+                keyframeTable,
+                keyframes,
+                localTime);
         }
         /// <summary>
         /// 构建胶囊体点位。
@@ -2537,189 +3049,308 @@ namespace Game.EditorTools
 
             return points.ToArray();
         }
-        /// <summary>
-        /// 处理预览形状偏移拖拽。
-        /// </summary>
+        private BattleActionTimelineRecordData SelectedPreviewKeyframe(ResolvedStep resolved) =>
+            resolved?.KeyframeTable != null &&
+            authoringState.selectedSharedSheet == resolved.KeyframeTable.sheetName
+                ? resolved.Keyframes.FirstOrDefault(key => key.rowId == authoringState.selectedSharedRowId) : null;
 
-        private void HandlePreviewShapeOffsetDrag(
-            Rect rect,
-            Vector2 shapeCenter,
-            Vector2 bodyOrigin,
-            BattleActionTimelineTransform transform,
-            BattleActionTimelineTableData table,
-            BattleActionTimelineRecordData shape,
-            float pixelsPerUnit,
-            int facingSign)
+        private void DrawPreviewShapeToolbar(Rect rect, ResolvedStep resolved)
         {
-            Event current = Event.current;
-            Rect handle = new Rect(
-                shapeCenter.x - 8f,
-                shapeCenter.y - 8f,
-                16f,
-                16f);
-            EditorGUIUtility.AddCursorRect(handle, MouseCursor.MoveArrow);
-            if (current.type == EventType.MouseDown && current.button == 0 &&
-                handle.Contains(current.mousePosition))
+            EditorGUI.DrawRect(new Rect(1f, 28f, rect.width - 2f, 73f), new Color(0.09f, 0.11f, 0.14f, 0.98f));
+            shapeGizmoTool = (ShapeGizmoTool)GUI.Toolbar(new Rect(10f, 31f, Math.Min(370f, rect.width - 20f), 21f),
+                (int)shapeGizmoTool, new[] { "移动 W", "大小 T", "缩放 R", "旋转 E" });
+            bool showInactive = GUI.Toggle(new Rect(390f, 31f, 160f, 21f), showInactiveShapes,
+                new GUIContent("显示失效形状", "默认关闭。开启后可查看、编辑尚未生成或已结束的形状；不代表有效攻击判定。"));
+            if (showInactive != showInactiveShapes)
             {
-                playing = false;
-                dragKind = DragKind.PreviewShapeOffset;
-                dragSheet = table.sheetName;
-                dragRowId = shape.rowId;
-                dragChanged = false;
-                Undo.RegisterCompleteObjectUndo(
-                    authoringState,
-                    "拖动攻击组合 Shape offset");
-                current.Use();
-            }
-            else if (current.type == EventType.MouseDrag && current.button == 0 &&
-                dragKind == DragKind.PreviewShapeOffset &&
-                string.Equals(dragSheet, table.sheetName, StringComparison.Ordinal) &&
-                dragRowId == shape.rowId && rect.Contains(current.mousePosition))
-            {
-                Vector2 transformed = new Vector2(
-                    (current.mousePosition.x - bodyOrigin.x) / pixelsPerUnit,
-                    -(current.mousePosition.y - bodyOrigin.y) / pixelsPerUnit);
-                transformed.x *= facingSign;
-                Vector2 scaledLocal = Rotate(
-                    transformed,
-                    -transform.RotationDegrees);
-                double x = BattleActionTimelineSchema.GetDouble(
-                    table,
-                    shape,
-                    0d,
-                    "offsetX",
-                    "localOffsetX");
-                double y = BattleActionTimelineSchema.GetDouble(
-                    table,
-                    shape,
-                    0d,
-                    "offsetY",
-                    "localOffsetY");
-                if (Mathf.Abs(transform.Scale.x) > Mathf.Epsilon)
-                {
-                    x = scaledLocal.x / transform.Scale.x;
-                }
-
-                if (Mathf.Abs(transform.Scale.y) > Mathf.Epsilon)
-                {
-                    y = scaledLocal.y / transform.Scale.y;
-                }
-
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    shape,
-                    x,
-                    "offsetX",
-                    "localOffsetX");
-                BattleActionTimelineSchema.SetDouble(
-                    table,
-                    shape,
-                    y,
-                    "offsetY",
-                    "localOffsetY");
-                dragChanged = true;
-                ValidateDocument();
-                QueueDraftSave();
+                showInactiveShapes = showInactive;
                 Repaint();
-                current.Use();
             }
-            else if (current.type == EventType.MouseUp && current.button == 0 &&
-                dragKind == DragKind.PreviewShapeOffset &&
-                string.Equals(dragSheet, table.sheetName, StringComparison.Ordinal) &&
-                dragRowId == shape.rowId)
+            using (new EditorGUI.DisabledScope(resolved?.SelectedShape == null || dragKind == DragKind.PreviewShapeGizmo))
             {
-                if (dragChanged)
+                int target = GUI.Toolbar(new Rect(10f, 56f, 200f, 20f),
+                    previewEditKeyframes ? 1 : 0, new[] { "Shape 本体", "关键帧" });
+                if ((target == 1) != previewEditKeyframes)
                 {
-                    OnAuthoringChanged();
-                }
-
-                CancelDrag();
-                current.Use();
-            }
-        }
-        /// <summary>
-        /// 处理预览偏移拖拽。
-        /// </summary>
-
-        private void HandlePreviewOffsetDrag(
-            Rect rect,
-            Vector2 bodyOrigin,
-            Vector2 combatOrigin,
-            Vector2 ownerOffset,
-            ResolvedStep resolved,
-            float pixelsPerUnit,
-            int facingSign)
-        {
-            BattleActionTimelineRecordData selectedKeyframe =
-                resolved.KeyframeTable?.records.FirstOrDefault(value =>
-                    value.rowId == authoringState.selectedSharedRowId &&
-                    string.Equals(
-                        resolved.KeyframeTable.sheetName,
-                        authoringState.selectedSharedSheet,
-                        StringComparison.Ordinal));
-            if (selectedKeyframe == null)
-            {
-                return;
-            }
-
-            Event current = Event.current;
-            Rect handle = new Rect(bodyOrigin.x - 8f, bodyOrigin.y - 8f, 16f, 16f);
-            EditorGUIUtility.AddCursorRect(handle, MouseCursor.MoveArrow);
-            if (current.type == EventType.MouseDown && current.button == 0 &&
-                handle.Contains(current.mousePosition))
-            {
-                playing = false;
-                dragKind = DragKind.PreviewKeyframeOffset;
-                dragSheet = resolved.KeyframeTable.sheetName;
-                dragRowId = selectedKeyframe.rowId;
-                dragChanged = false;
-                Undo.RegisterCompleteObjectUndo(
-                    authoringState,
-                    "拖动攻击体关键帧 offset");
-                current.Use();
-            }
-            else if (current.type == EventType.MouseDrag && current.button == 0 &&
-                dragKind == DragKind.PreviewKeyframeOffset && rect.Contains(current.mousePosition))
-            {
-                BattleActionTimelineTableData table = Document.FindTable(dragSheet);
-                BattleActionTimelineRecordData keyframe = table?.records.FirstOrDefault(
-                    value => value.rowId == dragRowId);
-                if (keyframe != null)
-                {
-                    Vector2 relative = new Vector2(
-                        (current.mousePosition.x - combatOrigin.x) / pixelsPerUnit,
-                        -(current.mousePosition.y - combatOrigin.y) / pixelsPerUnit);
-                    relative.x *= facingSign;
-                    relative -= ownerOffset;
-                    BattleActionTimelineSchema.SetDouble(
-                        table,
-                        keyframe,
-                        relative.x,
-                        BattleActionTimelineSchema.OffsetXAliases);
-                    BattleActionTimelineSchema.SetDouble(
-                        table,
-                        keyframe,
-                        relative.y,
-                        BattleActionTimelineSchema.OffsetYAliases);
-                    dragChanged = true;
-                    ValidateDocument();
-                    QueueDraftSave();
+                    previewEditKeyframes = target == 1;
+                    if (!previewEditKeyframes)
+                        SelectShared(resolved.ShapeTable.sheetName, resolved.SelectedShape.rowId);
+                    else
+                    {
+                        double time = Math.Max(0d, Math.Min(resolved.Lifetime, playheadSeconds - resolved.TriggerTime));
+                        var key = resolved.Keyframes.FirstOrDefault(value => Math.Abs(
+                            BattleActionTimelineSchema.GetDouble(resolved.KeyframeTable, value, 0d,
+                                BattleActionTimelineSchema.LocalTimeAliases) - time) < BattleActionTimelineTime.Epsilon);
+                        if (key != null) SelectShared(resolved.KeyframeTable.sheetName, key.rowId);
+                    }
                     Repaint();
                 }
-
-                current.Use();
-            }
-            else if (current.type == EventType.MouseUp && current.button == 0 &&
-                dragKind == DragKind.PreviewKeyframeOffset)
-            {
-                if (dragChanged)
+                if (GUI.Button(new Rect(218f, 56f, 135f, 20f), "+ 当前时间关键帧"))
                 {
-                    OnAuthoringChanged();
+                    Undo.RegisterCompleteObjectUndo(authoringState, "添加预览 Shape 关键帧");
+                    int count = resolved.KeyframeTable?.records.Count ?? 0;
+                    double time = SnapNonNegative(Math.Max(0d, Math.Min(resolved.Lifetime,
+                        playheadSeconds - resolved.TriggerTime)));
+                    time = Math.Min(resolved.Lifetime, time);
+                    var key = EnsurePreviewKeyframe(Document, resolved.SelectedShape.rowId, time);
+                    if (key != null)
+                    {
+                        SelectStepChild(resolved, resolved.KeyframeTable, key);
+                        if ((resolved.KeyframeTable?.records.Count ?? 0) != count)
+                        {
+                            NormalizeKeyframeOrder();
+                            OnAuthoringChanged();
+                        }
+                    }
                 }
-
-                CancelDrag();
-                current.Use();
+                var selected = SelectedPreviewKeyframe(resolved);
+                if (selected != null && GUI.Button(new Rect(361f, 56f, 82f, 20f), "定位关键帧"))
+                    LocatePreviewKeyframe(resolved, selected);
             }
+            var selectedKey = SelectedPreviewKeyframe(resolved);
+            string label = resolved?.SelectedShape == null ? "先选择一个步骤，再点击预览中的形状。"
+                : !previewEditKeyframes ? "编辑 Shape 本体 · 拖中心/箭头移动，边点改大小；缩放写入尺寸。"
+                : selectedKey == null ? "关键帧模式：请在左侧/时间轴选择关键帧，或点击“当前时间关键帧”。"
+                : "编辑 Shape " + (BattleActionTimelineSchema.GetInt(resolved.ShapeTable, resolved.SelectedShape, 0, "shapeIndex") + 1) +
+                    " 的关键帧 @" + BattleActionTimelineSchema.GetDouble(resolved.KeyframeTable, selectedKey, 0d,
+                        BattleActionTimelineSchema.LocalTimeAliases).ToString("0.###", CultureInfo.InvariantCulture) +
+                    "s · 不在此帧时需点击“定位关键帧”；Shift 等比缩放。";
+            if (resolved?.SelectedShape != null &&
+                !BattleActionTimelinePreviewLifetime.IsActive(playheadSeconds - resolved.TriggerTime, resolved.Lifetime))
+                label = showInactiveShapes ? "失效形状 · 仅编辑预览，不是有效判定。 " + label
+                    : "当前不在攻击体存活区间，形状和手柄已隐藏；勾选“显示失效形状”可越界编辑。";
+            GUI.Label(new Rect(10f, 79f, rect.width - 20f, 20f), new GUIContent(label, label), EditorStyles.miniLabel);
+        }
+
+        private void LocatePreviewKeyframe(ResolvedStep resolved, BattleActionTimelineRecordData keyframe)
+        {
+            playing = false;
+            playheadSeconds = resolved.TriggerTime + BattleActionTimelineSchema.GetDouble(
+                resolved.KeyframeTable, keyframe, 0d, BattleActionTimelineSchema.LocalTimeAliases);
+            Repaint();
+        }
+
+        // 插帧保留当前采样姿态；已有同时间关键帧时只选择，不创建重叠帧。
+        private static BattleActionTimelineRecordData EnsurePreviewKeyframe(
+            BattleActionTimelineDocument document, int shapeId, double localTime)
+        {
+            var shapes = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsShapeTable);
+            var shape = BattleActionTimelineSchema.FindById(shapes, shapeId);
+            if (shape == null || !BattleActionTimelineTime.IsFinite(localTime) || localTime < 0d) return null;
+            var keys = document.tables.FirstOrDefault(table => BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                BattleActionTimelineSchema.FindColumn(table, "shapeId") >= 0);
+            var existing = keys?.records.FirstOrDefault(key =>
+                BattleActionTimelineSchema.GetInt(keys, key, 0, "shapeId") == shapeId &&
+                Math.Abs(BattleActionTimelineSchema.GetDouble(keys, key, 0d,
+                    BattleActionTimelineSchema.LocalTimeAliases) - localTime) < BattleActionTimelineTime.Epsilon);
+            if (existing != null) return existing;
+            BattleActionTimelineTransform sampled = EvaluateShapeTransform(document, shape, localTime);
+            var added = AddShapeKeyframe(document, shapeId, localTime);
+            if (added == null) return null;
+            BattleActionTimelineSchema.SetDouble(keys, added, sampled.Offset.x, BattleActionTimelineSchema.OffsetXAliases);
+            BattleActionTimelineSchema.SetDouble(keys, added, sampled.Offset.y, BattleActionTimelineSchema.OffsetYAliases);
+            BattleActionTimelineSchema.SetDouble(keys, added, sampled.RotationDegrees, BattleActionTimelineSchema.RotationAliases);
+            BattleActionTimelineSchema.SetDouble(keys, added, sampled.Scale.x, BattleActionTimelineSchema.ScaleXAliases);
+            BattleActionTimelineSchema.SetDouble(keys, added, sampled.Scale.y, BattleActionTimelineSchema.ScaleYAliases);
+            return added;
+        }
+
+        private void HandlePreviewShapeGizmos(Rect rect, List<PreviewShape> shapes, ResolvedStep resolved,
+            Vector2 bodyOrigin, float pixelsPerUnit, int facing, float alpha)
+        {
+            int control = GUIUtility.GetControlID(ShapeGizmoControlHint, FocusType.Passive);
+            Event current = Event.current;
+            if (shapes.Count == 0 && dragKind == DragKind.PreviewShapeGizmo)
+            {
+                if (dragChanged) OnAuthoringChanged();
+                CancelDrag();
+            }
+            if (dragKind == DragKind.PreviewShapeGizmo)
+            {
+                if (current.type == EventType.MouseDrag && current.button == 0)
+                {
+                    ApplyPreviewGizmoDrag(current.mousePosition, current.shift, pixelsPerUnit, facing);
+                    current.Use();
+                }
+                else if (current.type == EventType.MouseUp && current.button == 0)
+                {
+                    if (dragChanged) OnAuthoringChanged();
+                    CancelDrag();
+                    current.Use();
+                }
+            }
+            if (dragKind != DragKind.PreviewShapeGizmo && current.type == EventType.KeyDown && rect.Contains(current.mousePosition) &&
+                GUIUtility.keyboardControl == 0)
+            {
+                ShapeGizmoTool? tool = current.keyCode == KeyCode.W ? ShapeGizmoTool.Move
+                    : current.keyCode == KeyCode.T ? ShapeGizmoTool.Size
+                    : current.keyCode == KeyCode.R ? ShapeGizmoTool.Scale
+                    : current.keyCode == KeyCode.E ? ShapeGizmoTool.Rotate : (ShapeGizmoTool?)null;
+                if (tool.HasValue) { shapeGizmoTool = tool.Value; current.Use(); Repaint(); }
+            }
+            PreviewShape selected = shapes.FirstOrDefault(shape => shape.Shape.rowId == resolved.SelectedShape?.rowId);
+            var key = SelectedPreviewKeyframe(resolved);
+            bool canEdit = selected != null && (!previewEditKeyframes || key != null &&
+                Math.Abs(playheadSeconds - resolved.TriggerTime - BattleActionTimelineSchema.GetDouble(
+                    resolved.KeyframeTable, key, 0d, BattleActionTimelineSchema.LocalTimeAliases)) < BattleActionTimelineTime.Epsilon);
+            Vector2 pivot = selected == null ? bodyOrigin : previewEditKeyframes
+                ? bodyOrigin + BattleActionTimelineShapeGizmoMath.ToScreen(selected.Transform.Offset, pixelsPerUnit, facing)
+                : selected.Center;
+            var handles = new List<(Vector2 point, Vector2 axis)>();
+            ShapeGizmoTool toolToDraw = previewEditKeyframes && shapeGizmoTool == ShapeGizmoTool.Size
+                ? ShapeGizmoTool.Scale : shapeGizmoTool;
+            if (canEdit && !previewEditKeyframes &&
+                (toolToDraw == ShapeGizmoTool.Size || toolToDraw == ShapeGizmoTool.Scale) &&
+                (Math.Abs(selected.Transform.Scale.x) < 0.00001f || Math.Abs(selected.Transform.Scale.y) < 0.00001f))
+            {
+                canEdit = false;
+                GUI.Label(new Rect(rect.x + 10f, rect.y + 3f, rect.width - 20f, 20f),
+                    "此时关键帧有零缩放，请先切换到关键帧模式调整缩放。", EditorStyles.miniLabel);
+            }
+            if (canEdit)
+            {
+                Handles.BeginGUI();
+                Handles.color = new Color(1f, 0.85f, 0.15f, alpha);
+                if (toolToDraw == ShapeGizmoTool.Move)
+                {
+                    handles.Add((pivot, Vector2.zero));
+                    handles.Add((pivot + new Vector2(38f * facing, 0f), Vector2.right));
+                    handles.Add((pivot + new Vector2(0f, -38f), Vector2.up));
+                    Handles.DrawLine(pivot, handles[1].point);
+                    Handles.DrawLine(pivot, handles[2].point);
+                }
+                else if (toolToDraw == ShapeGizmoTool.Rotate)
+                {
+                    float radius = Math.Max(38f, Math.Min(130f, selected.Size.magnitude * 0.5f + 22f));
+                    Handles.DrawWireDisc(pivot, Vector3.forward, radius);
+                    handles.Add((pivot + new Vector2(0f, -radius), Vector2.zero));
+                }
+                else
+                {
+                    Vector2 size = new Vector2(Math.Max(20f, selected.Size.x), Math.Max(20f, selected.Size.y));
+                    foreach (Vector2 axis in new[] { new Vector2(-1f, -1f), new Vector2(0f, -1f), new Vector2(1f, -1f),
+                        new Vector2(-1f, 0f), new Vector2(1f, 0f), new Vector2(-1f, 1f), new Vector2(0f, 1f), new Vector2(1f, 1f) })
+                        handles.Add((selected.Center + Rotate(Vector2.Scale(size * 0.5f, axis), selected.ScreenRotation), axis));
+                    Handles.DrawLine(pivot + new Vector2(-5f, 0f), pivot + new Vector2(5f, 0f));
+                    Handles.DrawLine(pivot + new Vector2(0f, -5f), pivot + new Vector2(0f, 5f));
+                }
+                Handles.EndGUI();
+                foreach (var handle in handles)
+                {
+                    Rect area = new Rect(handle.point.x - 5f, handle.point.y - 5f, 10f, 10f);
+                    EditorGUI.DrawRect(area, new Color(1f, 0.85f, 0.15f, alpha));
+                    EditorGUIUtility.AddCursorRect(area, toolToDraw == ShapeGizmoTool.Move ? MouseCursor.MoveArrow : MouseCursor.ResizeUpLeft);
+                }
+            }
+            if (dragKind == DragKind.PreviewShapeGizmo || current.type != EventType.MouseDown ||
+                current.button != 0 || !rect.Contains(current.mousePosition))
+                return;
+            GUIUtility.keyboardControl = 0;
+            Focus();
+            if (canEdit)
+            {
+                int hit = handles.FindIndex(handle => (handle.point - current.mousePosition).sqrMagnitude <= 100f);
+                if (hit >= 0)
+                {
+                    BeginPreviewGizmoDrag(control, selected, resolved, key, toolToDraw, handles[hit].axis, pivot);
+                    current.Use();
+                    return;
+                }
+            }
+            PreviewShape picked = shapes.LastOrDefault(shape => BattleActionTimelineShapeGizmoMath.Contains(
+                current.mousePosition, shape.Center, shape.Size, shape.ScreenRotation, shape.Type, shape.Horizontal));
+            if (picked == null) return;
+            if (resolved.SelectedShape?.rowId != picked.Shape.rowId || !previewEditKeyframes)
+            {
+                BindShapeKeyframes(Document, resolved, picked.Shape);
+                SelectStepChild(resolved, picked.Table, picked.Shape);
+                previewEditKeyframes = false;
+                canEdit = true;
+            }
+            if (canEdit && toolToDraw == ShapeGizmoTool.Move)
+                BeginPreviewGizmoDrag(control, picked, resolved, SelectedPreviewKeyframe(resolved), toolToDraw, Vector2.zero,
+                    previewEditKeyframes ? pivot : picked.Center);
+            current.Use();
+            Repaint();
+        }
+
+        private void BeginPreviewGizmoDrag(int control, PreviewShape shape, ResolvedStep resolved,
+            BattleActionTimelineRecordData keyframe, ShapeGizmoTool tool, Vector2 axis, Vector2 pivot)
+        {
+            if (!previewEditKeyframes) SelectStepChild(resolved, shape.Table, shape.Shape);
+            playing = false;
+            dragKind = DragKind.PreviewShapeGizmo;
+            dragSheet = previewEditKeyframes ? resolved.KeyframeTable.sheetName : shape.Table.sheetName;
+            dragRowId = previewEditKeyframes ? keyframe.rowId : shape.Shape.rowId;
+            gizmoStartShape = shape;
+            gizmoStartMouse = Event.current.mousePosition;
+            gizmoHandle = axis;
+            gizmoPivot = pivot;
+            gizmoStartOffset = previewEditKeyframes ? shape.Transform.Offset : shape.Offset;
+            gizmoStartRotation = previewEditKeyframes ? shape.Transform.RotationDegrees : shape.LocalRotation;
+            shapeGizmoTool = tool;
+            dragChanged = false;
+            gizmoHotControl = control;
+            GUIUtility.hotControl = control;
+            Undo.RegisterCompleteObjectUndo(authoringState, "拖动 Shape " + (previewEditKeyframes ? "关键帧" : "本体") + " " + tool);
+        }
+
+        private void ApplyPreviewGizmoDrag(Vector2 mouse, bool uniform, float pixelsPerUnit, int facing)
+        {
+            var table = Document.FindTable(dragSheet);
+            var record = BattleActionTimelineSchema.FindById(table, dragRowId);
+            if (record == null || gizmoStartShape == null) { CancelDrag(); return; }
+            PreviewShape shape = gizmoStartShape;
+            bool keyframe = BattleActionTimelineSchema.IsKeyframeTable(table);
+            Vector2 screenDelta = mouse - gizmoStartMouse;
+            Vector2 delta = BattleActionTimelineShapeGizmoMath.FromScreen(screenDelta, pixelsPerUnit, facing);
+            if (shapeGizmoTool == ShapeGizmoTool.Move)
+            {
+                if (gizmoHandle.x != 0f) delta.y = 0f;
+                if (gizmoHandle.y != 0f) delta.x = 0f;
+                Vector2 offset = keyframe ? gizmoStartOffset + delta
+                    : BattleActionTimelineShapeGizmoMath.MoveShapeOffset(gizmoStartOffset, delta, shape.Transform);
+                BattleActionTimelineSchema.SetDouble(table, record, offset.x, BattleActionTimelineSchema.OffsetXAliases);
+                BattleActionTimelineSchema.SetDouble(table, record, offset.y, BattleActionTimelineSchema.OffsetYAliases);
+            }
+            else if (shapeGizmoTool == ShapeGizmoTool.Rotate)
+            {
+                Vector2 start = gizmoStartMouse - gizmoPivot, end = mouse - gizmoPivot;
+                double degrees = (Math.Atan2(end.y, end.x) - Math.Atan2(start.y, start.x)) * 180d / Math.PI;
+                degrees = (degrees + 540d) % 360d - 180d;
+                BattleActionTimelineSchema.SetDouble(table, record, gizmoStartRotation - degrees * facing,
+                    BattleActionTimelineSchema.RotationAliases);
+            }
+            else if (keyframe)
+            {
+                Vector2 localHandle = new Vector2(gizmoHandle.x, -gizmoHandle.y);
+                if (facing < 0) localHandle.x = -localHandle.x;
+                Vector2 scale = BattleActionTimelineShapeGizmoMath.ScaleKeyframe(shape.Offset, shape.BaseSize,
+                    shape.LocalRotation, shape.Transform, localHandle, delta, uniform,
+                    shape.Type == BattleAttackShapeType.Circle);
+                BattleActionTimelineSchema.SetDouble(table, record, scale.x, BattleActionTimelineSchema.ScaleXAliases);
+                BattleActionTimelineSchema.SetDouble(table, record, scale.y, BattleActionTimelineSchema.ScaleYAliases);
+            }
+            else
+            {
+                Vector2 size = BattleActionTimelineShapeGizmoMath.Resize(shape.Size,
+                    Rotate(screenDelta, -shape.ScreenRotation), gizmoHandle,
+                    uniform || shapeGizmoTool == ShapeGizmoTool.Scale || shape.Type == BattleAttackShapeType.Circle);
+                if (shape.Type == BattleAttackShapeType.Circle)
+                {
+                    float scale = Math.Max(0.00001f, Math.Max(shape.Transform.Scale.x, shape.Transform.Scale.y));
+                    BattleActionTimelineSchema.SetDouble(table, record, size.x / (2f * pixelsPerUnit * scale), "radius");
+                }
+                else
+                {
+                    BattleActionTimelineSchema.SetDouble(table, record, size.x / (pixelsPerUnit * Math.Max(0.00001f, shape.Transform.Scale.x)), "width", "sizeX");
+                    BattleActionTimelineSchema.SetDouble(table, record, size.y / (pixelsPerUnit * Math.Max(0.00001f, shape.Transform.Scale.y)), "height", "sizeY");
+                }
+            }
+            dragChanged = true;
+            ValidateDocument();
+            QueueDraftSave();
+            Repaint();
         }
         /// <summary>
         /// 根据 `document`、`resolved`、`localTime` 构建投射物预览偏移并返回结果。
@@ -2796,7 +3427,95 @@ namespace Game.EditorTools
                 document.FindTable(authoringState.selectedStepSheet);
             BattleActionTimelineRecordData step = table?.records.FirstOrDefault(
                 value => value.rowId == authoringState.selectedStepRowId);
-            return step == null ? null : ResolveStep(document, table, step);
+            if (step == null)
+            {
+                return null;
+            }
+
+            ResolvedStep result = ResolveStep(document, table, step);
+            BindSelectedShapeKeyframes(document, result);
+            return result;
+        }
+
+        private void BindSelectedShapeKeyframes(
+            BattleActionTimelineDocument document,
+            ResolvedStep resolved)
+        {
+            if (document == null || resolved == null || resolved.Body == null)
+            {
+                return;
+            }
+
+            resolved.ShapeTable = document.tables.FirstOrDefault(
+                BattleActionTimelineSchema.IsShapeTable);
+            if (resolved.ShapeTable == null)
+            {
+                return;
+            }
+
+            List<BattleActionTimelineRecordData> shapes = resolved.ShapeTable.records
+                .Where(value => BattleActionTimelineSchema.GetInt(
+                    resolved.ShapeTable,
+                    value,
+                    0,
+                    BattleActionTimelineSchema.AttackBodyIdAliases) == resolved.Body.rowId)
+                .OrderBy(value => BattleActionTimelineSchema.GetInt(resolved.ShapeTable, value, 0, "shapeIndex"))
+                .ToList();
+            // 选中某个 Shape 的关键帧后，仍保持该 Shape，不能退回第一个 Shape。
+            BattleActionTimelineTableData selectedTable = document.FindTable(authoringState?.selectedSharedSheet);
+            BattleActionTimelineRecordData selectedRecord = BattleActionTimelineSchema.FindById(
+                selectedTable, authoringState?.selectedSharedRowId ?? 0);
+            int keyframeShapeId = BattleActionTimelineSchema.IsKeyframeTable(selectedTable)
+                ? BattleActionTimelineSchema.GetInt(selectedTable, selectedRecord, 0, "shapeId")
+                : 0;
+            BattleActionTimelineRecordData selectedShape = shapes.FirstOrDefault(value =>
+                keyframeShapeId == value.rowId || (string.Equals(
+                    authoringState?.selectedSharedSheet,
+                    resolved.ShapeTable.sheetName,
+                    StringComparison.Ordinal) &&
+                authoringState != null && authoringState.selectedSharedRowId == value.rowId)) ??
+                shapes.FirstOrDefault();
+            BindShapeKeyframes(document, resolved, selectedShape);
+        }
+
+        private static void BindShapeKeyframes(
+            BattleActionTimelineDocument document,
+            ResolvedStep resolved,
+            BattleActionTimelineRecordData shape)
+        {
+            resolved.SelectedShape = shape;
+            resolved.ShapeTable = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsShapeTable);
+            resolved.KeyframeTable = null;
+            resolved.Keyframes = new List<BattleActionTimelineRecordData>();
+            if (shape == null)
+            {
+                return;
+            }
+
+            resolved.KeyframeTable = document.tables.FirstOrDefault(table =>
+                BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (resolved.KeyframeTable == null)
+            {
+                return;
+            }
+
+            int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(
+                resolved.KeyframeTable);
+            if (ownerColumn < 0)
+            {
+                return;
+            }
+
+            resolved.Keyframes = resolved.KeyframeTable.records.Where(record =>
+                int.TryParse(
+                    record.cells[ownerColumn],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int ownerId) && ownerId == shape.rowId)
+                .OrderBy(record => BattleActionTimelineSchema.GetDouble(
+                    resolved.KeyframeTable, record, 0d, BattleActionTimelineSchema.LocalTimeAliases)).ToList();
         }
         /// <summary>
         /// 解析步骤。
@@ -2830,7 +3549,6 @@ namespace Game.EditorTools
                 0,
                 BattleActionTimelineSchema.StepConfigAliases);
             int attackBodyId = 0;
-            int keyframeOwnerId = 0;
             if (result.IsMelee)
             {
                 result.OwnerTable = document.tables.FirstOrDefault(
@@ -2850,7 +3568,6 @@ namespace Game.EditorTools
                         result.Owner,
                         0d,
                         "activeDuration");
-                    keyframeOwnerId = result.Owner.rowId;
                 }
             }
             else if (result.IsProjectile)
@@ -2897,7 +3614,6 @@ namespace Game.EditorTools
                             result.Projectile,
                             0d,
                             "maxLifetime");
-                        keyframeOwnerId = result.Projectile.rowId;
                     }
                 }
             }
@@ -2907,71 +3623,7 @@ namespace Game.EditorTools
             result.Body = BattleActionTimelineSchema.FindById(
                 result.BodyTable,
                 attackBodyId);
-            result.KeyframeTable = FindKeyframeTable(
-                document,
-                result.IsProjectile,
-                keyframeOwnerId);
-            if (result.KeyframeTable != null && keyframeOwnerId > 0)
-            {
-                int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(
-                    result.KeyframeTable);
-                if (ownerColumn >= 0)
-                {
-                    result.Keyframes = result.KeyframeTable.records.Where(record =>
-                        int.TryParse(
-                            record.cells[ownerColumn],
-                            NumberStyles.Integer,
-                            CultureInfo.InvariantCulture,
-                            out int ownerId) && ownerId == keyframeOwnerId).ToList();
-                }
-            }
-
             return result;
-        }
-        /// <summary>
-        /// 查找关键帧数据表。
-        /// </summary>
-
-        private static BattleActionTimelineTableData FindKeyframeTable(
-            BattleActionTimelineDocument document,
-            bool projectile,
-            int ownerId)
-        {
-            List<BattleActionTimelineTableData> candidates = document.tables
-                .Where(BattleActionTimelineSchema.IsKeyframeTable)
-                .ToList();
-            if (candidates.Count == 0)
-            {
-                return null;
-            }
-
-            string token = projectile ? "projectile" : "melee";
-            BattleActionTimelineTableData named = candidates.FirstOrDefault(table =>
-                table.sheetName.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0);
-            if (named != null)
-            {
-                return named;
-            }
-
-            if (ownerId > 0)
-            {
-                BattleActionTimelineTableData containing = candidates.FirstOrDefault(table =>
-                {
-                    int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(table);
-                    return ownerColumn >= 0 && table.records.Any(record =>
-                        int.TryParse(
-                            record.cells[ownerColumn],
-                            NumberStyles.Integer,
-                            CultureInfo.InvariantCulture,
-                            out int value) && value == ownerId);
-                });
-                if (containing != null)
-                {
-                    return containing;
-                }
-            }
-
-            return candidates.Count == 1 ? candidates[0] : null;
         }
         /// <summary>
         /// 加载正式。
@@ -3005,9 +3657,11 @@ namespace Game.EditorTools
             workbookSnapshot = snapshot;
             Document = BattleActionTimelineDocument.FromSnapshot(snapshot);
             authoringState.baselineSignature = Document.CanonicalSignature();
+            authoringState.sourceWorkbookPath = snapshot.WorkbookPath;
+            authoringState.sourceWorkbookHash = snapshot.ContentHash;
             Undo.ClearUndo(authoringState);
             ClearDraft();
-            SelectFirstActionIfNecessary();
+            NormalizeSelection();
             playheadSeconds = 0d;
             playing = false;
             ValidateDocument();
@@ -3029,6 +3683,7 @@ namespace Game.EditorTools
 
         private void WriteOfficial()
         {
+            NormalizeShapeOrder();
             ValidateDocument();
             if (validationIssues.Count > 0)
             {
@@ -3091,6 +3746,8 @@ namespace Game.EditorTools
             workbookSnapshot = refreshed;
             Document = BattleActionTimelineDocument.FromSnapshot(refreshed);
             authoringState.baselineSignature = Document.CanonicalSignature();
+            authoringState.sourceWorkbookPath = refreshed.WorkbookPath;
+            authoringState.sourceWorkbookHash = refreshed.ContentHash;
             authoringState.selectedActionSheet = selectedActionSheet;
             authoringState.selectedActionRowId = selectedActionId;
             NormalizeSelection();
@@ -3114,6 +3771,7 @@ namespace Game.EditorTools
 
         private void OnAuthoringChanged()
         {
+            filterCatalog = null;
             ClampPlayhead();
             ValidateDocument();
             QueueDraftSave();
@@ -3168,10 +3826,13 @@ namespace Game.EditorTools
                 selectedSharedSheet = authoringState.selectedSharedSheet,
                 selectedSharedRowId = authoringState.selectedSharedRowId,
                 frameRate = authoringState.frameRate,
+                snapToFrames = authoringState.snapToFrames,
                 facing = authoringState.facing,
+                sequencePreviewActionId = authoringState.sequencePreviewActionId,
+                explicitSingleSkillId = authoringState.explicitSingleSkillId,
                 playheadSeconds = playheadSeconds,
-                workbookPath = workbookSnapshot?.WorkbookPath ?? string.Empty,
-                workbookHash = workbookSnapshot?.ContentHash ?? string.Empty,
+                workbookPath = workbookSnapshot?.WorkbookPath ?? authoringState.sourceWorkbookPath,
+                workbookHash = workbookSnapshot?.ContentHash ?? authoringState.sourceWorkbookHash,
             };
             EditorPrefs.SetString(DraftKey, JsonUtility.ToJson(envelope));
         }
@@ -3206,43 +3867,28 @@ namespace Game.EditorTools
                 restored.EnsureLists();
                 Document = restored;
                 authoringState.baselineSignature = envelope.baselineSignature ?? string.Empty;
+                authoringState.sourceWorkbookPath = envelope.workbookPath ?? string.Empty;
+                authoringState.sourceWorkbookHash = envelope.workbookHash ?? string.Empty;
                 authoringState.selectedActionSheet = envelope.selectedActionSheet ?? string.Empty;
                 authoringState.selectedActionRowId = envelope.selectedActionRowId;
                 authoringState.selectedStepSheet = envelope.selectedStepSheet ?? string.Empty;
                 authoringState.selectedStepRowId = envelope.selectedStepRowId;
                 authoringState.selectedSharedSheet = envelope.selectedSharedSheet ?? string.Empty;
                 authoringState.selectedSharedRowId = envelope.selectedSharedRowId;
+                // 旧草稿只有单段定位；一次性迁移到动作输入，不再任取工作簿第一行。
+                authoringState.sequencePreviewActionId = envelope.sequencePreviewActionId > 0
+                    ? envelope.sequencePreviewActionId : CurrentEditedActionAnimationId();
+                authoringState.explicitSingleSkillId = envelope.sequencePreviewActionId > 0
+                    ? envelope.explicitSingleSkillId : envelope.selectedActionRowId;
                 authoringState.frameRate = envelope.frameRate > 0f ? envelope.frameRate : 30f;
+                authoringState.snapToFrames = envelope.snapToFrames;
                 authoringState.facing = envelope.facing ==
                     (int)BattleActionTimelineFacing.Left
                     ? envelope.facing
                     : (int)BattleActionTimelineFacing.Right;
                 playheadSeconds = Math.Max(0d, envelope.playheadSeconds);
 
-                if (!string.IsNullOrWhiteSpace(envelope.workbookHash) &&
-                    BattleActionTimelineWorkbookBridge.TryLoad(
-                        out BattleActionTimelineWorkbookSnapshot current,
-                        out _) &&
-                    string.Equals(
-                        current.WorkbookPath,
-                        envelope.workbookPath,
-                        StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(
-                        current.ContentHash,
-                        envelope.workbookHash,
-                        StringComparison.Ordinal))
-                {
-                    workbookSnapshot = current;
-                    status = "已恢复动作草稿，并绑定未变化的正式 workbook 快照。";
-                }
-                else
-                {
-                    workbookSnapshot = null;
-                    status =
-                        "已恢复动作草稿，但正式机器人工作簿已变化。草稿保持只读安全状态；" +
-                        "请人工确认后重新读取，工具不会覆盖新源表。";
-                }
-
+                workbookSnapshot = null;
                 NormalizeSelection();
                 ClampPlayhead();
             }
@@ -3252,9 +3898,29 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// 清空草稿。
+        /// 只读恢复源表快照；验证失败时不覆盖文档，也不放开写回。
         /// </summary>
 
+        private void RestoreWorkbookBinding()
+        {
+            workbookSnapshot = null;
+            string path = string.IsNullOrEmpty(authoringState.sourceWorkbookPath)
+                ? BattleActionTimelineWorkbookBridge.DefaultWorkbookPath : authoringState.sourceWorkbookPath;
+            if (!BattleActionTimelineWorkbookBridge.TryLoad(path, out var current, out string error) ||
+                !BattleActionTimelineSourceBinding.CanRebind(current, authoringState.sourceWorkbookPath,
+                    authoringState.sourceWorkbookHash, authoringState.baselineSignature, out error))
+            {
+                status = "已保留当前配置与草稿，源表基线恢复失败：" + error;
+                return;
+            }
+            workbookSnapshot = current;
+            Document.RestoreSourceRowIdBaselines(current);
+            authoringState.sourceWorkbookPath = current.WorkbookPath;
+            authoringState.sourceWorkbookHash = current.ContentHash;
+            status = "已恢复正式源表基线；当前选择、配置和未写回草稿保持不变。";
+        }
+
+        /// <summary>清空编辑器草稿。</summary>
         private void ClearDraft()
         {
             EditorPrefs.DeleteKey(DraftKey);
@@ -3266,7 +3932,7 @@ namespace Game.EditorTools
         private void NormalizeSelection()
         {
             EnsureState();
-            SelectFirstActionIfNecessary();
+            NormalizeActionForPreview();
             BattleActionTimelineTableData stepTable =
                 Document.FindTable(authoringState.selectedStepSheet);
             if (stepTable == null || !stepTable.records.Any(
@@ -3286,63 +3952,45 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// 选择首个动作如果必要时。
+        /// 只根据显式输入的动作定位编辑记录；未匹配或歧义时不能回退到无关单段。
         /// </summary>
 
-        private void SelectFirstActionIfNecessary()
+        private void NormalizeActionForPreview()
         {
-            List<ActionReference> actions = BuildActionReferences(Document);
-            if (actions.Count == 0)
+            if (BattleActionTimelineActionLookup.TryResolve(
+                Document, authoringState.sequencePreviewActionId, authoringState.explicitSingleSkillId,
+                out BattleActionTimelineTableData table, out BattleActionTimelineRecordData record,
+                out actionSelectionStatus))
             {
-                authoringState.selectedActionSheet = string.Empty;
-                authoringState.selectedActionRowId = 0;
+                if (authoringState.selectedActionSheet != table.sheetName ||
+                    authoringState.selectedActionRowId != record.rowId)
+                {
+                    SelectAction(table, record);
+                }
                 return;
             }
 
-            if (!actions.Any(value =>
-                string.Equals(
-                    value.Table.sheetName,
-                    authoringState.selectedActionSheet,
-                    StringComparison.Ordinal) &&
-                value.Record.rowId == authoringState.selectedActionRowId))
+            if (authoringState.selectedActionRowId != 0 ||
+                !string.IsNullOrEmpty(authoringState.selectedActionSheet))
             {
-                SelectAction(actions[0]);
+                playing = false;
+                playheadSeconds = 0d;
             }
-        }
-        /// <summary>
-        /// 构建动作引用。
-        /// </summary>
-
-        private static List<ActionReference> BuildActionReferences(
-            BattleActionTimelineDocument document)
-        {
-            List<ActionReference> result = new List<ActionReference>();
-            foreach (BattleActionTimelineTableData table in document.ActionTables())
-            {
-                foreach (BattleActionTimelineRecordData record in table.records)
-                {
-                    result.Add(new ActionReference
-                    {
-                        Table = table,
-                        Record = record,
-                        Label = BattleActionTimelineSchema.DisplayName(table, record),
-                    });
-                }
-            }
-
-            return result
-                .OrderBy(value => value.Record.rowId)
-                .ThenBy(value => value.Table.sheetName, StringComparer.Ordinal)
-                .ToList();
+            authoringState.selectedActionSheet = string.Empty;
+            authoringState.selectedActionRowId = 0;
+            authoringState.selectedStepSheet = string.Empty;
+            authoringState.selectedStepRowId = 0;
+            authoringState.selectedSharedSheet = string.Empty;
+            authoringState.selectedSharedRowId = 0;
         }
         /// <summary>
         /// 选择动作。
         /// </summary>
 
-        private void SelectAction(ActionReference action)
+        private void SelectAction(BattleActionTimelineTableData table, BattleActionTimelineRecordData action)
         {
-            authoringState.selectedActionSheet = action.Table.sheetName;
-            authoringState.selectedActionRowId = action.Record.rowId;
+            authoringState.selectedActionSheet = table.sheetName;
+            authoringState.selectedActionRowId = action.rowId;
             authoringState.selectedStepSheet = string.Empty;
             authoringState.selectedStepRowId = 0;
             authoringState.selectedSharedSheet = string.Empty;
@@ -3358,6 +4006,7 @@ namespace Game.EditorTools
 
         private void SelectStep(string sheetName, int rowId)
         {
+            hierarchyExpanded[(sheetName ?? string.Empty) + ":" + rowId.ToString(CultureInfo.InvariantCulture)] = true;
             authoringState.selectedStepSheet = sheetName ?? string.Empty;
             authoringState.selectedStepRowId = rowId;
             authoringState.selectedSharedSheet = string.Empty;
@@ -3371,8 +4020,23 @@ namespace Game.EditorTools
 
         private void SelectShared(string sheetName, int rowId)
         {
+            hierarchyExpanded[(sheetName ?? string.Empty) + ":" + rowId.ToString(CultureInfo.InvariantCulture)] = true;
             authoringState.selectedSharedSheet = sheetName ?? string.Empty;
             authoringState.selectedSharedRowId = rowId;
+            BattleActionTimelineTableData table = Document.FindTable(sheetName);
+            if (BattleActionTimelineSchema.IsKeyframeTable(table))
+            {
+                BattleActionTimelineRecordData keyframe = BattleActionTimelineSchema.FindById(table, rowId);
+                int shapeId = BattleActionTimelineSchema.GetInt(table, keyframe, 0, "shapeId");
+                BattleActionTimelineTableData shapes = Document.tables.FirstOrDefault(BattleActionTimelineSchema.IsShapeTable);
+                BattleActionTimelineRecordData shape = BattleActionTimelineSchema.FindById(shapes, shapeId);
+                if (shape != null) SetHierarchyExpanded(shapes, shape);
+                previewEditKeyframes = true;
+                ResolvedStep resolved = ResolveSelectedStep(Document);
+                if (keyframe != null && resolved?.SelectedShape?.rowId == shapeId)
+                    LocatePreviewKeyframe(resolved, keyframe);
+            }
+            else if (BattleActionTimelineSchema.IsShapeTable(table)) previewEditKeyframes = false;
             QueueDraftSave();
             Repaint();
         }
@@ -3470,6 +4134,33 @@ namespace Game.EditorTools
                 }
             }
         }
+
+        private void NormalizeShapeOrder()
+        {
+            foreach (BattleActionTimelineTableData table in Document.tables
+                .Where(BattleActionTimelineSchema.IsShapeTable))
+            {
+                int ownerColumn = BattleActionTimelineSchema.FindColumn(
+                    table,
+                    BattleActionTimelineSchema.AttackBodyIdAliases);
+                int indexColumn = BattleActionTimelineSchema.FindColumn(table, "shapeIndex", "index");
+                if (ownerColumn < 0 || indexColumn < 0)
+                {
+                    continue;
+                }
+
+                foreach (IGrouping<int, BattleActionTimelineRecordData> group in table.records
+                    .GroupBy(record => BattleActionTimelineSchema.GetInt(table, record, 0,
+                        BattleActionTimelineSchema.AttackBodyIdAliases)))
+                {
+                    int index = 0;
+                    foreach (BattleActionTimelineRecordData shape in group)
+                    {
+                        BattleActionTimelineSchema.SetInt(table, shape, index++, "shapeIndex", "index");
+                    }
+                }
+            }
+        }
         /// <summary>
         /// 创建记录。
         /// </summary>
@@ -3496,97 +4187,178 @@ namespace Game.EditorTools
             return record;
         }
         /// <summary>
-        /// 更新采样动画预览。
+        /// 资产新增/重导出后重建编辑器索引，不触发运行时配置加载或资源缓存。
         /// </summary>
-
-        private void SampleAnimationPreview()
+        private void OnPreviewAssetsChanged()
         {
-            if (authoringState == null ||
-                authoringState.animationPreviewTarget == null ||
-                authoringState.animationPreviewClip == null)
-            {
-                StopAnimationPreview();
-                return;
-            }
-
-            if (EditorUtility.IsPersistent(authoringState.animationPreviewTarget))
-            {
-                StopAnimationPreview();
-                animationPreviewStatus =
-                    "动画预览对象必须是场景实例，当前未执行采样。";
-                return;
-            }
-
-            if (!ownsAnimationMode && AnimationMode.InAnimationMode())
-            {
-                animationPreviewStatus =
-                    "Unity 当前已有其它 Animation Mode 会话；关闭后再使用动作时间轴采样。";
-                return;
-            }
-
-            try
-            {
-                if (!AnimationMode.InAnimationMode())
-                {
-                    AnimationMode.StartAnimationMode();
-                    ownsAnimationMode = true;
-                }
-
-                if (!ownsAnimationMode)
-                {
-                    return;
-                }
-
-                float sampleTime = Mathf.Clamp(
-                    (float)playheadSeconds,
-                    0f,
-                    Mathf.Max(0f, authoringState.animationPreviewClip.length));
-                AnimationMode.BeginSampling();
-                try
-                {
-                    AnimationMode.SampleAnimationClip(
-                        authoringState.animationPreviewTarget,
-                        authoringState.animationPreviewClip,
-                        sampleTime);
-                }
-                finally
-                {
-                    AnimationMode.EndSampling();
-                }
-
-                animationPreviewStatus =
-                    "正在按动作时钟采样 " +
-                    authoringState.animationPreviewClip.name + " @ " +
-                    sampleTime.ToString("0.###", CultureInfo.InvariantCulture) + "s";
-            }
-            catch (Exception exception)
-            {
-                StopAnimationPreview();
-                animationPreviewStatus = "动画采样失败：" + exception.Message;
-            }
+            filterCatalog = null;
+            filterLanguageLoaded = false;
+            filterLanguage = null;
+            availablePreviewClips = null;
+            automaticPreviewActionId = int.MinValue;
+            automaticPreviewClip = null;
+            automaticPreviewError = string.Empty;
+            Repaint();
         }
-        /// <summary>
-        /// 停止动画预览。
-        /// </summary>
 
-        private void StopAnimationPreview()
+        private int CurrentEditedActionAnimationId()
         {
-            if (!ownsAnimationMode)
+            return TryGetSelectedAction(Document, out BattleActionTimelineTableData table,
+                out BattleActionTimelineRecordData action)
+                ? BattleActionTimelineSchema.GetInt(table, action, 0, "actionId")
+                : 0;
+        }
+
+        private void SetPreviewInput(int actionId, SequenceFrameClip clip, int singleSkillId = 0)
+        {
+            Undo.RecordObject(authoringState, "输入动作 ID 或序列帧动画");
+            authoringState.sequencePreviewActionId = actionId;
+            authoringState.sequencePreviewClip = clip;
+            authoringState.explicitSingleSkillId = singleSkillId;
+            authoringState.filterApplied = false;
+            NormalizeSelection();
+            playing = false;
+            playheadSeconds = 0d;
+            QueueDraftSave();
+            Repaint();
+        }
+
+        private SequenceFrameClip ResolveSequencePreviewClip(out string error)
+        {
+            error = string.Empty;
+            if (authoringState.sequencePreviewClip != null)
+            {
+                return authoringState.sequencePreviewClip;
+            }
+
+            int actionId = authoringState.sequencePreviewActionId;
+            if (automaticPreviewActionId != actionId)
+            {
+                automaticPreviewActionId = actionId;
+                automaticPreviewClip = null;
+                automaticPreviewError = string.Empty;
+                if (actionId <= 0)
+                {
+                    automaticPreviewError = "请拖入序列帧动画，或填写动作 ID（例如 22）。";
+                }
+                else
+                {
+                    SequenceFrameClip[] matches = GetAvailablePreviewClips()
+                        .Where(clip => clip != null && clip.ActionId == actionId).ToArray();
+                    if (matches.Length == 1)
+                    {
+                        automaticPreviewClip = matches[0];
+                    }
+                    else
+                    {
+                        automaticPreviewError = matches.Length == 0
+                            ? $"未找到 actionId={actionId} 的序列帧资源，请手动拖入刚生成的 .asset。"
+                            : $"存在多个 actionId={actionId} 的序列帧资源，不能自动决定。请手动选择：\n" +
+                                string.Join("\n", matches.Select(AssetDatabase.GetAssetPath));
+                    }
+                }
+            }
+
+            error = automaticPreviewError;
+            return automaticPreviewClip;
+        }
+
+        private SequenceFrameClip[] GetAvailablePreviewClips()
+        {
+            return availablePreviewClips ??= AssetDatabase.FindAssets("t:SequenceFrameClip")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .Select(AssetDatabase.LoadAssetAtPath<SequenceFrameClip>)
+                .Where(clip => clip != null).ToArray();
+        }
+
+        private bool TrySampleSequencePreview(
+            SequenceFrameClip clip, out Sprite frame, out int frameIndex, out string error)
+        {
+            frame = null;
+            frameIndex = -1;
+            error = string.Empty;
+            if (clip == null)
+            {
+                error = "拖入序列帧动画即可预览，不需要创建场景对象。";
+                return false;
+            }
+
+            if (!BattleActionTimelineTime.IsFinite(clip.FrameRate) ||
+                !clip.TryValidate(out error))
+            {
+                error = "无效序列帧资源：" + (string.IsNullOrEmpty(error) ? "FPS 不是有限数。" : error);
+                return false;
+            }
+
+            frameIndex = BattleActionTimelineSequencePreview.SampleFrame(
+                playheadSeconds, clip.FrameRate, clip.FrameCount, clip.Loop);
+            frame = clip.GetFrame(frameIndex);
+            if (frame == null)
+            {
+                error = "当前时间没有有效的序列帧 Sprite。";
+                return false;
+            }
+
+            if (frame.texture == null || !BattleActionTimelineTime.IsFinite(frame.pixelsPerUnit) ||
+                frame.pixelsPerUnit <= 0f || frame.bounds.size.y <= 0f)
+            {
+                error = "当前 Sprite 缺少纹理或有效的尺寸/PPU，未绘制错误预览。";
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 使用原始 Sprite 纹理而非低分辨率 AssetPreview；布局复现战斗播放器的 bounds 缩放/锚定。
+        /// </summary>
+        private void DrawSequencePreview(Rect viewport, Vector2 origin, float pixelsPerUnit)
+        {
+            SequenceFrameClip clip = ResolveSequencePreviewClip(out string lookupError);
+            if (!TrySampleSequencePreview(clip, out Sprite frame, out int frameIndex, out string sampleError))
+            {
+                GUI.Label(new Rect(10f, 106f, viewport.width - 20f, 55f),
+                    string.IsNullOrEmpty(lookupError) ? sampleError : lookupError,
+                    EditorStyles.wordWrappedMiniLabel);
+                return;
+            }
+
+            GUI.Label(new Rect(10f, viewport.height - 48f, viewport.width - 20f, 20f),
+                $"{clip.name} · 素材帧 {frameIndex + 1}/{clip.FrameCount} · {clip.FrameRate:0.###} FPS",
+                EditorStyles.miniLabel);
+            if (Event.current.type != EventType.Repaint)
             {
                 return;
             }
 
-            try
+            // 本工具导出的帧为独立 FullRect Sprite。旋转/紧密图集不能当矩形纹理读取，明确提示而非错画。
+            if (frame.packed && (frame.packingMode == SpritePackingMode.Tight ||
+                frame.packingRotation != SpritePackingRotation.None))
             {
-                if (AnimationMode.InAnimationMode())
-                {
-                    AnimationMode.StopAnimationMode();
-                }
+                GUI.Label(new Rect(10f, 106f, viewport.width - 20f, 38f),
+                    "此帧位于旋转/紧密图集中，请选择帧图工具生成的原始 Sprite 资源预览。",
+                    EditorStyles.wordWrappedMiniLabel);
+                return;
             }
-            finally
+
+            Rect textureRect = frame.textureRect;
+            bool flipX = clip.DefaultFacingLeft ^
+                (authoringState.facing == (int)BattleActionTimelineFacing.Left);
+            Rect drawRect = BattleActionTimelineSequencePreview.SpriteDrawRect(
+                textureRect.size, frame.textureRectOffset, frame.pivot, frame.pixelsPerUnit,
+                frame.bounds, authoringState.previewHeight, authoringState.previewOriginAtCenter,
+                flipX, origin, pixelsPerUnit);
+            Texture2D texture = frame.texture;
+            Rect uv = new Rect(textureRect.x / texture.width, textureRect.y / texture.height,
+                textureRect.width / texture.width, textureRect.height / texture.height);
+            if (flipX)
             {
-                ownsAnimationMode = false;
+                uv.x += uv.width;
+                uv.width = -uv.width;
             }
+
+            GUI.DrawTextureWithTexCoords(drawRect, texture, uv, true);
         }
         /// <summary>
         /// 更新步骤帧。
@@ -3597,12 +4369,11 @@ namespace Game.EditorTools
             playing = false;
             int frame = CurrentFrame() + direction;
             int maximum = BattleActionTimelineTime.SecondsToFrame(
-                Math.Max(0d, CurrentDuration()),
+                Math.Max(0d, CurrentPreviewDuration()),
                 authoringState.frameRate);
             frame = Mathf.Clamp(frame, 0, maximum);
-            playheadSeconds = BattleActionTimelineTime.FrameToSeconds(
-                frame,
-                authoringState.frameRate);
+            playheadSeconds = Math.Min(CurrentPreviewDuration(),
+                BattleActionTimelineTime.FrameToSeconds(frame, authoringState.frameRate));
             Repaint();
         }
         /// <summary>
@@ -3622,6 +4393,16 @@ namespace Game.EditorTools
         private double CurrentDuration()
         {
             return CurrentDuration(Document);
+        }
+
+        /// <summary>完整显示长素材，但不把素材时长写进技能配置。</summary>
+        private double CurrentPreviewDuration()
+        {
+            SequenceFrameClip clip = ResolveSequencePreviewClip(out _);
+            return clip != null && clip.FrameCount > 0 &&
+                BattleActionTimelineTime.IsFinite(clip.FrameRate) && clip.FrameRate > 0f
+                ? Math.Max(CurrentDuration(), clip.FrameCount / (double)clip.FrameRate)
+                : CurrentDuration();
         }
         /// <summary>
         /// 根据 `document` 构建当前`Duration`并返回结果。
@@ -3646,7 +4427,7 @@ namespace Game.EditorTools
         {
             playheadSeconds = Math.Max(
                 0d,
-                Math.Min(CurrentDuration(), playheadSeconds));
+                Math.Min(CurrentPreviewDuration(), playheadSeconds));
         }
         /// <summary>
         /// 根据 `value` 吸附非负数并返回结果。
@@ -3654,16 +4435,8 @@ namespace Game.EditorTools
 
         private double SnapNonNegative(double value)
         {
-            if (!BattleActionTimelineTime.IsFinite(value))
-            {
-                return 0d;
-            }
-
-            return Math.Max(
-                0d,
-                BattleActionTimelineTime.SnapSeconds(
-                    value,
-                    authoringState.frameRate));
+            return BattleActionTimelineTime.NormalizeEditedSeconds(
+                value, authoringState.frameRate, authoringState.snapToFrames);
         }
         /// <summary>
         /// 根据 `value`、`maximum` 吸附并限制并返回结果。
@@ -3683,12 +4456,21 @@ namespace Game.EditorTools
                 1,
                 authoringState.frameRate);
         }
+
+        private double MinimumActionDuration()
+        {
+            return BattleActionTimelineTime.MinimumDuration(authoringState.frameRate, authoringState.snapToFrames);
+        }
         /// <summary>
         /// 取消拖拽。
         /// </summary>
 
         private void CancelDrag()
         {
+            if (gizmoHotControl != 0 && GUIUtility.hotControl == gizmoHotControl)
+                GUIUtility.hotControl = 0;
+            gizmoHotControl = 0;
+            gizmoStartShape = null;
             dragKind = DragKind.None;
             dragSheet = string.Empty;
             dragRowId = 0;

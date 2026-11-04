@@ -868,6 +868,7 @@ namespace Game.EditorTools
 
             if (normalized == "battlecharacteraction" ||
                 normalized == "battleskillmultiequipment" ||
+                normalized == "battleactivemultiskill" ||
                 normalized == "battlerobot" ||
                 normalized == "robotequipment" ||
                 normalized == "battleskill")

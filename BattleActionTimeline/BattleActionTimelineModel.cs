@@ -43,6 +43,7 @@ namespace Game.EditorTools
 
                 table.headers ??= Array.Empty<string>();
                 table.records ??= new List<BattleActionTimelineRecordData>();
+                table.sourceRowIds ??= new List<int>();
                 table.inlineSourceSheetName ??= string.Empty;
                 table.inlineSourceColumnName ??= string.Empty;
                 table.inlineFields ??=
@@ -137,6 +138,8 @@ namespace Game.EditorTools
         {
             return tables.Where(BattleActionTimelineSchema.IsActiveSingleTable);
         }
+
+        public bool HasActionStructure => ActionTables().Any();
         /// <summary>
         /// 将 `snapshot` 转换为 `BattleActionTimelineDocument` 值并返回。
         /// </summary>
@@ -177,7 +180,22 @@ namespace Game.EditorTools
             result.EnsureLists();
             result.AddInlineProjections();
             result.EnsureLists();
+            foreach (BattleActionTimelineTableData table in result.tables)
+            {
+                table.SetSourceRowIds(table.records.Select(record => record.rowId));
+            }
             return result;
+        }
+
+        /// <summary>旧草稿恢复时只补充已验证源表的编号基线，不替换任何编辑记录。</summary>
+        public void RestoreSourceRowIdBaselines(BattleActionTimelineWorkbookSnapshot snapshot)
+        {
+            if (snapshot == null || tables.All(table => table.hasSourceRowIdBaseline)) return;
+            BattleActionTimelineDocument source = FromSnapshot(snapshot);
+            foreach (BattleActionTimelineTableData table in tables.Where(table => !table.hasSourceRowIdBaseline))
+            {
+                table.SetSourceRowIds(source.FindTable(table.sheetName)?.sourceRowIds ?? Enumerable.Empty<int>());
+            }
         }
         /// <summary>
         /// 添加内联投影。
@@ -190,8 +208,6 @@ namespace Game.EditorTools
                 .ToList();
             bool hasExecutionStepSheet = sourceTables.Any(
                 BattleActionTimelineSchema.IsExecutionStepTable);
-            bool hasShapeSheet = sourceTables.Any(
-                BattleActionTimelineSchema.IsShapeTable);
             bool hasKeyframeSheet = sourceTables.Any(
                 BattleActionTimelineSchema.IsKeyframeTable);
 
@@ -211,43 +227,14 @@ namespace Game.EditorTools
                         InlineField("stepConfigId", "StepConfigId"));
                 }
 
-                if (!hasShapeSheet &&
-                    BattleActionTimelineSchema.IsAttackBodyTable(source))
-                {
-                    AddInlineProjection(
-                        source,
-                        new[] { "shapes", "attackShapes" },
-                        "AttackBodyShape",
-                        "attackBodyId",
-                        InlineField("shapeType", "ShapeType"),
-                        InlineField("offsetX", "OffsetX"),
-                        InlineField("offsetY", "OffsetY"),
-                        InlineField("rotationDegrees", "RotationDegrees"),
-                        InlineField("sizeX", "SizeX"),
-                        InlineField("sizeY", "SizeY"),
-                        InlineField("radius", "Radius"),
-                        InlineField("capsuleDirection", "CapsuleDirection"));
-                }
-
                 if (!hasKeyframeSheet &&
-                    BattleActionTimelineSchema.IsMeleeSpawnTable(source))
+                    BattleActionTimelineSchema.IsShapeTable(source))
                 {
                     AddInlineProjection(
                         source,
                         new[] { "transformKeyframes" },
-                        "MeleeTransformKeyframe",
-                        "meleeAttackSpawnId",
-                        TransformInlineFields());
-                }
-
-                if (!hasKeyframeSheet &&
-                    BattleActionTimelineSchema.IsProjectileTable(source))
-                {
-                    AddInlineProjection(
-                        source,
-                        new[] { "attackBodyTransformKeyframes", "transformKeyframes" },
-                        "ProjectileTransformKeyframe",
-                        "projectileId",
+                        "ShapeTransformKeyframe",
+                        "shapeId",
                         TransformInlineFields());
                 }
             }
@@ -630,6 +617,9 @@ namespace Game.EditorTools
         public string[] headers = Array.Empty<string>();
         public List<BattleActionTimelineRecordData> records =
             new List<BattleActionTimelineRecordData>();
+        // 编号基线随草稿/Undo 序列化；修改正式记录的字段不等于创建新记录。
+        public bool hasSourceRowIdBaseline;
+        public List<int> sourceRowIds = new List<int>();
         public bool isInlineProjection;
         public string inlineSourceSheetName = string.Empty;
         public string inlineSourceColumnName = string.Empty;
@@ -638,24 +628,41 @@ namespace Game.EditorTools
         public List<BattleActionTimelineInlineOwnerData> inlineOwners =
             new List<BattleActionTimelineInlineOwnerData>();
         /// <summary>
-        /// 分配分配数据行`Id`，并保证结果符合当前运行时的取值约束。
+        /// 有未保存新增记录时取其最大 ID + 1，否则取正式配置最大 ID + 1。
         /// </summary>
 
-        public int AllocateRowId()
+        public int AllocateRowId(IEnumerable<BattleActionTimelineRecordData> pendingRecords = null,
+            ISet<int> removedRowIds = null)
         {
-            int maximum = 0;
-            for (int index = 0; index < records.Count; index++)
+            var officialIds = new HashSet<int>(hasSourceRowIdBaseline
+                ? sourceRowIds ?? Enumerable.Empty<int>() : Enumerable.Empty<int>());
+            IEnumerable<BattleActionTimelineRecordData> current = records.Where(record =>
+                record == null || removedRowIds == null || !removedRowIds.Contains(record.rowId));
+            if (pendingRecords != null) current = current.Concat(pendingRecords);
+            int draftMaximum = 0;
+            foreach (BattleActionTimelineRecordData record in current)
             {
-                maximum = Math.Max(maximum, records[index]?.rowId ?? 0);
+                if (record != null && !officialIds.Contains(record.rowId))
+                    draftMaximum = Math.Max(draftMaximum, record.rowId);
             }
 
+            int maximum = draftMaximum > 0 ? draftMaximum : officialIds.DefaultIfEmpty(0).Max();
             if (maximum == int.MaxValue)
             {
                 throw new InvalidOperationException(
                     sheetName + " 的稳定 rowId 已耗尽。");
             }
 
-            return Math.Max(1, maximum + 1);
+            int next = Math.Max(1, maximum + 1);
+            if (officialIds.Contains(next))
+                throw new InvalidOperationException(sheetName + " 的新增 ID " + next + " 与正式配置冲突，未创建记录。");
+            return next;
+        }
+
+        public void SetSourceRowIds(IEnumerable<int> ids)
+        {
+            sourceRowIds = ids.Where(id => id > 0).Distinct().ToList();
+            hasSourceRowIdBaseline = true;
         }
     }
 
@@ -798,6 +805,18 @@ namespace Game.EditorTools
         {
             return FrameToSeconds(SecondsToFrame(seconds, frameRate), frameRate);
         }
+
+        /// <summary>编辑时间默认连续；仅显式开启吸附时才换算成整数帧。</summary>
+        public static double NormalizeEditedSeconds(double seconds, double frameRate, bool snapToFrames)
+        {
+            if (!IsFinite(seconds)) return 0d;
+            return Math.Max(0d, snapToFrames ? SnapSeconds(seconds, frameRate) : seconds);
+        }
+
+        public static double MinimumDuration(double frameRate, bool snapToFrames)
+        {
+            return snapToFrames ? FrameToSeconds(1, frameRate) : Epsilon;
+        }
         /// <summary>
         /// 校验 `Phases` 的结构与业务约束，通过时返回 `true`；校验失败时通过 `error` 返回原因。
         /// </summary>
@@ -843,6 +862,1129 @@ namespace Game.EditorTools
             {
                 throw new ArgumentOutOfRangeException(nameof(frameRate));
             }
+        }
+    }
+
+    internal sealed class BattleActionTimelineIndependentAttack
+    {
+        public BattleActionTimelineTableData StepTable;
+        public BattleActionTimelineRecordData Step;
+        public int SpawnId;
+        public int BodyId;
+        public bool IsProjectile;
+        public int ProjectileId;
+        public int MovementId;
+        public bool Blank;
+    }
+
+    /// <summary>只修改编辑草稿；攻击体步骤默认独立复制完整配置链，不支持的类型明确拒绝而不复用旧ID。</summary>
+    internal static class BattleActionTimelineAttackAuthoring
+    {
+        // 只回收已验证正式基线之外、当前已无引用的新配置；正式行不因删除步骤而被删除。
+        private sealed class UnusedDraftConfigurations
+        {
+            private readonly BattleActionTimelineDocument document;
+            private readonly Dictionary<BattleActionTimelineTableData, HashSet<int>> removed =
+                new Dictionary<BattleActionTimelineTableData, HashSet<int>>();
+
+            public UnusedDraftConfigurations(BattleActionTimelineDocument document)
+            {
+                this.document = document;
+                Prune(BattleActionTimelineSchema.IsMeleeSpawnTable,
+                    (table, row) => CountStepReferences(document, row.rowId, false) > 0);
+                Prune(BattleActionTimelineSchema.IsProjectileLaunchTable,
+                    (table, row) => CountStepReferences(document, row.rowId, true) > 0);
+                Prune(BattleActionTimelineSchema.IsProjectileTable,
+                    (table, row) => HasReference(BattleActionTimelineSchema.IsProjectileLaunchTable,
+                        row.rowId, "projectileId"));
+                Prune(BattleActionTimelineSchema.IsAttackBodyTable,
+                    (table, row) => HasReference(parent => BattleActionTimelineSchema.IsMeleeSpawnTable(parent) ||
+                        BattleActionTimelineSchema.IsProjectileTable(parent), row.rowId,
+                        BattleActionTimelineSchema.AttackBodyIdAliases));
+                PruneMovement(RefData.EnumBattleProjectileMovementType.Linear);
+                PruneMovement(RefData.EnumBattleProjectileMovementType.Ballistic);
+
+                // 固定按攻击体→Shape→关键帧回收，父行已被手动删除时同样不能留下孤儿轨迹。
+                Prune(BattleActionTimelineSchema.IsShapeTable,
+                    (table, row) => ParentExists(BattleActionTimelineSchema.IsAttackBodyTable,
+                        BattleActionTimelineSchema.GetInt(table, row, 0, BattleActionTimelineSchema.AttackBodyIdAliases)));
+                Prune(BattleActionTimelineSchema.IsKeyframeTable,
+                    (table, row) => ParentExists(BattleActionTimelineSchema.IsShapeTable,
+                        BattleActionTimelineSchema.GetInt(table, row, 0, "shapeId")));
+            }
+
+            public ISet<int> RemovedIds(BattleActionTimelineTableData table) =>
+                removed.TryGetValue(table, out var ids) ? ids : null;
+
+            private bool HasReference(Func<BattleActionTimelineTableData, bool> matches, int id, params string[] columns) =>
+                document.tables.Where(matches).Any(table => table.records.Any(row =>
+                    !IsRemoved(table, row) && BattleActionTimelineSchema.GetInt(table, row, 0, columns) == id));
+
+            private bool IsRemoved(BattleActionTimelineTableData table, BattleActionTimelineRecordData row) =>
+                row != null && removed.TryGetValue(table, out var ids) && ids.Contains(row.rowId);
+
+            private bool ParentExists(Func<BattleActionTimelineTableData, bool> matches, int id) =>
+                document.tables.Where(matches).Any(table => table.records.Any(row =>
+                    row.rowId == id && !IsRemoved(table, row)));
+
+            private void Prune(Func<BattleActionTimelineTableData, bool> matches,
+                Func<BattleActionTimelineTableData, BattleActionTimelineRecordData, bool> used)
+            {
+                foreach (BattleActionTimelineTableData table in document.tables.Where(matches))
+                {
+                    if (!table.hasSourceRowIdBaseline) continue; // 未能核对旧草稿源表时，不能猜哪些行可删。
+                    var official = new HashSet<int>(table.sourceRowIds);
+                    foreach (BattleActionTimelineRecordData row in table.records)
+                    {
+                        if (row == null || official.Contains(row.rowId) || used(table, row)) continue;
+                        if (!removed.TryGetValue(table, out var ids)) removed.Add(table, ids = new HashSet<int>());
+                        ids.Add(row.rowId);
+                    }
+                }
+            }
+
+            private void PruneMovement(RefData.EnumBattleProjectileMovementType type)
+            {
+                // 与创建时的移动表解析一致，不额外依赖表名含某个单词。
+                var movementTable = document.tables.FirstOrDefault(table => type == RefData.EnumBattleProjectileMovementType.Linear
+                        ? BattleActionTimelineSchema.IsLinearMovementTable(table)
+                        : BattleActionTimelineSchema.IsBallisticMovementTable(table));
+                Prune(table => table == movementTable,
+                    (movementTable, movement) => document.tables.Where(BattleActionTimelineSchema.IsProjectileTable)
+                        .Any(table => table.records.Any(row => !IsRemoved(table, row) &&
+                            BattleActionTimelineSchema.GetInt(table, row, 0, "movementConfigId") == movement.rowId &&
+                            (!TryReadMovementType(BattleActionTimelineSchema.Get(table, row, "movementType"), out var actual) ||
+                                actual == type))));
+            }
+
+            public void Apply()
+            {
+                foreach (var pair in removed) pair.Key.records.RemoveAll(row => row != null && pair.Value.Contains(row.rowId));
+                foreach (BattleActionTimelineTableData child in document.tables.Where(table => table.isInlineProjection))
+                {
+                    BattleActionTimelineTableData parent = document.FindTable(child.inlineSourceSheetName);
+                    if (parent != null)
+                        child.inlineOwners.RemoveAll(owner => !parent.records.Any(row => row.rowId == owner.ownerRowId));
+                }
+            }
+        }
+
+        public static bool DeleteStep(BattleActionTimelineDocument document, string stepSheet, int stepId)
+        {
+            BattleActionTimelineTableData table = document?.FindTable(stepSheet);
+            BattleActionTimelineRecordData step = BattleActionTimelineSchema.FindById(table, stepId);
+            if (step == null || !BattleActionTimelineSchema.IsExecutionStepTable(table)) return false;
+            table.records.Remove(step);
+            new UnusedDraftConfigurations(document).Apply();
+            return true;
+        }
+
+        private sealed class Context
+        {
+            public BattleActionTimelineTableData Spawns, Bodies, Shapes, Keys;
+            public BattleActionTimelineRecordData Spawn, Body;
+            public BattleActionTimelineTableData Projectiles, Movements;
+            public BattleActionTimelineRecordData Projectile, Movement;
+            public bool IsProjectile;
+            public RefData.EnumBattleProjectileMovementType MovementType;
+        }
+
+        // 先在内存准备所有新记录，ID耗尽或结构不完整时不留下半套引用。
+        private sealed class Plan
+        {
+            private readonly UnusedDraftConfigurations unused;
+            private readonly Dictionary<BattleActionTimelineTableData, List<BattleActionTimelineRecordData>> rows =
+                new Dictionary<BattleActionTimelineTableData, List<BattleActionTimelineRecordData>>();
+            private readonly List<(BattleActionTimelineTableData Table, BattleActionTimelineInlineOwnerData Owner)> owners =
+                new List<(BattleActionTimelineTableData, BattleActionTimelineInlineOwnerData)>();
+
+            public Plan(BattleActionTimelineDocument document)
+            {
+                unused = new UnusedDraftConfigurations(document);
+            }
+
+            public BattleActionTimelineRecordData New(BattleActionTimelineTableData table,
+                BattleActionTimelineRecordData template = null)
+            {
+                if (!rows.TryGetValue(table, out var added))
+                    rows.Add(table, added = new List<BattleActionTimelineRecordData>());
+                int id = table.AllocateRowId(added, unused.RemovedIds(table));
+                var record = new BattleActionTimelineRecordData
+                {
+                    rowId = id,
+                    cells = template == null ? Enumerable.Repeat(string.Empty, table.headers.Length).ToArray()
+                        : (string[])template.cells.Clone(),
+                };
+                Require(table, "id");
+                BattleActionTimelineSchema.SetInt(table, record, id, "id");
+                added.Add(record);
+                return record;
+            }
+
+            public void BindChildren(BattleActionTimelineTableData children,
+                BattleActionTimelineTableData parentTable, BattleActionTimelineRecordData parent)
+            {
+                if (!children.isInlineProjection) return;
+                if (children.inlineSourceSheetName != parentTable.sheetName)
+                    throw new InvalidOperationException("内联形状或变换轨的所属工作表不匹配，未修改草稿。");
+                Require(parentTable, children.inlineSourceColumnName);
+                BattleActionTimelineSchema.Set(parentTable, parent, "[]", children.inlineSourceColumnName);
+                owners.Add((children, new BattleActionTimelineInlineOwnerData
+                {
+                    ownerRowId = parent.rowId, originalCell = "[]", baselineSignature = string.Empty,
+                }));
+            }
+
+            public void Commit()
+            {
+                unused.Apply();
+                foreach (var pair in rows) pair.Key.records.AddRange(pair.Value);
+                foreach (var owner in owners) owner.Table.inlineOwners.Add(owner.Owner);
+            }
+        }
+
+        public static bool TryAddMeleeStep(BattleActionTimelineDocument document, string actionSheet, int actionId,
+            double triggerTime, string preferredStepSheet, int preferredStepId,
+            out BattleActionTimelineIndependentAttack result, out string error) =>
+            TryAddAttackStep(document, actionSheet, actionId, triggerTime,
+                RefData.EnumBattleExecutionStepType.SpawnMeleeAttackBody, RefData.EnumBattleProjectileMovementType.Linear,
+                preferredStepSheet, preferredStepId, out result, out error);
+
+        public static bool TryAddAttackStep(BattleActionTimelineDocument document, string actionSheet, int actionId,
+            double triggerTime, RefData.EnumBattleExecutionStepType stepType,
+            RefData.EnumBattleProjectileMovementType movementType, string preferredStepSheet, int preferredStepId,
+            out BattleActionTimelineIndependentAttack result, out string error)
+        {
+            result = null;
+            error = string.Empty;
+            try
+            {
+                bool projectile = stepType == RefData.EnumBattleExecutionStepType.LaunchProjectile;
+                if (stepType != RefData.EnumBattleExecutionStepType.SpawnMeleeAttackBody && !projectile)
+                    throw new InvalidOperationException("此步骤类型尚未接入独立攻击体创建，未创建或复用任何配置。");
+                if (projectile && !Enum.IsDefined(typeof(RefData.EnumBattleProjectileMovementType), movementType))
+                    throw new InvalidOperationException("不支持的投射物移动类型，未创建配置。");
+                var actions = document?.FindTable(actionSheet);
+                var action = BattleActionTimelineSchema.FindById(actions, actionId);
+                if (action == null || !BattleActionTimelineSchema.IsActiveSingleTable(actions))
+                    throw new InvalidOperationException("请先选择要编辑的技能单段。");
+                double duration = BattleActionTimelineSchema.ReadPhases(actions, action).Duration;
+                if (!BattleActionTimelineTime.IsFinite(triggerTime) || triggerTime < 0d || triggerTime >= duration)
+                    throw new InvalidOperationException("请把播放头移到动作结束之前，再新增攻击体步骤。");
+                var steps = document.tables.FirstOrDefault(table => BattleActionTimelineSchema.IsExecutionStepTable(table) &&
+                    (!table.isInlineProjection || table.inlineSourceSheetName == actionSheet));
+                if (steps == null) throw new InvalidOperationException("当前动作缺少可编辑的执行步骤结构。");
+                Require(steps, BattleActionTimelineSchema.StepOwnerAliases);
+                Require(steps, BattleActionTimelineSchema.StepTypeAliases);
+                Require(steps, BattleActionTimelineSchema.StepConfigAliases);
+                Require(steps, BattleActionTimelineSchema.TriggerTimeAliases);
+                var templateTable = document.FindTable(preferredStepSheet);
+                var template = BattleActionTimelineSchema.FindById(templateTable, preferredStepId);
+                bool Matches(BattleActionTimelineRecordData row) => row != null &&
+                    BattleActionTimelineSchema.GetInt(steps, row, 0, BattleActionTimelineSchema.StepOwnerAliases) == actionId &&
+                    (projectile ? BattleActionTimelineSchema.StepIsProjectile(steps, row) &&
+                        MatchesProjectileMovement(document, steps, row, movementType)
+                        : BattleActionTimelineSchema.StepIsMelee(steps, row));
+                if (templateTable != steps || !Matches(template))
+                    template = steps.records.FirstOrDefault(Matches);
+                var context = projectile ? ResolveProjectile(document, steps, template, movementType) : Resolve(document, steps, template);
+                double lifetime = template == null ? (projectile ? 1d : Math.Min(0.2d, duration - triggerTime))
+                    : ReadLifetime(context);
+                if (!BattleActionTimelineTime.IsFinite(lifetime) || lifetime <= 0d)
+                    throw new InvalidOperationException("参考步骤的存活时间无效，未创建新记录。");
+                // 投射物可以在动作结束后继续飞行；只有附着动作的近战判定受剩余动作时长限制。
+                if (!projectile && triggerTime + lifetime > duration + BattleActionTimelineTime.Epsilon)
+                    throw new InvalidOperationException("当前位置剩余时间不足以容纳参考判定，请前移播放头或延长动作时长。");
+                var plan = new Plan(document);
+                result = CopyAttack(plan, context, lifetime);
+                var step = plan.New(steps);
+                BattleActionTimelineSchema.SetInt(steps, step, actionId, BattleActionTimelineSchema.StepOwnerAliases);
+                BattleActionTimelineSchema.SetDouble(steps, step, triggerTime, BattleActionTimelineSchema.TriggerTimeAliases);
+                BattleActionTimelineSchema.Set(steps, step, stepType.ToString(), BattleActionTimelineSchema.StepTypeAliases);
+                BattleActionTimelineSchema.SetInt(steps, step, result.SpawnId, BattleActionTimelineSchema.StepConfigAliases);
+                result.StepTable = steps;
+                result.Step = step;
+                plan.Commit();
+                return true;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException || exception is OverflowException)
+            {
+                result = null;
+                error = exception.Message;
+                return false;
+            }
+        }
+
+        public static bool TryMakeStepIndependent(BattleActionTimelineDocument document, string stepSheet, int stepId,
+            out BattleActionTimelineIndependentAttack result, out string error)
+        {
+            result = null;
+            error = string.Empty;
+            try
+            {
+                var steps = document?.FindTable(stepSheet);
+                var step = BattleActionTimelineSchema.FindById(steps, stepId);
+                if (step == null || !BattleActionTimelineSchema.IsExecutionStepTable(steps))
+                    throw new InvalidOperationException("请先选择一个攻击体步骤。");
+                bool projectile = BattleActionTimelineSchema.StepIsProjectile(steps, step);
+                if (!projectile && !BattleActionTimelineSchema.StepIsMelee(steps, step))
+                    throw new InvalidOperationException("此步骤类型尚未接入独立攻击体复制，未修改草稿。");
+                Require(steps, BattleActionTimelineSchema.StepConfigAliases);
+                var context = projectile ? ResolveProjectile(document, steps, step, RefData.EnumBattleProjectileMovementType.Linear)
+                    : Resolve(document, steps, step);
+                double lifetime = ReadLifetime(context);
+                if (!BattleActionTimelineTime.IsFinite(lifetime) || lifetime <= 0d)
+                    throw new InvalidOperationException("当前攻击体配置的存活时间无效。");
+                var plan = new Plan(document);
+                result = CopyAttack(plan, context, lifetime);
+                result.StepTable = steps;
+                result.Step = step;
+                plan.Commit();
+                BattleActionTimelineSchema.SetInt(steps, step, result.SpawnId, BattleActionTimelineSchema.StepConfigAliases);
+                return true;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException || exception is OverflowException)
+            {
+                result = null;
+                error = exception.Message;
+                return false;
+            }
+        }
+
+        public static int CountMeleeReferences(BattleActionTimelineDocument document, int spawnId) =>
+            CountStepReferences(document, spawnId, false);
+
+        public static int CountStepReferences(BattleActionTimelineDocument document, int configId, bool projectile) =>
+            document.tables.Where(BattleActionTimelineSchema.IsExecutionStepTable).Sum(table => table.records.Count(row =>
+                (projectile ? BattleActionTimelineSchema.StepIsProjectile(table, row) : BattleActionTimelineSchema.StepIsMelee(table, row)) &&
+                BattleActionTimelineSchema.GetInt(table, row, 0, BattleActionTimelineSchema.StepConfigAliases) == configId));
+
+        public static int CountProjectileReferences(BattleActionTimelineDocument document, int projectileId) =>
+            document.tables.Where(BattleActionTimelineSchema.IsProjectileLaunchTable).Sum(table => table.records.Count(row =>
+                BattleActionTimelineSchema.GetInt(table, row, 0, "projectileId") == projectileId));
+
+        public static int CountMovementReferences(BattleActionTimelineDocument document,
+            RefData.EnumBattleProjectileMovementType movementType, int movementId) =>
+            document.tables.Where(BattleActionTimelineSchema.IsProjectileTable).Sum(table => table.records.Count(row =>
+                TryReadMovementType(BattleActionTimelineSchema.Get(table, row, "movementType"), out var type) && type == movementType &&
+                BattleActionTimelineSchema.GetInt(table, row, 0, "movementConfigId") == movementId));
+
+        public static bool TryReadMovementType(string text, out RefData.EnumBattleProjectileMovementType type) =>
+            Enum.TryParse((text ?? string.Empty).Trim(), true, out type) &&
+                Enum.IsDefined(typeof(RefData.EnumBattleProjectileMovementType), type);
+
+        public static int CountBodyReferences(BattleActionTimelineDocument document, int bodyId) =>
+            document.tables.Where(table => BattleActionTimelineSchema.IsMeleeSpawnTable(table) ||
+                BattleActionTimelineSchema.IsProjectileTable(table)).Sum(table => table.records.Count(row =>
+                    BattleActionTimelineSchema.GetInt(table, row, 0, BattleActionTimelineSchema.AttackBodyIdAliases) == bodyId));
+
+        private static double ReadLifetime(Context context) => context.IsProjectile
+            ? BattleActionTimelineSchema.GetDouble(context.Projectiles, context.Projectile, double.NaN, "maxLifetime")
+            : BattleActionTimelineSchema.GetDouble(context.Spawns, context.Spawn, double.NaN, "activeDuration");
+
+        private static bool MatchesProjectileMovement(BattleActionTimelineDocument document, BattleActionTimelineTableData steps,
+            BattleActionTimelineRecordData step, RefData.EnumBattleProjectileMovementType requested)
+        {
+            var launches = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsProjectileLaunchTable);
+            var launch = BattleActionTimelineSchema.FindById(launches,
+                BattleActionTimelineSchema.GetInt(steps, step, 0, BattleActionTimelineSchema.StepConfigAliases));
+            var projectiles = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsProjectileTable);
+            var projectile = BattleActionTimelineSchema.FindById(projectiles,
+                BattleActionTimelineSchema.GetInt(launches, launch, 0, "projectileId"));
+            // 不把断链/非法类型当成“没有模板”偷偷绕过；交给Resolve明确报错。
+            return projectile == null || !TryReadMovementType(
+                BattleActionTimelineSchema.Get(projectiles, projectile, "movementType"), out var type) || type == requested;
+        }
+
+        private static Context ResolveProjectile(BattleActionTimelineDocument document, BattleActionTimelineTableData steps,
+            BattleActionTimelineRecordData template, RefData.EnumBattleProjectileMovementType movementType)
+        {
+            var context = new Context
+            {
+                IsProjectile = true, MovementType = movementType,
+                Spawns = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsProjectileLaunchTable),
+                Projectiles = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsProjectileTable),
+                Bodies = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsAttackBodyTable),
+            };
+            if (context.Spawns == null || context.Projectiles == null || context.Bodies == null)
+                throw new InvalidOperationException("工作簿缺少投射物发射、投射物或攻击体结构，未创建半套配置。");
+            Require(context.Spawns, "projectileId");
+            Require(context.Spawns, "directionSource", "directionMode");
+            Require(context.Projectiles, "movementType");
+            if (template != null)
+            {
+                context.Spawn = BattleActionTimelineSchema.FindById(context.Spawns,
+                    BattleActionTimelineSchema.GetInt(steps, template, 0, BattleActionTimelineSchema.StepConfigAliases));
+                context.Projectile = BattleActionTimelineSchema.FindById(context.Projectiles,
+                    BattleActionTimelineSchema.GetInt(context.Spawns, context.Spawn, 0, "projectileId"));
+                context.Body = BattleActionTimelineSchema.FindById(context.Bodies,
+                    BattleActionTimelineSchema.GetInt(context.Projectiles, context.Projectile, 0, BattleActionTimelineSchema.AttackBodyIdAliases));
+                if (context.Spawn == null || context.Projectile == null || context.Body == null)
+                    throw new InvalidOperationException("参考步骤的发射配置、投射物或攻击体引用断开，请先修正引用。");
+                if (!TryReadMovementType(BattleActionTimelineSchema.Get(context.Projectiles, context.Projectile, "movementType"),
+                    out context.MovementType))
+                    throw new InvalidOperationException("参考投射物的移动类型无效，未复制配置。");
+            }
+            context.Movements = document.tables.FirstOrDefault(table => context.MovementType == RefData.EnumBattleProjectileMovementType.Linear
+                ? BattleActionTimelineSchema.IsLinearMovementTable(table) : BattleActionTimelineSchema.IsBallisticMovementTable(table));
+            context.Shapes = document.tables.FirstOrDefault(table => BattleActionTimelineSchema.IsShapeTable(table) &&
+                (!table.isInlineProjection || table.inlineSourceSheetName == context.Bodies.sheetName));
+            context.Keys = document.tables.FirstOrDefault(table => BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.isInlineProjection
+                    ? table.inlineSourceSheetName == context.Shapes?.sheetName
+                    : table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                      table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (context.Keys == null)
+            {
+                var genericKeys = document.tables.Where(table => BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                    !table.isInlineProjection && BattleActionTimelineSchema.FindKeyframeOwnerColumn(table) >= 0 &&
+                    table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
+                if (genericKeys.Length == 1) context.Keys = genericKeys[0];
+            }
+            if (context.Movements == null || context.Shapes == null || context.Keys == null)
+                throw new InvalidOperationException("缺少可编辑的投射物移动、形状或变换轨结构，未创建半套配置。");
+            Require(context.Shapes, BattleActionTimelineSchema.AttackBodyIdAliases);
+            if (BattleActionTimelineSchema.FindKeyframeOwnerColumn(context.Keys) < 0)
+                throw new InvalidOperationException("Shape 变换轨缺少所属 Shape 行号。");
+            if (template != null)
+            {
+                context.Movement = BattleActionTimelineSchema.FindById(context.Movements,
+                    BattleActionTimelineSchema.GetInt(context.Projectiles, context.Projectile, 0, "movementConfigId"));
+                if (context.Movement == null)
+                    throw new InvalidOperationException("参考投射物的移动配置引用断开，未修改草稿。");
+            }
+            return context;
+        }
+
+        private static Context Resolve(BattleActionTimelineDocument document, BattleActionTimelineTableData steps,
+            BattleActionTimelineRecordData template)
+        {
+            var context = new Context
+            {
+                Spawns = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsMeleeSpawnTable),
+                Bodies = document.tables.FirstOrDefault(BattleActionTimelineSchema.IsAttackBodyTable),
+            };
+            if (context.Spawns == null || context.Bodies == null)
+                throw new InvalidOperationException("工作簿缺少近战生成配置或攻击体工作表，无法新增独立记录。");
+            Require(context.Spawns, BattleActionTimelineSchema.AttackBodyIdAliases);
+            Require(context.Spawns, "activeDuration");
+            context.Shapes = document.tables.FirstOrDefault(table => BattleActionTimelineSchema.IsShapeTable(table) &&
+                (!table.isInlineProjection || table.inlineSourceSheetName == context.Bodies.sheetName));
+            context.Keys = document.tables.FirstOrDefault(table => BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.isInlineProjection
+                    ? table.inlineSourceSheetName == context.Shapes?.sheetName
+                    : table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                      table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (context.Keys == null)
+            {
+                var genericKeys = document.tables.Where(table => BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                    !table.isInlineProjection && BattleActionTimelineSchema.FindKeyframeOwnerColumn(table) >= 0 &&
+                    table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
+                if (genericKeys.Length == 1) context.Keys = genericKeys[0];
+            }
+            if (context.Shapes == null || context.Keys == null)
+                throw new InvalidOperationException("缺少可编辑的近战形状或变换轨结构，未创建半套配置。");
+            Require(context.Shapes, BattleActionTimelineSchema.AttackBodyIdAliases);
+            if (BattleActionTimelineSchema.FindKeyframeOwnerColumn(context.Keys) < 0)
+                throw new InvalidOperationException("Shape 变换轨缺少所属 Shape 行号。");
+            if (template != null)
+            {
+                context.Spawn = BattleActionTimelineSchema.FindById(context.Spawns,
+                    BattleActionTimelineSchema.GetInt(steps, template, 0, BattleActionTimelineSchema.StepConfigAliases));
+                context.Body = BattleActionTimelineSchema.FindById(context.Bodies,
+                    BattleActionTimelineSchema.GetInt(context.Spawns, context.Spawn, 0, BattleActionTimelineSchema.AttackBodyIdAliases));
+                if (context.Spawn == null || context.Body == null)
+                    throw new InvalidOperationException("参考步骤的生成配置或攻击体引用断开，请先修正引用。");
+            }
+            return context;
+        }
+
+        private static BattleActionTimelineIndependentAttack CopyAttack(Plan plan, Context context, double lifetime)
+        {
+            var body = CopyBody(plan, context);
+            if (context.IsProjectile) return CopyProjectile(plan, context, body, lifetime);
+            var spawn = plan.New(context.Spawns, context.Spawn);
+            BattleActionTimelineSchema.Set(context.Spawns, spawn, "TimelineMelee_" + spawn.rowId, "codeName");
+            BattleActionTimelineSchema.SetInt(context.Spawns, spawn, body.rowId, BattleActionTimelineSchema.AttackBodyIdAliases);
+            BattleActionTimelineSchema.SetDouble(context.Spawns, spawn, lifetime, "activeDuration");
+            return new BattleActionTimelineIndependentAttack { BodyId = body.rowId, SpawnId = spawn.rowId, Blank = context.Body == null };
+        }
+
+        private static BattleActionTimelineRecordData CopyBody(Plan plan, Context context)
+        {
+            var body = plan.New(context.Bodies, context.Body);
+            BattleActionTimelineSchema.Set(context.Bodies, body, "TimelineBody_" + body.rowId, "codeName");
+            plan.BindChildren(context.Shapes, context.Bodies, body);
+            int shapeCount = CopyShapesWithTracks(
+                plan,
+                context.Shapes,
+                context.Keys,
+                context.Body?.rowId ?? 0,
+                body.rowId,
+                BattleActionTimelineSchema.FindColumn(
+                    context.Shapes,
+                    BattleActionTimelineSchema.AttackBodyIdAliases));
+            if (context.Body == null)
+            {
+                BattleActionTimelineSchema.SetInt(context.Bodies, body, 1, "clashStrength");
+                BattleActionTimelineSchema.SetInt(context.Bodies, body, 1, "clashResistance");
+                BattleActionTimelineSchema.SetInt(context.Bodies, body, 1, "maxHitsPerTarget");
+                BattleActionTimelineSchema.SetInt(context.Bodies, body, -1, "maxTotalHitCount");
+                BattleActionTimelineSchema.SetDouble(context.Bodies, body, 0d, "sameTargetHitInterval");
+                BattleActionTimelineSchema.Set(context.Bodies, body, "[]", "effects", "hitEffects");
+                var shape = plan.New(context.Shapes);
+                BattleActionTimelineSchema.SetInt(context.Shapes, shape, body.rowId, BattleActionTimelineSchema.AttackBodyIdAliases);
+                BattleActionTimelineSchema.Set(context.Shapes, shape, "Box", "shapeType");
+                BattleActionTimelineSchema.SetDouble(context.Shapes, shape, context.IsProjectile ? 0d : 0.5d, "offsetX");
+                BattleActionTimelineSchema.SetDouble(context.Shapes, shape, context.IsProjectile ? 0d : 0.5d, "offsetY");
+                BattleActionTimelineSchema.SetDouble(context.Shapes, shape, 0d, "rotationDegrees");
+                BattleActionTimelineSchema.SetDouble(context.Shapes, shape, context.IsProjectile ? 0.25d : 1d, "sizeX", "width");
+                BattleActionTimelineSchema.SetDouble(context.Shapes, shape, context.IsProjectile ? 0.25d : 1d, "sizeY", "height");
+                BattleActionTimelineSchema.SetDouble(context.Shapes, shape, 0d, "radius");
+                BattleActionTimelineSchema.Set(context.Shapes, shape, "Vertical", "capsuleDirection");
+                BattleActionTimelineSchema.SetInt(context.Shapes, shape, 0, "shapeIndex");
+                plan.BindChildren(context.Keys, context.Shapes, shape);
+                AddDefaultShapeKeyframe(plan, context.Keys, shape.rowId);
+            }
+            else if (shapeCount == 0)
+                throw new InvalidOperationException("参考攻击体没有可复制的合法形状，未修改草稿。");
+            return body;
+        }
+
+        private static BattleActionTimelineIndependentAttack CopyProjectile(Plan plan, Context context,
+            BattleActionTimelineRecordData body, double lifetime)
+        {
+            var movement = plan.New(context.Movements, context.Movement);
+            var projectile = plan.New(context.Projectiles, context.Projectile);
+            var launch = plan.New(context.Spawns, context.Spawn);
+            BattleActionTimelineSchema.Set(context.Movements, movement, "TimelineMovement_" + movement.rowId, "codeName");
+            BattleActionTimelineSchema.Set(context.Projectiles, projectile, "TimelineProjectile_" + projectile.rowId, "codeName");
+            BattleActionTimelineSchema.Set(context.Spawns, launch, "TimelineLaunch_" + launch.rowId, "codeName");
+            BattleActionTimelineSchema.SetInt(context.Spawns, launch, projectile.rowId, "projectileId");
+            BattleActionTimelineSchema.SetInt(context.Projectiles, projectile, body.rowId, BattleActionTimelineSchema.AttackBodyIdAliases);
+            BattleActionTimelineSchema.SetInt(context.Projectiles, projectile, movement.rowId, "movementConfigId");
+            BattleActionTimelineSchema.Set(context.Projectiles, projectile, context.MovementType.ToString(), "movementType");
+            BattleActionTimelineSchema.SetDouble(context.Projectiles, projectile, lifetime, "maxLifetime");
+            if (context.Projectile == null)
+            {
+                BattleActionTimelineSchema.SetDouble(context.Movements, movement, 5d,
+                    context.MovementType == RefData.EnumBattleProjectileMovementType.Linear ? "speed" : "initialSpeed");
+                BattleActionTimelineSchema.SetDouble(context.Movements, movement, 1d, "gravityScale");
+                BattleActionTimelineSchema.SetInt(context.Projectiles, projectile, 0, "presentationResourceId");
+                BattleActionTimelineSchema.Set(context.Projectiles, projectile, "Destroy", "worldCollisionMode");
+                BattleActionTimelineSchema.Set(context.Projectiles, projectile, "TreatAsSolid", "oneWayPlatformCollisionMode");
+                BattleActionTimelineSchema.Set(context.Projectiles, projectile, "true", "destroyWhenAttackBodyExhausted");
+                BattleActionTimelineSchema.SetDouble(context.Spawns, launch, 0d, "spawnOffsetX", "offsetX");
+                BattleActionTimelineSchema.SetDouble(context.Spawns, launch, 0.5d, "spawnOffsetY", "offsetY");
+                BattleActionTimelineSchema.SetDouble(context.Spawns, launch, 0d, "angleOffsetDegrees");
+                BattleActionTimelineSchema.Set(context.Spawns, launch, "ActionFacing", "directionSource", "directionMode");
+            }
+            return new BattleActionTimelineIndependentAttack
+            {
+                BodyId = body.rowId, SpawnId = launch.rowId, ProjectileId = projectile.rowId,
+                MovementId = movement.rowId, IsProjectile = true, Blank = context.Projectile == null,
+            };
+        }
+
+        private static int CopyShapesWithTracks(
+            Plan plan,
+            BattleActionTimelineTableData shapes,
+            BattleActionTimelineTableData keys,
+            int fromBodyId,
+            int toBodyId,
+            int ownerColumn)
+        {
+            if (shapes == null || ownerColumn < 0 || fromBodyId <= 0)
+            {
+                return 0;
+            }
+
+            int keyOwnerColumn = keys == null
+                ? -1
+                : BattleActionTimelineSchema.FindKeyframeOwnerColumn(keys);
+            int copiedCount = 0;
+            foreach (BattleActionTimelineRecordData source in shapes.records.Where(row =>
+                BattleActionTimelineSchema.GetInt(
+                    shapes,
+                    row,
+                    0,
+                    BattleActionTimelineSchema.AttackBodyIdAliases) == fromBodyId).ToList())
+            {
+                BattleActionTimelineRecordData copy = plan.New(shapes, source);
+                BattleActionTimelineSchema.SetInt(
+                    shapes,
+                    copy,
+                    toBodyId,
+                    BattleActionTimelineSchema.AttackBodyIdAliases);
+                copiedCount++;
+
+                if (keys != null && keyOwnerColumn >= 0)
+                {
+                    plan.BindChildren(keys, shapes, copy);
+                    int sourceKeyCount = CopyChildren(
+                        plan,
+                        keys,
+                        source.rowId,
+                        copy.rowId,
+                        keyOwnerColumn);
+                    if (sourceKeyCount == 0)
+                    {
+                        AddDefaultShapeKeyframe(plan, keys, copy.rowId);
+                    }
+                }
+            }
+
+            return copiedCount;
+        }
+
+        private static void AddDefaultShapeKeyframe(
+            Plan plan,
+            BattleActionTimelineTableData keys,
+            int shapeId)
+        {
+            if (keys == null || shapeId <= 0)
+            {
+                return;
+            }
+
+            int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(keys);
+            if (ownerColumn < 0)
+            {
+                return;
+            }
+
+            BattleActionTimelineRecordData key = plan.New(keys);
+            key.cells[ownerColumn] = shapeId.ToString(CultureInfo.InvariantCulture);
+            BattleActionTimelineSchema.SetDouble(keys, key, 0d, BattleActionTimelineSchema.LocalTimeAliases);
+            BattleActionTimelineSchema.SetDouble(keys, key, 0d, BattleActionTimelineSchema.OffsetXAliases);
+            BattleActionTimelineSchema.SetDouble(keys, key, 0d, BattleActionTimelineSchema.OffsetYAliases);
+            BattleActionTimelineSchema.SetDouble(keys, key, 0d, BattleActionTimelineSchema.RotationAliases);
+            BattleActionTimelineSchema.SetDouble(keys, key, 1d, BattleActionTimelineSchema.ScaleXAliases);
+            BattleActionTimelineSchema.SetDouble(keys, key, 1d, BattleActionTimelineSchema.ScaleYAliases);
+            BattleActionTimelineSchema.Set(keys, key, "Linear", BattleActionTimelineSchema.InterpolationAliases);
+        }
+
+        private static int CopyChildren(Plan plan, BattleActionTimelineTableData table, int from, int to, int ownerColumn)
+        {
+            if (from <= 0) return 0;
+            if (table.isInlineProjection && table.inlineOwners.Any(owner => owner.ownerRowId == from &&
+                !string.IsNullOrEmpty(owner.parseError)))
+                throw new InvalidOperationException("参考形状或变换轨解析失败，未复制损坏的数据。");
+            var children = table.records.Where(row => int.TryParse(row.cells[ownerColumn], NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out int owner) && owner == from).ToArray();
+            foreach (var child in children)
+            {
+                var copied = plan.New(table, child);
+                copied.cells[ownerColumn] = to.ToString(CultureInfo.InvariantCulture);
+            }
+            return children.Length;
+        }
+
+        private static void Require(BattleActionTimelineTableData table, params string[] columns)
+        {
+            if (BattleActionTimelineSchema.FindColumn(table, columns) < 0)
+                throw new InvalidOperationException((table?.sheetName ?? "工作表") + " 缺少必要字段 " + string.Join("/", columns));
+        }
+    }
+
+    /// <summary>重编译后只恢复源表基线，不覆盖当前文档、选择或未写回修改。</summary>
+    internal static class BattleActionTimelineSourceBinding
+    {
+        public static bool CanRebind(BattleActionTimelineWorkbookSnapshot snapshot,
+            string expectedPath, string expectedHash, string baselineSignature, out string error)
+        {
+            error = string.Empty;
+            if (snapshot == null || !snapshot.HasActionStructure)
+            {
+                error = "未读取到有效的动作源表快照。";
+                return false;
+            }
+            if (!string.IsNullOrEmpty(expectedPath) && !string.Equals(
+                expectedPath, snapshot.WorkbookPath, StringComparison.OrdinalIgnoreCase))
+            {
+                error = "源工作簿路径与草稿基线不一致，未绑定写回。";
+                return false;
+            }
+            if (!string.IsNullOrEmpty(expectedHash))
+            {
+                if (string.Equals(expectedHash, snapshot.ContentHash, StringComparison.Ordinal)) return true;
+                error = "源工作簿已变化，保留草稿但禁止直接写回；请确认后重新读取正式配置。";
+                return false;
+            }
+            // 旧窗口没有保存hash时，必须核对原始基线，不能拿有修改的当前文档充当基线。
+            if (!string.IsNullOrEmpty(baselineSignature) && string.Equals(
+                baselineSignature, BattleActionTimelineDocument.FromSnapshot(snapshot).CanonicalSignature(),
+                StringComparison.Ordinal)) return true;
+            error = "无法验证草稿的原始源表基线，保留草稿但禁止写回。";
+            return false;
+        }
+    }
+
+    internal sealed class BattleActionTimelineCharacterFilter
+    {
+        public int Id;
+        public string CodeName;
+        public string NameLanguageKey;
+    }
+
+    internal sealed class BattleActionTimelineAnimationFilter
+    {
+        public int CharacterId;
+        public bool IsCommon;
+        public int ActionId;
+        public int ActionType;
+        public bool IsDefault;
+        public int SkillId;
+        public int SingleSkillId;
+        public string Label;
+        public string Key => CharacterId + "/" + ActionType + "/" + ActionId + "/" + SingleSkillId + "/" + Label;
+    }
+
+    /// <summary>仅构建查找列表，不改动作绑定；技能只保留ID，不提供技能下拉选择。</summary>
+    internal sealed class BattleActionTimelineFilterCatalog
+    {
+        public readonly List<BattleActionTimelineCharacterFilter> Characters =
+            new List<BattleActionTimelineCharacterFilter>();
+        public readonly List<BattleActionTimelineAnimationFilter> Actions =
+            new List<BattleActionTimelineAnimationFilter>();
+        public readonly List<string> Issues = new List<string>();
+
+        public static BattleActionTimelineFilterCatalog Build(
+            BattleActionTimelineDocument document, int selectedCharacterId = 0, int selectedSkillId = 0)
+        {
+            var result = new BattleActionTimelineFilterCatalog();
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            var robots = document?.FindTable("BattleRobot");
+            foreach (var robot in robots?.records ?? new List<BattleActionTimelineRecordData>())
+            {
+                result.Characters.Add(new BattleActionTimelineCharacterFilter
+                {
+                    Id = robot.rowId,
+                    CodeName = BattleActionTimelineSchema.Get(robots, robot, "codeName"),
+                    NameLanguageKey = BattleActionTimelineSchema.Get(robots, robot, "nameLanguageKey"),
+                });
+            }
+            result.Characters.Sort((a, b) => a.Id.CompareTo(b.Id));
+
+            void Add(int characterId, bool common, int actionId, int singleSkillId, string label,
+                int actionType = (int)RefData.EnumBattleCharacterActionState.Skill, bool isDefault = true, int skillId = 0)
+            {
+                if (actionId < 0) return;
+                var value = new BattleActionTimelineAnimationFilter
+                {
+                    CharacterId = characterId, IsCommon = common, ActionId = actionId,
+                    ActionType = actionType, IsDefault = isDefault, SkillId = skillId,
+                    SingleSkillId = singleSkillId, Label = label + $" · 动作 ID {actionId}" +
+                        (singleSkillId > 0 ? $" · 单段 ID {singleSkillId}" : string.Empty),
+                };
+                if (keys.Add(value.Key)) result.Actions.Add(value);
+            }
+
+            List<Dictionary<string, string>> Entries(BattleActionTimelineTableData table,
+                BattleActionTimelineRecordData row)
+            {
+                if (BattleActionTimelineInlineStructCodec.TryParse(
+                    BattleActionTimelineSchema.Get(table, row, "entries"), out var values, out string error))
+                    return values;
+                result.Issues.Add($"{table.sheetName}/{row.rowId} 的 entries 无法读取：{error}");
+                return new List<Dictionary<string, string>>();
+            }
+
+            var mapping = document?.FindTable("BattleCharacterAction");
+            foreach (var row in mapping?.records ?? new List<BattleActionTimelineRecordData>())
+            {
+                string state = BattleActionTimelineSchema.Get(mapping, row, "codeName");
+                foreach (var entry in Entries(mapping, row))
+                {
+                    int characterId = EntryInt(entry, "CharacterId");
+                    int left = EntryInt(entry, "LeftWeaponId");
+                    int right = EntryInt(entry, "RightWeaponId");
+                    string weapons = left != 0 || right != 0 ? $" · 左手 {left}/右手 {right}" : string.Empty;
+                    Add(characterId, characterId <= 0, EntryInt(entry, "ActionId"), 0,
+                        StateLabel(state) + weapons + (characterId <= 0 ? " · 通用映射" : string.Empty),
+                        row.rowId, left == 0 && right == 0);
+                }
+            }
+
+            // 普攻可能是多段/多装备技能，必须沿正式引用遍历，不能从动作文件名猜角色。
+            void VisitSkill(int characterId, int skillId, string label, HashSet<int> path)
+            {
+                if (skillId <= 0) return;
+                if (path.Count >= 64 || !path.Add(skillId))
+                {
+                    result.Issues.Add($"角色 {characterId} 的技能引用循环或过深：技能 ID {skillId}");
+                    return;
+                }
+                try
+                {
+                    var skills = document?.FindTable("BattleSkill");
+                    var skill = skills?.records.FirstOrDefault(value => value.rowId == skillId);
+                    if (skill == null)
+                    {
+                        result.Issues.Add($"角色 {characterId} 引用不存在的技能 ID {skillId}");
+                        return;
+                    }
+                    Enum.TryParse(BattleActionTimelineSchema.Get(skills, skill, "skillType"), true,
+                        out RefData.EnumBattleSkillType type);
+                    int target = BattleActionTimelineSchema.GetInt(skills, skill, 0, "targetId");
+                    string targetSheet = type == RefData.EnumBattleSkillType.ActiveSingle ? "BattleActiveSingleSkill" :
+                        type == RefData.EnumBattleSkillType.ActiveMulti ? "BattleActiveMultiSkill" :
+                        type == RefData.EnumBattleSkillType.MultiEquipment ? "BattleSkillMultiEquipment" : string.Empty;
+                    if (type == RefData.EnumBattleSkillType.Passive) return;
+                    var targetTable = document?.FindTable(targetSheet);
+                    var targetRow = targetTable?.records.FirstOrDefault(value => value.rowId == target);
+                    if (targetRow == null)
+                    {
+                        result.Issues.Add($"技能 ID {skillId} 的目标不存在：{targetSheet}/{target}");
+                        return;
+                    }
+                    if (type == RefData.EnumBattleSkillType.ActiveSingle)
+                        Add(characterId, false, BattleActionTimelineSchema.GetInt(targetTable, targetRow, 0, "actionId"),
+                            targetRow.rowId, label, skillId: skillId);
+                    else if (type == RefData.EnumBattleSkillType.ActiveMulti)
+                    {
+                        foreach (var field in new[] { ("groundStageSkillIds", "地面"), ("airStageSkillIds", "空中") })
+                        {
+                            int stage = 0;
+                            foreach (int child in Ids(BattleActionTimelineSchema.Get(targetTable, targetRow, field.Item1),
+                                result.Issues, $"{targetSheet}/{target}/{field.Item1}"))
+                                VisitSkill(characterId, child, label + $" · {field.Item2}第{++stage}段", path);
+                        }
+                    }
+                    else if (type == RefData.EnumBattleSkillType.MultiEquipment)
+                    {
+                        if (characterId <= 0)
+                        {
+                            result.Issues.Add($"技能 ID {skillId} 包含多装备映射，请先选择角色，再按技能 ID 加载。");
+                            return;
+                        }
+                        foreach (var entry in Entries(targetTable, targetRow))
+                        {
+                            int entryCharacter = EntryInt(entry, "CharacterId");
+                            if (entryCharacter > 0 && entryCharacter != characterId) continue;
+                            int child = EntryInt(entry, "ResolvedSkillId");
+                            if (child <= 0)
+                            {
+                                result.Issues.Add($"{targetSheet}/{target} 包含无效的 ResolvedSkillId。");
+                                continue;
+                            }
+                            VisitSkill(characterId, child, label +
+                                $" · 左手 {EntryInt(entry, "LeftWeaponId")}/右手 {EntryInt(entry, "RightWeaponId")}", path);
+                        }
+                    }
+                }
+                finally { path.Remove(skillId); }
+            }
+
+            if (selectedSkillId > 0)
+                VisitSkill(selectedCharacterId, selectedSkillId, $"技能 ID {selectedSkillId}", new HashSet<int>());
+            result.Actions.Sort((a, b) =>
+            {
+                int id = a.ActionId.CompareTo(b.ActionId);
+                return id != 0 ? id : StringComparer.Ordinal.Compare(a.Key, b.Key);
+            });
+            return result;
+        }
+
+        public bool TryResolve(int characterId, int actionType, int skillId,
+            out BattleActionTimelineAnimationFilter selection, out string error)
+        {
+            selection = null;
+            error = string.Empty;
+            bool isSkill = actionType == (int)RefData.EnumBattleCharacterActionState.Skill;
+            if (actionType <= 0 || characterId < 0 ||
+                (characterId > 0 && !Characters.Any(value => value.Id == characterId)) ||
+                (!isSkill && characterId == 0))
+            {
+                error = "普通动作请选择角色和动作类型；也可以直接填写技能 ID、动画资源 ID 或拖入动画。";
+                return false;
+            }
+
+            if (isSkill && skillId <= 0)
+            {
+                error = "技能动作请填写技能 ID（BattleSkill.id），不需要选择具体动画。";
+                return false;
+            }
+            if (isSkill && Issues.Count > 0)
+            {
+                error = string.Join("\n", Issues.Distinct());
+                return false;
+            }
+
+            var candidates = Actions.Where(value => value.ActionType == actionType &&
+                (isSkill ? value.SkillId > 0 && value.CharacterId == characterId : value.IsDefault)).ToArray();
+            if (!isSkill)
+            {
+                var specific = candidates.Where(value => value.CharacterId == characterId).ToArray();
+                candidates = specific.Length > 0 ? specific : candidates.Where(value => value.IsCommon).ToArray();
+            }
+            candidates = candidates.GroupBy(value => value.ActionId + "/" + value.SingleSkillId)
+                .Select(group => group.First()).ToArray();
+            if (candidates.Length != 1)
+            {
+                error = isSkill && candidates.Length > 1
+                    ? $"技能 ID {skillId} 包含多个动作，请填写对应的单段技能 ID：" +
+                        string.Join("、", candidates.Select(value => value.SkillId).Distinct())
+                    : candidates.Length == 0 ? "该角色的动作类型没有配置动画。"
+                    : "该角色的动作类型存在多个默认动画，请检查角色动作映射配置。";
+                return false;
+            }
+            if (candidates[0].ActionId <= 0)
+            {
+                error = isSkill ? $"技能 ID {skillId} 尚未配置动画。" : "该角色的动作类型配置为空动画（ID=0）。";
+                return false;
+            }
+            selection = candidates[0];
+            return true;
+        }
+
+        private static string EntryValue(Dictionary<string, string> entry, string key) =>
+            entry.FirstOrDefault(pair => string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase)).Value ?? string.Empty;
+        private static int EntryInt(Dictionary<string, string> entry, string key) =>
+            int.TryParse(EntryValue(entry, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) ? id : 0;
+        private static IEnumerable<int> Ids(string value, List<string> issues, string context)
+        {
+            foreach (string part in (value ?? string.Empty).Trim().Trim('[', ']')
+                .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                if (int.TryParse(part.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) && id > 0)
+                    yield return id;
+                else
+                    issues.Add($"{context} 包含无效技能 ID：{part.Trim()}");
+        }
+        public static string StateLabel(string state)
+        {
+            switch (state)
+            {
+                case "Idle": return "待机";
+                case "Move": return "移动";
+                case "Jump": return "跳跃";
+                case "Fall": return "下落";
+                case "Climb": return "攀爬";
+                case "Dash": return "闪避";
+                case "Skill": return "技能";
+                case "Hitstun": return "受击";
+                case "Dead": return "死亡";
+                case "PostureBreak": return "架势击破";
+                case "Rise": return "起身";
+                case "JumpStart": return "起跳";
+                case "JumpAir": return "空中";
+                case "JumpLand": return "落地";
+                case "AirHitstun": return "空中受击";
+                case "AirHitRecovery": return "落地受击恢复";
+                default: return state;
+            }
+        }
+    }
+
+    /// <summary>显式动作输入到源表单段的只读定位，禁止歧义时自动选第一行。</summary>
+    internal static class BattleActionTimelineActionLookup
+    {
+        public static bool TryResolve(
+            BattleActionTimelineDocument document, int actionId, int singleSkillId,
+            out BattleActionTimelineTableData table, out BattleActionTimelineRecordData record,
+            out string error)
+        {
+            table = null;
+            record = null;
+            error = string.Empty;
+            if (actionId <= 0)
+            {
+                error = "请拖入动画或填写动作 ID，工具将定位引用该动作的技能单段。";
+                return false;
+            }
+
+            var matches = (document?.ActionTables() ?? Enumerable.Empty<BattleActionTimelineTableData>())
+                .SelectMany(candidate => candidate.records.Select(row => (Table: candidate, Record: row)))
+                .Where(value => BattleActionTimelineSchema.GetInt(
+                    value.Table, value.Record, 0, "actionId") == actionId)
+                .OrderBy(value => value.Record.rowId)
+                .ThenBy(value => value.Table.sheetName, StringComparer.Ordinal)
+                .ToArray();
+            if (matches.Length == 0)
+            {
+                error = $"当前源表没有单段引用动作 {actionId}，可预览动画；未载入无关技能配置。";
+                return false;
+            }
+
+            var selected = singleSkillId > 0
+                ? matches.Where(value => value.Record.rowId == singleSkillId).ToArray() : matches;
+            if (selected.Length != 1)
+            {
+                error = singleSkillId > 0 && selected.Length == 0
+                    ? $"单段 {singleSkillId} 未引用动作 {actionId}，未载入技能配置。"
+                    : $"多个单段共用动作 {actionId}，请填写要编辑的单段技能 ID：\n" +
+                        string.Join("\n", matches.Select(value => value.Table.sheetName + " / " + value.Record.rowId));
+                return false;
+            }
+
+            table = selected[0].Table;
+            record = selected[0].Record;
+            return true;
+        }
+    }
+
+    /// <summary>序列帧采样不使用时间轴的四舍五入吸附；布局与战斗 SpriteRenderer 保持同一世界单位。</summary>
+    internal static class BattleActionTimelineSequencePreview
+    {
+        public static int SampleFrame(double seconds, double frameRate, int frameCount, bool loop)
+        {
+            if (!BattleActionTimelineTime.IsFinite(seconds) ||
+                !BattleActionTimelineTime.IsFinite(frameRate) || frameRate <= 0d || frameCount <= 0)
+            {
+                return -1;
+            }
+
+            double frame = Math.Max(0d, seconds) * frameRate;
+            if (!BattleActionTimelineTime.IsFinite(frame))
+            {
+                return -1;
+            }
+
+            // 吸附后的 1/FPS 可能有浮点误差；只修正边界误差，不把半帧提前四舍五入。
+            frame = Math.Floor(frame + 0.0000001d);
+            return loop ? (int)(frame % frameCount) : (int)Math.Min(frameCount - 1d, frame);
+        }
+
+        public static Rect SpriteDrawRect(
+            Vector2 textureSize, Vector2 textureOffset, Vector2 pivot, float spritePixelsPerUnit,
+            Bounds bounds, float height, bool originAtCenter, bool flipX,
+            Vector2 screenOrigin, float screenPixelsPerUnit)
+        {
+            // 与 BattleWorldZoneSequenceFrameVisual.ApplyClipLayout 相同：
+            // 依 bounds 高度统一缩放，先放好未翻转的 pivot，再绕 pivot 翻转 Sprite。
+            float scale = height / Math.Max(0.0001f, bounds.size.y);
+            float localX = (textureOffset.x - pivot.x) / spritePixelsPerUnit;
+            float localY = (textureOffset.y - pivot.y) / spritePixelsPerUnit;
+            float width = textureSize.x / spritePixelsPerUnit;
+            float nativeHeight = textureSize.y / spritePixelsPerUnit;
+            if (flipX)
+            {
+                localX = -localX - width;
+            }
+
+            float worldX = (localX - bounds.center.x) * scale;
+            float worldTop = (originAtCenter ? -height * 0.5f : 0f) +
+                (localY + nativeHeight - bounds.min.y) * scale;
+            return new Rect(
+                screenOrigin.x + worldX * screenPixelsPerUnit,
+                screenOrigin.y - worldTop * screenPixelsPerUnit,
+                width * scale * screenPixelsPerUnit,
+                nativeHeight * scale * screenPixelsPerUnit);
+        }
+    }
+
+    /// <summary>形状与编辑手柄共用同一显示门禁；存活结束点不再显示有效判定。</summary>
+    internal static class BattleActionTimelinePreviewLifetime
+    {
+        public static bool IsActive(double localTime, double lifetime) =>
+            BattleActionTimelineTime.IsFinite(localTime) &&
+            BattleActionTimelineTime.IsFinite(lifetime) && lifetime > 0d &&
+            localTime >= 0d && localTime + 1e-9d < lifetime;
+
+        public static bool IsVisible(double localTime, double lifetime, bool showInactiveShapes) =>
+            BattleActionTimelineTime.IsFinite(localTime) &&
+            BattleActionTimelineTime.IsFinite(lifetime) && lifetime > 0d &&
+            (IsActive(localTime, lifetime) || showInactiveShapes);
+    }
+
+    /// <summary>预览手柄的纯数学部分。坐标与运行时一致：先缩放局部偏移，再旋转，最后加关键帧偏移。</summary>
+    internal static class BattleActionTimelineShapeGizmoMath
+    {
+        public static Vector2 Rotate(Vector2 value, float degrees)
+        {
+            double radians = degrees * Math.PI / 180d;
+            float cos = (float)Math.Cos(radians), sin = (float)Math.Sin(radians);
+            return new Vector2(value.x * cos - value.y * sin, value.x * sin + value.y * cos);
+        }
+
+        public static Vector2 Center(Vector2 shapeOffset, BattleActionTimelineTransform transform) =>
+            transform.Offset + Rotate(Vector2.Scale(shapeOffset, transform.Scale), transform.RotationDegrees);
+
+        public static Vector2 ToScreen(Vector2 value, float pixelsPerUnit, int facing) =>
+            new Vector2(value.x * facing * pixelsPerUnit, -value.y * pixelsPerUnit);
+
+        public static Vector2 FromScreen(Vector2 delta, float pixelsPerUnit, int facing) =>
+            new Vector2(delta.x * facing / pixelsPerUnit, -delta.y / pixelsPerUnit);
+
+        public static Vector2 MoveShapeOffset(Vector2 original, Vector2 worldDelta, BattleActionTimelineTransform transform)
+        {
+            Vector2 delta = Rotate(worldDelta, -transform.RotationDegrees);
+            return original + new Vector2(
+                Math.Abs(transform.Scale.x) < 0.00001f ? 0f : delta.x / transform.Scale.x,
+                Math.Abs(transform.Scale.y) < 0.00001f ? 0f : delta.y / transform.Scale.y);
+        }
+
+        public static bool Contains(Vector2 point, Vector2 center, Vector2 size, float screenRotation,
+            BattleAttackShapeType type, bool horizontal, float tolerance = 4f)
+        {
+            Vector2 local = Rotate(point - center, -screenRotation);
+            Vector2 half = size * 0.5f;
+            if (type == BattleAttackShapeType.Circle)
+                return local.sqrMagnitude <= (half.x + tolerance) * (half.x + tolerance);
+            if (type == BattleAttackShapeType.Capsule)
+            {
+                float radius = Math.Min(half.x, half.y);
+                float line = Math.Max(0f, (horizontal ? half.x : half.y) - radius);
+                Vector2 closest = horizontal
+                    ? new Vector2(Math.Max(-line, Math.Min(line, local.x)), 0f)
+                    : new Vector2(0f, Math.Max(-line, Math.Min(line, local.y)));
+                return (local - closest).sqrMagnitude <= (radius + tolerance) * (radius + tolerance);
+            }
+            return Math.Abs(local.x) <= half.x + tolerance && Math.Abs(local.y) <= half.y + tolerance;
+        }
+
+        public static Vector2 Resize(Vector2 originalSize, Vector2 localDelta, Vector2 handle, bool uniform)
+        {
+            if (uniform)
+            {
+                Vector2 fromCenter = Vector2.Scale(originalSize * 0.5f, handle);
+                float factor = Math.Max(0.001f,
+                    1f + Vector2.Dot(localDelta, fromCenter) / Math.Max(0.00001f, fromCenter.sqrMagnitude));
+                return originalSize * factor;
+            }
+            return new Vector2(
+                handle.x == 0f ? originalSize.x : Math.Max(0.001f, originalSize.x + 2f * localDelta.x * handle.x),
+                handle.y == 0f ? originalSize.y : Math.Max(0.001f, originalSize.y + 2f * localDelta.y * handle.y));
+        }
+
+        // 关键帧缩放围绕它自己的枢轴。解线性方程，让抓住的角/边跟随鼠标，而不是中心随缩放漂移。
+        public static Vector2 ScaleKeyframe(Vector2 shapeOffset, Vector2 baseSize, float shapeRotation,
+            BattleActionTimelineTransform initial, Vector2 handle, Vector2 worldDelta, bool uniform, bool circle)
+        {
+            Vector2 corner = Vector2.Scale(baseSize * 0.5f, handle);
+            float maximum = Math.Max(initial.Scale.x, initial.Scale.y);
+            Vector2 x = Rotate(new Vector2(shapeOffset.x, 0f), initial.RotationDegrees) +
+                Rotate(new Vector2(corner.x, 0f), initial.RotationDegrees + shapeRotation);
+            Vector2 y = Rotate(new Vector2(0f, shapeOffset.y), initial.RotationDegrees) +
+                Rotate(new Vector2(0f, corner.y), initial.RotationDegrees + shapeRotation);
+            Vector2 start = circle
+                ? Rotate(Vector2.Scale(shapeOffset, initial.Scale), initial.RotationDegrees) +
+                    Rotate(corner * maximum, initial.RotationDegrees + shapeRotation)
+                : x * initial.Scale.x + y * initial.Scale.y;
+            Vector2 target = start + worldDelta;
+            if (uniform || circle)
+            {
+                if (start.sqrMagnitude < 0.00001f)
+                {
+                    Vector2 basis = Rotate(shapeOffset, initial.RotationDegrees) +
+                        Rotate(corner, initial.RotationDegrees + shapeRotation);
+                    if (basis.sqrMagnitude < 0.00001f) return initial.Scale;
+                    float amount = Vector2.Dot(worldDelta, basis) / basis.sqrMagnitude;
+                    return new Vector2(Math.Max(0f, initial.Scale.x + amount), Math.Max(0f, initial.Scale.y + amount));
+                }
+                float factor = Math.Max(0.001f, Vector2.Dot(target, start) / Math.Max(0.00001f, start.sqrMagnitude));
+                return initial.Scale * factor;
+            }
+            if (handle.x == 0f)
+                return new Vector2(initial.Scale.x, Math.Max(0.001f,
+                    Vector2.Dot(target - x * initial.Scale.x, y) / Math.Max(0.00001f, y.sqrMagnitude)));
+            if (handle.y == 0f)
+                return new Vector2(Math.Max(0.001f,
+                    Vector2.Dot(target - y * initial.Scale.y, x) / Math.Max(0.00001f, x.sqrMagnitude)), initial.Scale.y);
+            float determinant = x.x * y.y - x.y * y.x;
+            if (Math.Abs(determinant) < 0.00001f) return initial.Scale;
+            return new Vector2(Math.Max(0.001f, (target.x * y.y - target.y * y.x) / determinant),
+                Math.Max(0.001f, (x.x * target.y - x.y * target.x) / determinant));
         }
     }
 
@@ -1283,19 +2425,21 @@ namespace Game.EditorTools
             "[BattleActiveSingleSkill]\n" +
             "id\tcodeName\tanimationId\tstartupEndTime\tactionSwitchWindowStartTime\trecoveryStartTime\tactionDuration\texecutionSteps\n" +
             "[BattleAttackBody]\n" +
-            "id\tcodeName\tshapes\tclashStrength\tclashResistance\tmaxHitsPerTarget\tsameTargetHitInterval\tmaxTotalHitCount\n" +
+            "id\tcodeName\tclashStrength\tclashResistance\tmaxHitsPerTarget\tsameTargetHitInterval\tmaxTotalHitCount\n" +
+            "[BattleAttackShape]\n" +
+            "id\tcodeName\tattackBodyId\tshapeIndex\tshapeType\toffsetX\toffsetY\trotationDegrees\tsizeX\tsizeY\tradius\tcapsuleDirection\ttransformKeyframes\n" +
             "[BattleMeleeAttackSpawn]\n" +
-            "id\tcodeName\tattackBodyId\tactiveDuration\ttransformKeyframes\n" +
+            "id\tcodeName\tattackBodyId\tactiveDuration\n" +
             "[BattleProjectileLaunch]\n" +
             "id\tcodeName\tprojectileId\tspawnOffsetX\tspawnOffsetY\tdirectionMode\tangleOffsetDegrees\n" +
             "[BattleProjectile]\n" +
-            "id\tcodeName\tpresentationResourceId\tattackBodyId\tmovementType\tmovementConfigId\tmaxLifetime\tworldCollisionMode\toneWayPlatformCollisionMode\tdestroyWhenAttackBodyExhausted\tattackBodyTransformKeyframes\n" +
+            "id\tcodeName\tpresentationResourceId\tattackBodyId\tmovementType\tmovementConfigId\tmaxLifetime\tworldCollisionMode\toneWayPlatformCollisionMode\tdestroyWhenAttackBodyExhausted\n" +
             "[BattleProjectileLinearMovement]\n" +
             "id\tcodeName\tspeed\n" +
             "[BattleProjectileBallisticMovement]\n" +
             "id\tcodeName\tinitialSpeed\tgravityScale\n\n" +
-            "executionSteps / shapes / transformKeyframes 为 repeated struct 单元格；" +
-            "工具也兼容已拆成独立子 Sheet 的等价结构。";
+            "executionSteps 与 BattleAttackShape.transformKeyframes 为 repeated struct 单元格；" +
+            "Shape 的关键帧只属于当前 Shape。";
         /// <summary>
         /// 检查 `table` 是否满足“主动单体数据表”条件。
         /// </summary>
@@ -1356,7 +2500,8 @@ namespace Game.EditorTools
 
         public static bool IsProjectileLaunchTable(BattleActionTimelineTableData table)
         {
-            return table != null &&
+            // 投射物变换轨同样有projectileId/offsetX/offsetY，但不是发射配置。
+            return table != null && !table.isInlineProjection && !IsKeyframeTable(table) &&
                 FindColumn(table, "projectileId") >= 0 &&
                 FindColumn(table, "spawnOffsetX", "offsetX") >= 0 &&
                 FindColumn(table, "spawnOffsetY", "offsetY") >= 0;
@@ -2223,21 +3368,7 @@ namespace Game.EditorTools
                 .Where(IsKeyframeTable))
             {
                 int ownerColumn = FindKeyframeOwnerColumn(table);
-                string ownerHeader = ownerColumn >= 0 && ownerColumn < table.headers.Length
-                    ? table.headers[ownerColumn] ?? string.Empty
-                    : string.Empty;
-                bool projectileOwner = ownerHeader.IndexOf(
-                        "projectile",
-                        StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    table.sheetName.IndexOf(
-                        "projectile",
-                        StringComparison.OrdinalIgnoreCase) >= 0;
-                bool meleeOwner = ownerHeader.IndexOf(
-                        "melee",
-                        StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    table.sheetName.IndexOf(
-                        "melee",
-                        StringComparison.OrdinalIgnoreCase) >= 0;
+                BattleActionTimelineTableData shapes = FirstTable(document, IsShapeTable);
                 Dictionary<int, double> previousByOwner = new Dictionary<int, double>();
                 foreach (BattleActionTimelineRecordData keyframe in table.records)
                 {
@@ -2253,36 +3384,16 @@ namespace Game.EditorTools
                     double scaleY = GetDouble(table, keyframe, 0d, ScaleYAliases);
                     if (ownerId <= 0 ||
                         !BattleActionTimelineTime.IsFinite(localTime) || localTime < 0d ||
-                        scaleX <= 0d || scaleY <= 0d)
+                        !BattleActionTimelineTime.IsFinite(scaleX) || scaleX < 0d ||
+                        !BattleActionTimelineTime.IsFinite(scaleY) || scaleY < 0d)
                     {
                         issues.Add($"共享 TransformKeyframe {keyframe.rowId} 的参数非法。" );
                         continue;
                     }
 
-                    if (projectileOwner || meleeOwner)
+                    if (FindById(shapes, ownerId) == null)
                     {
-                        BattleActionTimelineTableData ownerTable =
-                            document.tables.FirstOrDefault(candidate =>
-                                (projectileOwner
-                                    ? IsProjectileTable(candidate)
-                                    : IsMeleeSpawnTable(candidate)) &&
-                                FindById(candidate, ownerId) != null);
-                        BattleActionTimelineRecordData owner =
-                            FindById(ownerTable, ownerId);
-                        double lifetime = owner == null
-                            ? double.NaN
-                            : GetDouble(
-                                ownerTable,
-                                owner,
-                                double.NaN,
-                                projectileOwner ? "maxLifetime" : "activeDuration");
-                        if (owner == null ||
-                            !BattleActionTimelineTime.IsFinite(lifetime) ||
-                            localTime > lifetime + BattleActionTimelineTime.Epsilon)
-                        {
-                            issues.Add(
-                                $"共享 TransformKeyframe {keyframe.rowId} 的 owner 断链或 localTime 超出寿命。" );
-                        }
+                        issues.Add($"Shape TransformKeyframe {keyframe.rowId} 的 shapeId={ownerId} 断链。");
                     }
 
                     if (previousByOwner.TryGetValue(ownerId, out double previous) &&
@@ -2304,12 +3415,7 @@ namespace Game.EditorTools
         {
             return FindColumn(
                 table,
-                "meleeAttackSpawnId",
-                "meleeSpawnId",
-                "spawnId",
-                "projectileId",
-                "ownerId",
-                "attackOwnerId");
+                "shapeId");
         }
         /// <summary>
         /// 读取变换。
