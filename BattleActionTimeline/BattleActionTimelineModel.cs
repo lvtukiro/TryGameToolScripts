@@ -371,10 +371,14 @@ namespace Game.EditorTools
                     string currentSignature = InlineOwnerSignature(
                         projection,
                         owner.ownerRowId);
+                    BattleActionTimelineRecordData[] ownedRecords = projection.records.Where(record =>
+                        InlineOwnerId(projection, record) == owner.ownerRowId).ToArray();
                     if (string.Equals(
                             currentSignature,
                             owner.baselineSignature,
-                            StringComparison.Ordinal))
+                            StringComparison.Ordinal) &&
+                        !BattleActionTimelineInlineStructCodec.HasMissingTransformDefaults(
+                            projection.inlineFields, ownedRecords))
                     {
                         continue;
                     }
@@ -401,9 +405,7 @@ namespace Game.EditorTools
                     cells[sourceColumn] =
                         BattleActionTimelineInlineStructCodec.Serialize(
                             projection.inlineFields,
-                            projection.records.Where(record =>
-                                InlineOwnerId(projection, record) ==
-                                owner.ownerRowId));
+                            ownedRecords);
                 }
             }
 
@@ -1990,6 +1992,31 @@ namespace Game.EditorTools
 
     internal static class BattleActionTimelineInlineStructCodec
     {
+        // cltabtoy 的 struct 不接受省略成员。只补有明确预览语义的变换默认值；
+        // LocalTime 和执行步骤引用不猜值，仍交给校验拒绝不完整配置。
+        private static string TransformDefault(string fieldName)
+        {
+            switch (fieldName)
+            {
+                case "OffsetX":
+                case "OffsetY":
+                case "RotationDegrees": return "0";
+                case "ScaleX":
+                case "ScaleY": return "1";
+                case "Interpolation": return "Linear";
+                default: return null;
+            }
+        }
+
+        public static bool HasMissingTransformDefaults(
+            IReadOnlyList<BattleActionTimelineInlineFieldData> fields,
+            IEnumerable<BattleActionTimelineRecordData> records)
+        {
+            return records.Any(record => record?.cells != null && fields.Where((field, index) =>
+                TransformDefault(field.serializedName) != null &&
+                (index + 2 >= record.cells.Length || string.IsNullOrWhiteSpace(record.cells[index + 2]))).Any());
+        }
+
         /// <summary>
         /// 根据 `source` 解析`values`；成功时写出 `values` 并返回 `true`，失败时通过 `error` 返回原因。
         /// </summary>
@@ -2055,7 +2082,8 @@ namespace Game.EditorTools
                         : string.Empty;
                     if (string.IsNullOrWhiteSpace(value))
                     {
-                        continue;
+                        value = TransformDefault(fields[fieldIndex].serializedName);
+                        if (value == null) continue;
                     }
 
                     if (!firstField)
@@ -3380,14 +3408,24 @@ namespace Game.EditorTools
                         keyframe,
                         double.NaN,
                         LocalTimeAliases);
-                    double scaleX = GetDouble(table, keyframe, 0d, ScaleXAliases);
-                    double scaleY = GetDouble(table, keyframe, 0d, ScaleYAliases);
+                    double offsetX = ReadOptionalKeyframeNumber(table, keyframe, 0d, OffsetXAliases);
+                    double offsetY = ReadOptionalKeyframeNumber(table, keyframe, 0d, OffsetYAliases);
+                    double rotation = ReadOptionalKeyframeNumber(table, keyframe, 0d, RotationAliases);
+                    double scaleX = ReadOptionalKeyframeNumber(table, keyframe, 1d, ScaleXAliases);
+                    double scaleY = ReadOptionalKeyframeNumber(table, keyframe, 1d, ScaleYAliases);
+                    string interpolation = Get(table, keyframe, InterpolationAliases);
+                    bool validInterpolation = string.IsNullOrWhiteSpace(interpolation) ||
+                        Enum.TryParse(interpolation, true, out RefData.EnumBattleTransformInterpolation mode) &&
+                        Enum.IsDefined(typeof(RefData.EnumBattleTransformInterpolation), mode);
                     if (ownerId <= 0 ||
                         !BattleActionTimelineTime.IsFinite(localTime) || localTime < 0d ||
+                        !BattleActionTimelineTime.IsFinite(offsetX) ||
+                        !BattleActionTimelineTime.IsFinite(offsetY) ||
+                        !BattleActionTimelineTime.IsFinite(rotation) ||
                         !BattleActionTimelineTime.IsFinite(scaleX) || scaleX < 0d ||
-                        !BattleActionTimelineTime.IsFinite(scaleY) || scaleY < 0d)
+                        !BattleActionTimelineTime.IsFinite(scaleY) || scaleY < 0d || !validInterpolation)
                     {
-                        issues.Add($"共享 TransformKeyframe {keyframe.rowId} 的参数非法。" );
+                        issues.Add($"Shape TransformKeyframe {keyframe.rowId} 的时间、偏移、旋转、缩放或插值参数非法。" );
                         continue;
                     }
 
@@ -3407,6 +3445,11 @@ namespace Game.EditorTools
                 }
             }
         }
+
+        private static double ReadOptionalKeyframeNumber(BattleActionTimelineTableData table,
+            BattleActionTimelineRecordData record, double fallback, params string[] aliases) =>
+            string.IsNullOrWhiteSpace(Get(table, record, aliases))
+                ? fallback : GetDouble(table, record, double.NaN, aliases);
         /// <summary>
         /// 查找关键帧所有者列。
         /// </summary>

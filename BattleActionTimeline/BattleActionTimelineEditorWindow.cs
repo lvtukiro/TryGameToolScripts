@@ -1805,6 +1805,9 @@ namespace Game.EditorTools
             BattleActionTimelineRecordData keyframe = CreateRecord(keyframeTable);
             keyframe.cells[ownerColumn] = shapeId.ToString(CultureInfo.InvariantCulture);
             BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, Math.Max(0d, localTime), BattleActionTimelineSchema.LocalTimeAliases);
+            BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 0d, BattleActionTimelineSchema.OffsetXAliases);
+            BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 0d, BattleActionTimelineSchema.OffsetYAliases);
+            BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 0d, BattleActionTimelineSchema.RotationAliases);
             BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 1d, BattleActionTimelineSchema.ScaleXAliases);
             BattleActionTimelineSchema.SetDouble(keyframeTable, keyframe, 1d, BattleActionTimelineSchema.ScaleYAliases);
             BattleActionTimelineSchema.Set(keyframeTable, keyframe, "Linear", BattleActionTimelineSchema.InterpolationAliases);
@@ -3727,7 +3730,8 @@ namespace Game.EditorTools
                 status = error;
                 Debug.LogError("[BattleActionTimeline] " + error);
                 ShowNotification(new GUIContent("动作源表写回失败；草稿已保留"));
-                QueueDraftSave();
+                SaveDraftNow();
+                EditorUtility.DisplayDialog("动作源表写回失败", error, "确定");
                 return;
             }
 

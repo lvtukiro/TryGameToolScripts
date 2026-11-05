@@ -366,7 +366,9 @@ namespace Game.EditorTools
                 Path.GetDirectoryName(workbookPath),
                 "." + Path.GetFileName(workbookPath) + "." +
                 Guid.NewGuid().ToString("N") + ".tmp");
-            bool officialMayHaveChanged = false;
+            bool replacementAttempted = false;
+            bool replacementCompleted = false;
+            string writeStage = "读取正式源表";
             try
             {
                 string currentHash = ComputeHash(workbookPath);
@@ -381,6 +383,7 @@ namespace Game.EditorTools
                     return false;
                 }
 
+                writeStage = "生成并校验临时工作簿";
                 ValidateWriteSet(snapshot, writeSet);
                 File.Copy(workbookPath, temporaryPath, true);
                 using (FileStream stream = new FileStream(
@@ -422,6 +425,7 @@ namespace Game.EditorTools
                     throw new InvalidDataException("临时工作簿附加回读校验失败。");
                 }
 
+                writeStage = "备份正式源表";
                 string backupDirectory = Path.Combine(
                     Path.GetDirectoryName(workbookPath),
                     ".battle-action-timeline-backups");
@@ -433,10 +437,13 @@ namespace Game.EditorTools
                     "_" + Guid.NewGuid().ToString("N") + ".xlsx");
                 File.Copy(workbookPath, backupPath, false);
 
-                officialMayHaveChanged = true;
+                writeStage = "替换正式源表";
+                replacementAttempted = true;
                 File.Replace(temporaryPath, workbookPath, null, true);
+                replacementCompleted = true;
                 temporaryPath = string.Empty;
 
+                writeStage = "回读并校验正式源表";
                 if (!TryLoad(
                         workbookPath,
                         out BattleActionTimelineWorkbookSnapshot officialReadback,
@@ -451,24 +458,44 @@ namespace Game.EditorTools
             }
             catch (Exception exception)
             {
-                string failure = officialMayHaveChanged
-                    ? "动作源表可能已替换后发生失败：" + exception.Message
-                    : "动作源表临时写回失败，正式文件未修改：" + exception.Message;
-                if (officialMayHaveChanged)
+                // Replace 抛出异常不等于已经修改正式文件。Excel 常允许读取但禁止替换，
+                // 此时核对原 hash 后直接保留源表，不再对同一个被占用文件做无意义的恢复。
+                bool unchanged = !replacementAttempted || HasWorkbookHash(workbookPath, snapshot.ContentHash);
+                bool sourceOperation = writeStage != "生成并校验临时工作簿";
+                int nativeError = exception.HResult & 0xFFFF;
+                bool sourceInUse = sourceOperation && exception is IOException &&
+                    (nativeError == 32 || nativeError == 33);
+                string failure = sourceInUse
+                    ? "源 xlsx 被其它程序占用，安全写回未完成。"
+                    : replacementCompleted
+                        ? "动作源表已替换，但回读或校验失败。"
+                        : "动作源表安全写回失败。";
+                string fileState;
+                if (unchanged)
                 {
-                    if (TryRestoreWorkbook(workbookPath, backupPath, out string restoreError))
-                    {
-                        error = failure + "；正式工作簿已从写前备份恢复。";
-                    }
-                    else
-                    {
-                        error = failure + "；自动恢复失败：" + restoreError;
-                    }
+                    fileState = replacementCompleted
+                        ? "正式源表当前内容与写前一致；未执行恢复。"
+                        : "本次未写入正式源表；未执行恢复。";
                 }
                 else
                 {
-                    error = failure;
+                    if (TryRestoreWorkbook(workbookPath, backupPath, out string restoreError))
+                    {
+                        fileState = "正式工作簿已从写前备份恢复。";
+                    }
+                    else
+                    {
+                        fileState = "无法确认正式源表的最终状态；自动恢复失败：" + restoreError +
+                            "。请保留备份，暂勿导表或覆盖源文件。";
+                    }
                 }
+
+                error = failure + "\n" + fileState + "\n源表：" + workbookPath +
+                    (sourceInUse ? "\n请关闭 Excel 或其它正在使用该源表的程序，再点击“安全写回源 xlsx”。" : string.Empty) +
+                    "\n当前编辑与草稿将保留，请勿通过“重新读取正式配置”覆盖未写回的修改。" +
+                    (!string.IsNullOrWhiteSpace(backupPath) ? "\n写前备份：" + backupPath : string.Empty) +
+                    "\n失败阶段：" + writeStage + "；HRESULT=0x" + exception.HResult.ToString("X8") +
+                    "\n详细原因：" + exception.Message;
 
                 return false;
             }
@@ -484,6 +511,19 @@ namespace Game.EditorTools
                     {
                     }
                 }
+            }
+        }
+
+        /// <summary>失败后只读核对写前内容；无法读取时不武断地认定正式文件未变化。</summary>
+        private static bool HasWorkbookHash(string path, string expectedHash)
+        {
+            try
+            {
+                return string.Equals(ComputeHash(path), expectedHash, StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
             }
         }
         /// <summary>
