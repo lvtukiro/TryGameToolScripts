@@ -320,34 +320,30 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// 根据 `snapshot`、`writeSet` 写入`backup`路径；成功时写出 `backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
+        /// 校验并原子写回正式源表，不生成持久备份；失败时通过 `error` 返回原因。
         /// </summary>
 
         internal static bool TryWrite(
             BattleActionTimelineWorkbookSnapshot snapshot,
             BattleActionTimelineWorkbookWriteSet writeSet,
-            out string backupPath,
             out string error)
         {
             return TryWrite(
                 snapshot,
                 writeSet,
                 null,
-                out backupPath,
                 out error);
         }
         /// <summary>
-        /// 根据 `snapshot`、`writeSet`、`temporaryValidator` 写入`backup`路径；成功时写出 `backupPath` 并返回 `true`，失败时通过 `error` 返回原因。
+        /// 写前内容仅保存在本次调用的内存中，替换后校验失败时用于恢复。
         /// </summary>
 
         internal static bool TryWrite(
             BattleActionTimelineWorkbookSnapshot snapshot,
             BattleActionTimelineWorkbookWriteSet writeSet,
             Func<BattleActionTimelineWorkbookSnapshot, bool> temporaryValidator,
-            out string backupPath,
             out string error)
         {
-            backupPath = string.Empty;
             error = string.Empty;
             if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.WorkbookPath))
             {
@@ -368,10 +364,19 @@ namespace Game.EditorTools
                 Guid.NewGuid().ToString("N") + ".tmp");
             bool replacementAttempted = false;
             bool replacementCompleted = false;
+            byte[] originalContent = null;
             string writeStage = "读取正式源表";
             try
             {
-                string currentHash = ComputeHash(workbookPath);
+                using (FileStream source = new FileStream(
+                    workbookPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (MemoryStream content = new MemoryStream())
+                {
+                    source.CopyTo(content);
+                    originalContent = content.ToArray();
+                }
+
+                string currentHash = ComputeHash(originalContent);
                 if (!string.Equals(
                         currentHash,
                         snapshot.ContentHash,
@@ -385,7 +390,7 @@ namespace Game.EditorTools
 
                 writeStage = "生成并校验临时工作簿";
                 ValidateWriteSet(snapshot, writeSet);
-                File.Copy(workbookPath, temporaryPath, true);
+                File.WriteAllBytes(temporaryPath, originalContent);
                 using (FileStream stream = new FileStream(
                     temporaryPath,
                     FileMode.Open,
@@ -425,19 +430,13 @@ namespace Game.EditorTools
                     throw new InvalidDataException("临时工作簿附加回读校验失败。");
                 }
 
-                writeStage = "备份正式源表";
-                string backupDirectory = Path.Combine(
-                    Path.GetDirectoryName(workbookPath),
-                    ".battle-action-timeline-backups");
-                Directory.CreateDirectory(backupDirectory);
-                backupPath = Path.Combine(
-                    backupDirectory,
-                    Path.GetFileNameWithoutExtension(workbookPath) + "_" +
-                    DateTime.Now.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture) +
-                    "_" + Guid.NewGuid().ToString("N") + ".xlsx");
-                File.Copy(workbookPath, backupPath, false);
-
                 writeStage = "替换正式源表";
+                if (!string.Equals(ComputeHash(workbookPath), snapshot.ContentHash, StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "正式机器人工作簿在写回准备期间已被其它程序或协作者修改，未覆盖当前文件。");
+                }
+
                 replacementAttempted = true;
                 File.Replace(temporaryPath, workbookPath, null, true);
                 replacementCompleted = true;
@@ -479,21 +478,20 @@ namespace Game.EditorTools
                 }
                 else
                 {
-                    if (TryRestoreWorkbook(workbookPath, backupPath, out string restoreError))
+                    if (TryRestoreWorkbook(workbookPath, originalContent, out string restoreError))
                     {
-                        fileState = "正式工作簿已从写前备份恢复。";
+                        fileState = "正式工作簿已恢复为写回前内容。";
                     }
                     else
                     {
                         fileState = "无法确认正式源表的最终状态；自动恢复失败：" + restoreError +
-                            "。请保留备份，暂勿导表或覆盖源文件。";
+                            "。请暂勿导表或覆盖源文件。";
                     }
                 }
 
                 error = failure + "\n" + fileState + "\n源表：" + workbookPath +
                     (sourceInUse ? "\n请关闭 Excel 或其它正在使用该源表的程序，再点击“安全写回源 xlsx”。" : string.Empty) +
                     "\n当前编辑与草稿将保留，请勿通过“重新读取正式配置”覆盖未写回的修改。" +
-                    (!string.IsNullOrWhiteSpace(backupPath) ? "\n写前备份：" + backupPath : string.Empty) +
                     "\n失败阶段：" + writeStage + "；HRESULT=0x" + exception.HResult.ToString("X8") +
                     "\n详细原因：" + exception.Message;
 
@@ -830,12 +828,12 @@ namespace Game.EditorTools
             }
         }
         /// <summary>
-        /// 根据 `workbookPath`、`backupPath` 恢复工作簿；操作完成时返回 `true`，失败时通过 `error` 返回原因。
+        /// 从内存中的写前内容恢复工作簿，恢复用的瞬时文件在结束时清理。
         /// </summary>
 
         private static bool TryRestoreWorkbook(
             string workbookPath,
-            string backupPath,
+            byte[] originalContent,
             out string error)
         {
             error = string.Empty;
@@ -843,13 +841,13 @@ namespace Game.EditorTools
                 Guid.NewGuid().ToString("N") + ".restore.tmp";
             try
             {
-                if (string.IsNullOrWhiteSpace(backupPath) || !File.Exists(backupPath))
+                if (originalContent == null)
                 {
-                    error = "写前备份不存在。";
+                    error = "内存中没有写回前内容。";
                     return false;
                 }
 
-                File.Copy(backupPath, restorePath, true);
+                File.WriteAllBytes(restorePath, originalContent);
                 if (File.Exists(workbookPath))
                 {
                     File.Replace(restorePath, workbookPath, null, true);
@@ -860,6 +858,11 @@ namespace Game.EditorTools
                 }
 
                 restorePath = string.Empty;
+                if (!HasWorkbookHash(workbookPath, ComputeHash(originalContent)))
+                {
+                    throw new InvalidDataException("恢复后的源表与写回前内容不一致。");
+                }
+
                 return true;
             }
             catch (Exception exception)
@@ -1446,6 +1449,15 @@ namespace Game.EditorTools
                 FileShare.ReadWrite))
             {
                 return BitConverter.ToString(algorithm.ComputeHash(stream))
+                    .Replace("-", string.Empty);
+            }
+        }
+
+        private static string ComputeHash(byte[] content)
+        {
+            using (SHA256 algorithm = SHA256.Create())
+            {
+                return BitConverter.ToString(algorithm.ComputeHash(content))
                     .Replace("-", string.Empty);
             }
         }

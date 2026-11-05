@@ -185,7 +185,7 @@ namespace Game.EditorTools
                 GUILayout.Width(120f));
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.HelpBox(
-                "本工具只修改正式 r.机器人表.xlsx；写入时先做 hash、临时文件、回读和备份校验。" +
+                "本工具只修改正式 r.机器人表.xlsx；写入时先校验 hash 和回读结果，再原子替换，不生成持久备份。" +
                 "“写入并导表”会在源表写回成功后调用现有增量导表事务。",
                 MessageType.Info);
         }
@@ -812,7 +812,7 @@ namespace Game.EditorTools
                 "写回映射源表",
                 "将更新 " + writeSet.Replacements.Count + " 条记录，删除 " +
                 writeSet.Deletions.Count + " 条记录。\n\n" +
-                "写入后会自动回读校验并生成备份。",
+                "写入后会自动回读校验，不生成持久备份，瞬时文件结束后清理。",
                 exportAfterWrite ? "写入并导表" : "仅写入源表",
                 "取消"))
             {
@@ -822,7 +822,6 @@ namespace Game.EditorTools
             if (!BattleActionTimelineWorkbookBridge.TryWrite(
                     baseline,
                     writeSet,
-                    out string backupPath,
                     out string error))
             {
                 status = error;
@@ -832,7 +831,7 @@ namespace Game.EditorTools
             }
 
             LoadOfficial(false);
-            status = "源表写回成功；备份：" + backupPath;
+            status = "源表写回成功；未生成备份。";
             if (exportAfterWrite)
             {
                 ExportRobotWorkbook();

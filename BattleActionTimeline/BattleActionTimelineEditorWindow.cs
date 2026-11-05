@@ -3714,7 +3714,7 @@ namespace Game.EditorTools
                 writeSet.Deletions.Count + " 条记录：\n" +
                 workbookSnapshot.WorkbookPath + "\n\n" +
                 "工具会校验 hash、临时 xlsx 和回读结果，再 File.Replace 正式源表。" +
-                "本操作不会导表，生成目录保持不变。",
+                "不生成持久备份，瞬时文件结束后清理。本操作不会导表，生成目录保持不变。",
                 "仅写回源 xlsx",
                 "取消"))
             {
@@ -3724,7 +3724,6 @@ namespace Game.EditorTools
             if (!BattleActionTimelineWorkbookBridge.TryWrite(
                     workbookSnapshot,
                     writeSet,
-                    out string backupPath,
                     out string error))
             {
                 status = error;
@@ -3742,8 +3741,7 @@ namespace Game.EditorTools
                     out string reloadError))
             {
                 workbookSnapshot = null;
-                status = "源 xlsx 已安全写回，但写后重新读取失败：" + reloadError +
-                    "；备份：" + backupPath;
+                status = "源 xlsx 已安全写回，但写后重新读取失败：" + reloadError;
                 return;
             }
 
@@ -3757,7 +3755,7 @@ namespace Game.EditorTools
             NormalizeSelection();
             Undo.ClearUndo(authoringState);
             ClearDraft();
-            status = "动作源 xlsx 已原子写回并回读通过；未执行导表。备份：" + backupPath;
+            status = "动作源 xlsx 已原子写回并回读通过；未生成备份，未执行导表。";
             ShowNotification(new GUIContent("源 xlsx 写回成功；请最后统一导表"));
             Repaint();
         }
