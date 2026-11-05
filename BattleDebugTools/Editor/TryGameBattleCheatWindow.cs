@@ -10,7 +10,6 @@ namespace TryGame.BattleDebugTools.Editor
         private string leftWeaponIdText = "0";
         private string rightWeaponIdText = "0";
         private string equipmentIdText = "4102";
-        private string equipmentSlotIdText = "0";
         private string commandStatus = "尚未执行战斗作弊命令。";
         private MessageType commandStatusType = MessageType.None;
         private Vector2 scrollPosition;
@@ -43,8 +42,8 @@ namespace TryGame.BattleDebugTools.Editor
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
             EditorGUILayout.LabelField("运行时战斗作弊", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "只在 Play Mode 下生效。生成敌人会写入当前 ActiveRun，随后按正常 SmallArea 流程重建，" +
-                "因此属性、装备、技能和序列帧动作都会走正式代码。",
+                "进入正式战局后使用。新增敌人只追加这一只，不重建场景、不重置玩家和已有敌人的状态。" +
+                "生成的敌人和装备会进入当前战局及后续存档，建议使用测试存档。",
                 MessageType.Info);
 
             BattleWorldZoneSceneRuntime runtime =
@@ -73,28 +72,30 @@ namespace TryGame.BattleDebugTools.Editor
         }
 
         /// <summary>
-        /// 绘制临时战局玩家装备调试区段。
+        /// 绘制正式战局的装备生成命令。
         /// </summary>
         private void DrawPlayerEquipmentSection(BattleWorldZoneSceneRuntime runtime)
         {
             EditorGUILayout.Space(12f);
-            EditorGUILayout.LabelField("直接装备指定装备", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("生成指定装备（正式战场）", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "equipmentId 使用 RobotEquipment.id（不是 Item.id）。目标 slotId 填 0 会自动寻找兼容的空槽；" +
-                "也可以直接填写装备布局中的 slotId，例如身体/左臂/Brain 常用 2、3、9。" +
-                "该功能只在临时战斗内生效，不写入正式存档。",
-                MessageType.None);
+                "使用 RobotEquipment.id（不是 Item.id、技能 id 或动画 id）。" +
+                "生成在玩家脚下，按 X 拾取、B 打开背包后正常穿戴并装配技能。" +
+                "不会覆盖已有装备；背包满时装备留在地面。",
+                MessageType.Info);
+            EditorGUILayout.HelpBox(
+                "会修改当前正式战局；后续保存/撤离会按正常规则处理这些装备。建议使用测试存档。",
+                MessageType.Warning);
 
             equipmentIdText = EditorGUILayout.TextField("装备 id", equipmentIdText);
-            equipmentSlotIdText = EditorGUILayout.TextField("目标 slotId（0=自动）", equipmentSlotIdText);
 
             using (new EditorGUI.DisabledScope(
                 !EditorApplication.isPlaying || EditorApplication.isPaused || runtime == null ||
                 !runtime.IsSceneApplied || !runtime.HasActiveRun))
             {
-                if (GUILayout.Button("直接装备到玩家"))
+                if (GUILayout.Button("生成装备到玩家脚下"))
                 {
-                    RunEquipEquipmentCommand(runtime);
+                    RunGenerateEquipmentCommand(runtime);
                 }
             }
         }
@@ -105,24 +106,51 @@ namespace TryGame.BattleDebugTools.Editor
         private void DrawEnemySpawnSection(BattleWorldZoneSceneRuntime runtime)
         {
             EditorGUILayout.Space(12f);
-            EditorGUILayout.LabelField("生成指定敌人", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("新增敌人（正式战场）", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
                 "enemyId 使用 BattleEnemy.id；左右武器使用 RobotEquipment.id。0 表示空手。" +
-                "双手武器只填写一个武器格即可，另一格会按正式规则保持为空。",
+                "双手武器只填写一个武器格即可，另一格会按正式规则保持为空。" +
+                "敌人生成在玩家附近的合法生成区，使用配置的行为图和动作。",
                 MessageType.None);
 
+            if (runtime != null && runtime.IsSceneApplied) DrawEnemySelector();
             enemyIdText = EditorGUILayout.TextField("敌人 id", enemyIdText);
             leftWeaponIdText = EditorGUILayout.TextField("左手武器 id", leftWeaponIdText);
             rightWeaponIdText = EditorGUILayout.TextField("右手武器 id", rightWeaponIdText);
 
-            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            using (new EditorGUI.DisabledScope(
+                !EditorApplication.isPlaying || EditorApplication.isPaused || runtime == null ||
+                !runtime.IsSceneApplied || !runtime.HasActiveRun))
             {
-                if (GUILayout.Button("生成敌人"))
+                if (GUILayout.Button("新增一只敌人"))
                 {
                     RunSpawnEnemyCommand(runtime);
                 }
             }
 
+        }
+
+        private void DrawEnemySelector()
+        {
+            int count = RefData.BattleEnemyTable.Count;
+            var labels = new string[count + 1];
+            var ids = new int[count + 1];
+            labels[0] = "手动填写 id";
+            int.TryParse(enemyIdText, out int currentId);
+            int selected = 0;
+            for (int i = 0; i < count; i++)
+            {
+                var enemy = RefData.BattleEnemyTable.BattleEnemys(i);
+                ids[i + 1] = enemy.Id;
+                string name = string.IsNullOrEmpty(enemy.NameLanguageKey) ? enemy.CodeName :
+                    Lang.Get(enemy.NameLanguageKey);
+                if (string.IsNullOrWhiteSpace(name) || name == enemy.NameLanguageKey)
+                    name = enemy.CodeName;
+                labels[i + 1] = $"{enemy.Id} · {name}";
+                if (enemy.Id == currentId) selected = i + 1;
+            }
+            int next = EditorGUILayout.Popup("按配置选择", selected, labels);
+            if (next != selected && next > 0) enemyIdText = ids[next].ToString();
         }
         /// <summary>
         /// 绘制玩家无伤害区段。
@@ -160,7 +188,7 @@ namespace TryGame.BattleDebugTools.Editor
             EditorGUILayout.Space(6f);
             EditorGUILayout.HelpBox(
                 "直接加满玩家架势，走正常的动作打断、击破动画和恢复计时；不扣血、不改技能配置。" +
-                "正式战场和临时战斗均可使用。",
+                "用于测试击破动画和恢复流程。",
                 MessageType.None);
             using (new EditorGUI.DisabledScope(
                 !EditorApplication.isPlaying || EditorApplication.isPaused || runtime == null ||
@@ -221,9 +249,9 @@ namespace TryGame.BattleDebugTools.Editor
         }
 
         /// <summary>
-        /// 运行直接装备玩家命令。
+        /// 运行正式战局的装备生成命令。
         /// </summary>
-        private void RunEquipEquipmentCommand(BattleWorldZoneSceneRuntime runtime)
+        private void RunGenerateEquipmentCommand(BattleWorldZoneSceneRuntime runtime)
         {
             if (!EditorApplication.isPlaying)
             {
@@ -237,26 +265,24 @@ namespace TryGame.BattleDebugTools.Editor
                 return;
             }
 
-            if (!TryParseInt(equipmentIdText, "装备 id", false, out int equipmentId) ||
-                !TryParseInt(equipmentSlotIdText, "目标 slotId", true, out int slotId))
+            if (!TryParseInt(equipmentIdText, "装备 id", false, out int equipmentId))
             {
                 return;
             }
 
-            if (runtime.TryEquipEquipmentCheat(
+            if (runtime.TryGenerateEquipmentCheat(
                     equipmentId,
-                    slotId,
-                    out int equippedSlotId,
+                    out string itemUid,
                     out string error))
             {
                 SetCommandStatus(
-                    $"装备成功：equipmentId={equipmentId}, slotId={equippedSlotId}。" +
-                    "现在可以在战斗搜刮/技能界面把该装备提供的技能装入 Brain 槽。",
+                    $"已生成到脚下：equipmentId={equipmentId}, itemUid={itemUid}。" +
+                    "按 X 拾取，B 打开背包换装，再将技能拖入 Brain 槽。",
                     MessageType.Info);
             }
             else
             {
-                SetCommandStatus("装备失败：" + error, MessageType.Error);
+                SetCommandStatus("生成装备失败：" + error, MessageType.Error);
             }
         }
         /// <summary>

@@ -230,21 +230,6 @@ namespace Game.EditorTools
                     Vector2.zero,
                     new Vector2(156f, 48f));
 
-                BattlePreparationEditorUiFactory.ButtonParts battleDevelopment =
-                    BattlePreparationEditorUiFactory.AddButton(
-                        "BattleDevelopmentButton",
-                        topBar.transform,
-                        "临时战斗",
-                        new Color(0.16f, 0.36f, 0.58f, 0.96f),
-                        21);
-                BattlePreparationEditorUiFactory.Place(
-                    battleDevelopment.Rect,
-                    new Vector2(0.9f, 0f),
-                    new Vector2(0.5f, 0.5f),
-                    new Vector2(0f, -34f),
-                    new Vector2(190f, 48f));
-                battleDevelopment.Button.gameObject.SetActive(true);
-
                 BattlePreparationEditorUiFactory.ButtonParts battle =
                     BattlePreparationEditorUiFactory.AddButton(
                         "BattleButton",
@@ -310,14 +295,6 @@ namespace Game.EditorTools
                     mono,
                     "battleButtonText",
                     battle.Text);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
-                    "battleDevelopmentButton",
-                    battleDevelopment.Button);
-                BattlePreparationEditorUiFactory.SetObject(
-                    mono,
-                    "battleDevelopmentButtonText",
-                    battleDevelopment.Text);
                 BattlePreparationEditorUiFactory.SetObjects(
                     mono,
                     "rosterSlotViews",
