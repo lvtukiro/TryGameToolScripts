@@ -914,6 +914,10 @@ namespace Game.EditorTools
                 normalized == "battleactivemultiskill" ||
                 normalized == "battlerobot" ||
                 normalized == "robotequipment" ||
+                normalized == "battleoperationeffect" ||
+                normalized == "battledamageeffect" ||
+                normalized == "battlehitreactioneffect" ||
+                normalized == "battlepersistenteffect" ||
                 normalized == "battleskill")
             {
                 return true;
@@ -930,7 +934,7 @@ namespace Game.EditorTools
                     "startupEndTime",
                     "recoveryStartTime",
                     "actionDuration") ||
-                HasAllHeaders(header, "triggerTime", "stepType", "stepConfigId") ||
+                HasAllHeaders(header, "triggerTime", "stepType") ||
                 HasAllHeaders(header, "clashStrength", "clashResistance") ||
                 HasAllHeaders(header, "shapeType", "offsetX", "offsetY") ||
                 HasAllHeaders(header, "attackBodyId", "activeDuration") ||

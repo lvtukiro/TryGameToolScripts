@@ -61,7 +61,7 @@ Unity 菜单：
 
 - 客户端 JSON 与运行时 bytes 的表集合一致。
 - JSON 能解析，数据行数有效，同一表中的 ID 不重复。
-- 只有 `MediaResource`、`AudioDefinition`、`EffectDefinition` 允许在媒体系统尚未接业务资源时作为 schema-only 空表发布，验证器会逐表输出明确 Warning；其它任何空表仍会拒绝发布。
+- `MediaResource`、`AudioDefinition`、`EffectDefinition` 允许在媒体系统尚未接业务资源时作为 schema-only 空表发布；`BattleProjectileBallisticMovement` 在当前没有 Ballistic 投射物引用时也允许保持 schema-only 空表。验证器会逐表输出明确 Warning；其它任何空表仍会拒绝发布。
 - 每张表都有 FBS、bytes 和生成 C#。
 - 每份 bytes 都能用对应 FBS 经 `flatc` 反序列化；同次生成的客户端 JSON 会再按该 FBS 编码为 expected bytes，并与运行时 bytes 做长度、SHA256 和逐字节一致性校验，避免旧 bytes 或错内容通过发布。
 - `Language.bytes` 包含 `id`、`zh_cn`、`en_US`，必要字段非空且 key 唯一。

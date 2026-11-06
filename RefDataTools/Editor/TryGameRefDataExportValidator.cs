@@ -36,6 +36,8 @@ namespace TryGame.RefDataTools.Editor
                 "AudioDefinition",
                 "EffectDefinition",
                 "BattleSkillMultiEquipment",
+                // 当前项目尚未配置抛物线投射物；保留表结构，允许在没有 Ballistic 引用时为空。
+                "BattleProjectileBallisticMovement",
             };
         /// <summary>
         /// 根据 `excelFullPaths` 捕获输入`Hashes`；成功时写出 `inputHashes` 并返回 `true`，前置条件不满足时返回 `false`。

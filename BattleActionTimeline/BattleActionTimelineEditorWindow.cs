@@ -62,7 +62,6 @@ namespace Game.EditorTools
             public int filterSkillId;
             public bool filterApplied;
             public float previewHeight = 1.18f;
-            public bool previewOriginAtCenter;
             public float previewZoom = 1f;
         }
 
@@ -707,18 +706,14 @@ namespace Game.EditorTools
             }
 
             float height = EditorGUILayout.FloatField(
-                new GUIContent("预览画布高度（世界单位）", "对应战斗中的角色占位高度；战士当前为 1.18。只影响预览，不改角色或素材。"),
+                new GUIContent("预览画布高度（世界单位）", "对应战斗中的角色高度：主角 1.18，敌人/Boss 当前为 1.25。统一以脚底为原点；只影响预览，不改角色或素材。"),
                 authoringState.previewHeight);
-            bool atCenter = EditorGUILayout.Toggle(
-                new GUIContent("CombatOrigin 在画布中心", "玩家通常不勾选（原点在脚底）；敌人占位原点在中心时勾选。"),
-                authoringState.previewOriginAtCenter);
+            EditorGUILayout.LabelField("CombatOrigin", "统一脚底中心");
             if (BattleActionTimelineTime.IsFinite(height) && height > 0f &&
-                (!Mathf.Approximately(height, authoringState.previewHeight) ||
-                 atCenter != authoringState.previewOriginAtCenter))
+                !Mathf.Approximately(height, authoringState.previewHeight))
             {
                 Undo.RecordObject(authoringState, "修改序列帧预览布局");
                 authoringState.previewHeight = height;
-                authoringState.previewOriginAtCenter = atCenter;
                 Repaint();
             }
 
@@ -1019,23 +1014,11 @@ namespace Game.EditorTools
                         stepTable,
                         step,
                         BattleActionTimelineSchema.StepTypeAliases));
-                int configId = EditorGUILayout.IntField(
-                    new GUIContent("步骤配置 ID（高级）", "指向生成配置，不是技能或动画ID。手工改为已有ID表示主动复用；默认新增会自动分配独立配置。"),
-                    BattleActionTimelineSchema.GetInt(
-                        stepTable,
-                        step,
-                        0,
-                        BattleActionTimelineSchema.StepConfigAliases));
                 BattleActionTimelineSchema.Set(
                     stepTable,
                     step,
                     stepType,
                     BattleActionTimelineSchema.StepTypeAliases);
-                BattleActionTimelineSchema.SetInt(
-                    stepTable,
-                    step,
-                    configId,
-                    BattleActionTimelineSchema.StepConfigAliases);
                 if (BattleActionTimelineSchema.StepIsMelee(stepTable, step) ||
                     BattleActionTimelineSchema.StepIsProjectile(stepTable, step))
                 {
@@ -1084,7 +1067,7 @@ namespace Game.EditorTools
                         ? $"已新增独立投射物步骤：发射配置 {created.SpawnId} / 投射物 {created.ProjectileId} / 攻击体 {created.BodyId} / 移动配置 {created.MovementId}。"
                         : $"已新增独立近战步骤：生成配置 {created.SpawnId} / 攻击体 {created.BodyId}。";
                     attackAuthoringStatus +=
-                        (created.Blank ? "当前为默认空白判定，未自动附加伤害效果。" + (created.IsProjectile ? "投射物尚未配置表现资源。" : "")
+                        (created.Blank ? "当前为默认形状；仅在源表存在对应条目时自动绑定基础伤害/受击，请在命中效果中确认。" + (created.IsProjectile ? "投射物尚未配置表现资源。" : "")
                             : "初始配置来自当前动作的同类型步骤，后续修改互不影响。") +
                         "尚未写回源表。";
                     attackAuthoringError = false;
@@ -1096,8 +1079,8 @@ namespace Game.EditorTools
                     attackAuthoringError = true;
                 }
             }
-            EditorGUILayout.LabelField("近战、投射物新增均默认独立；投射物的移动配置也独立。仅手填已有配置 ID 时主动复用。", EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.LabelField("新 ID 只统计当前仍存在步骤所用的同类新增配置；删除步骤后的无引用草稿配置不占号。没有有效新增记录时，取正式配置最大 ID + 1。", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("每个步骤拥有独立攻击配置；从同类步骤复制初值后，形状、关键帧和命中效果互不影响。", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("攻击配置键由技能和步骤下标自动生成，无需手填；删除步骤时后续配置链同步重编号。", EditorStyles.wordWrappedMiniLabel);
             if (!string.IsNullOrEmpty(attackAuthoringStatus))
                 EditorGUILayout.HelpBox(attackAuthoringStatus, attackAuthoringError ? MessageType.Warning : MessageType.Info);
             EditorGUILayout.EndVertical();
@@ -1116,6 +1099,19 @@ namespace Game.EditorTools
                 return;
             }
 
+            if (BattleActionTimelineSchema.StepIsSelfEffect(resolved.StepTable, resolved.Step))
+            {
+                int id = EditorGUILayout.IntField("自身效果 ID", BattleActionTimelineSchema.GetInt(
+                    resolved.StepTable, resolved.Step, 0, BattleActionTimelineSchema.EffectConfigAliases));
+                BattleActionTimelineSchema.SetInt(resolved.StepTable, resolved.Step, id,
+                    BattleActionTimelineSchema.EffectConfigAliases);
+                BattleActionTimelineSchema.TryGetSelfEffectReference(resolved.StepTable, resolved.Step, out var effect);
+                string problem = BattleActionTimelineHitEffects.ReferenceError(edited, effect);
+                EditorGUILayout.HelpBox("直接对释放者生效，不创建攻击体。" + BattleActionTimelineHitEffects.TableName(effect.EffectType) + "：" +
+                    BattleActionTimelineHitEffects.Describe(edited, effect), string.IsNullOrEmpty(problem) ? MessageType.Info : MessageType.Error);
+                return;
+            }
+
             if (resolved.Owner == null || resolved.Body == null)
             {
                 EditorGUILayout.HelpBox("此步骤缺少对应的生成／发射配置或攻击体。", MessageType.Error);
@@ -1125,12 +1121,10 @@ namespace Game.EditorTools
             EditorGUILayout.Space(6f);
             bool showParameters = DrawViewFoldout(
                 "parameters:" + HierarchyKey(resolved.StepTable, resolved.Step),
-                "公共参数（生成、命中、独立配置）");
+                "步骤参数（生成、命中）");
             if (showParameters)
             {
                 DrawStepCommonFields(edited, resolved);
-                // 独立复制可能改了引用，按当前步骤重新解析，不能跳到别的选中步骤。
-                resolved = ResolveStep(edited, resolved.StepTable, resolved.Step);
             }
 
             DrawShapes(edited, resolved, stepLabel);
@@ -1140,49 +1134,11 @@ namespace Game.EditorTools
         {
             if ((resolved.IsMelee || resolved.IsProjectile) && resolved.Owner != null && resolved.Body != null)
             {
-                int stepReferences = BattleActionTimelineAttackAuthoring.CountStepReferences(edited, resolved.Owner.rowId, resolved.IsProjectile);
-                int bodyReferences = BattleActionTimelineAttackAuthoring.CountBodyReferences(edited, resolved.Body.rowId);
-                int projectileReferences = 0, movementReferences = 0;
-                if (resolved.IsProjectile && resolved.Projectile != null)
-                {
-                    projectileReferences = BattleActionTimelineAttackAuthoring.CountProjectileReferences(edited, resolved.Projectile.rowId);
-                    if (BattleActionTimelineAttackAuthoring.TryReadMovementType(
-                        BattleActionTimelineSchema.Get(resolved.ProjectileTable, resolved.Projectile, "movementType"), out var movementType))
-                        movementReferences = BattleActionTimelineAttackAuthoring.CountMovementReferences(edited, movementType,
-                            BattleActionTimelineSchema.GetInt(resolved.ProjectileTable, resolved.Projectile, 0, "movementConfigId"));
-                }
-                bool shared = stepReferences > 1 || bodyReferences > 1 || projectileReferences > 1 || movementReferences > 1;
-                string projectileCounts = resolved.IsProjectile
-                    ? $"投射物被 {projectileReferences} 份发射配置引用，移动配置被 {movementReferences} 个投射物引用。" : "";
-                EditorGUILayout.HelpBox(shared
-                    ? $"当前仍在共用：生成／发射配置被 {stepReferences} 个步骤引用，攻击体被 {bodyReferences} 份生成／投射物配置引用。" +
-                        projectileCounts + "先复制为独立配置，再单独调整。"
-                    : resolved.IsProjectile ? "当前步骤的发射配置、投射物、攻击体、移动和变轨均独立。"
-                        : "当前步骤使用独立的近战生成配置、攻击体和变轨，修改不会串到其它步骤。",
-                    shared ? MessageType.Warning : MessageType.Info);
-                using (new EditorGUI.DisabledScope(!shared))
-                {
-                    if (GUILayout.Button(resolved.IsProjectile ? "复制为当前步骤独立配置（形状＋变轨＋移动）" : "复制为当前步骤独立配置（形状＋变轨）"))
-                    {
-                        if (BattleActionTimelineAttackAuthoring.TryMakeStepIndependent(edited,
-                            resolved.StepTable.sheetName, resolved.Step.rowId, out var copied, out string error))
-                        {
-                            attackAuthoringStatus = copied.IsProjectile
-                                ? $"当前投射物步骤已独立：发射配置 {copied.SpawnId} / 投射物 {copied.ProjectileId} / 攻击体 {copied.BodyId} / 移动配置 {copied.MovementId}。"
-                                : $"当前近战步骤已独立：生成配置 {copied.SpawnId} / 攻击体 {copied.BodyId}。";
-                            attackAuthoringStatus += "原记录和其它步骤保持不变，尚未写回。";
-                            attackAuthoringError = false;
-                            SelectStep(resolved.StepTable.sheetName, resolved.Step.rowId);
-                            resolved = ResolveStep(edited, resolved.StepTable, resolved.Step);
-                            GUI.changed = true;
-                        }
-                        else
-                        {
-                            attackAuthoringStatus = error;
-                            attackAuthoringError = true;
-                        }
-                    }
-                }
+                EditorGUILayout.HelpBox(
+                    resolved.IsProjectile
+                        ? "当前步骤拥有独立的发射配置、投射物、移动、攻击体、Shape 和变换轨。"
+                        : "当前步骤拥有独立的近战生成配置、攻击体、Shape 和变换轨。",
+                    MessageType.Info);
             }
             if (resolved.Owner != null)
             {
@@ -1194,14 +1150,14 @@ namespace Game.EditorTools
             else
             {
                 EditorGUILayout.HelpBox(
-                    "stepConfigId 在当前工作集中没有对应共享记录。",
+                    "当前步骤没有按技能和步骤下标解析到自己的攻击配置。",
                     MessageType.Error);
                 return;
             }
 
             if (resolved.Body != null)
             {
-                DrawAttackBody(resolved);
+                DrawAttackBody(edited, resolved);
             }
         }
         /// <summary>
@@ -1315,18 +1271,13 @@ namespace Game.EditorTools
                         resolved.Projectile,
                         movementType,
                         "movementType");
-                    int movementId = EditorGUILayout.IntField(
-                        "movementConfigId",
+                    EditorGUILayout.LabelField(
+                        "移动配置键（自动）",
                         BattleActionTimelineSchema.GetInt(
                             resolved.ProjectileTable,
                             resolved.Projectile,
                             0,
-                            "movementConfigId"));
-                    BattleActionTimelineSchema.SetInt(
-                        resolved.ProjectileTable,
-                        resolved.Projectile,
-                        movementId,
-                        "movementConfigId");
+                            "movementConfigId").ToString(CultureInfo.InvariantCulture));
                 }
             }
         }
@@ -1426,7 +1377,7 @@ namespace Game.EditorTools
         /// 绘制攻击体。
         /// </summary>
 
-        private void DrawAttackBody(ResolvedStep resolved)
+        private void DrawAttackBody(BattleActionTimelineDocument edited, ResolvedStep resolved)
         {
             EditorGUILayout.LabelField(
                 resolved.BodyTable.sheetName + " id=" + resolved.Body.rowId,
@@ -1491,6 +1442,71 @@ namespace Game.EditorTools
                 resolved.Body,
                 maxTotal,
                 "maxTotalHitCount");
+            DrawHitEffects(edited, resolved);
+        }
+
+        private static void DrawHitEffects(BattleActionTimelineDocument edited, ResolvedStep resolved)
+        {
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("命中效果（当前步骤的所有 Shape 共用）", EditorStyles.miniBoldLabel);
+            bool defense = BattleActionTimelineSchema.GetInteractionTypeIndex(resolved.StepTable, resolved.Step) == 2;
+            if (defense)
+            {
+                EditorGUILayout.HelpBox("防御体只参与体间交互，不对角色结算以下命中效果；列表可以为空。切回攻击类型时原效果仍保留。", MessageType.Info);
+            }
+            if (!BattleActionTimelineHitEffects.TryRead(resolved.BodyTable, resolved.Body, out var effects, out string error))
+            {
+                EditorGUILayout.HelpBox(error + " 原始内容已保留，请修正后再写回。", MessageType.Error);
+                string raw = EditorGUILayout.TextArea(BattleActionTimelineSchema.Get(
+                    resolved.BodyTable, resolved.Body, "effects", "hitEffects"));
+                BattleActionTimelineSchema.Set(resolved.BodyTable, resolved.Body, raw, "effects", "hitEffects");
+                return;
+            }
+
+            if (!defense && effects.Count == 0)
+                EditorGUILayout.HelpBox("命中效果为空：形状重叠也不会扣血或造成普通受击。若要造成伤害，请添加 Damage；刻意无伤害的步骤可保持为空。", MessageType.Warning);
+            else if (!defense && !effects.Any(effect => effect.EffectType == (int)RefData.EnumBattleCombatEffectType.Damage))
+                EditorGUILayout.HelpBox("没有直接 Damage 效果，不会直接造成普通攻击伤害；Operation/Persistent 是否改血取决于各自配置。", MessageType.Info);
+
+            bool changed = false;
+            for (int index = 0; index < effects.Count; index++)
+            {
+                var effect = effects[index];
+                EditorGUILayout.BeginHorizontal();
+                EditorGUI.BeginChangeCheck();
+                var type = (RefData.EnumBattleCombatEffectType)EditorGUILayout.EnumPopup(
+                    (RefData.EnumBattleCombatEffectType)effect.EffectType, GUILayout.Width(115f));
+                int id = EditorGUILayout.IntField("效果 ID", effect.EffectId);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    effect = new BattleAttackEffectReference((int)type, id);
+                    effects[index] = effect;
+                    changed = true;
+                }
+                bool remove = GUILayout.Button("删除", GUILayout.Width(45f));
+                EditorGUILayout.EndHorizontal();
+                string problem = BattleActionTimelineHitEffects.ReferenceError(edited, effect);
+                EditorGUILayout.HelpBox(BattleActionTimelineHitEffects.TableName(effect.EffectType) + "：" +
+                    BattleActionTimelineHitEffects.Describe(edited, effect),
+                    string.IsNullOrEmpty(problem) ? MessageType.None : MessageType.Error);
+                if (remove) { effects.RemoveAt(index--); changed = true; }
+            }
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("新增命中效果"))
+            {
+                effects.Add(new BattleAttackEffectReference((int)RefData.EnumBattleCombatEffectType.Damage, 1));
+                changed = true;
+            }
+            using (new EditorGUI.DisabledScope(effects.Count != 0 || defense))
+            {
+                if (GUILayout.Button("填入基础伤害 / 受击"))
+                {
+                    effects = BattleActionTimelineHitEffects.BasicDefaults(edited);
+                    changed = true;
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+            if (changed) BattleActionTimelineHitEffects.Write(resolved.BodyTable, resolved.Body, effects);
         }
         /// <summary>
         /// 绘制形状。
@@ -3608,11 +3624,7 @@ namespace Game.EditorTools
                 IsMelee = BattleActionTimelineSchema.StepIsMelee(stepTable, step),
                 IsProjectile = BattleActionTimelineSchema.StepIsProjectile(stepTable, step),
             };
-            int configId = BattleActionTimelineSchema.GetInt(
-                stepTable,
-                step,
-                0,
-                BattleActionTimelineSchema.StepConfigAliases);
+            int configId = BattleActionTimelineSchema.GetStepConfigurationId(stepTable, step);
             int attackBodyId = 0;
             if (result.IsMelee)
             {
@@ -4411,7 +4423,7 @@ namespace Game.EditorTools
                 (authoringState.facing == (int)BattleActionTimelineFacing.Left);
             Rect drawRect = BattleActionTimelineSequencePreview.SpriteDrawRect(
                 textureRect.size, frame.textureRectOffset, frame.pivot, frame.pixelsPerUnit,
-                frame.bounds, authoringState.previewHeight, authoringState.previewOriginAtCenter,
+                frame.bounds, authoringState.previewHeight,
                 flipX, origin, pixelsPerUnit);
             Texture2D texture = frame.texture;
             Rect uv = new Rect(textureRect.x / texture.width, textureRect.y / texture.height,
