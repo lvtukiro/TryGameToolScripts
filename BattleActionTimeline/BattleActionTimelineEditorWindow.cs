@@ -92,6 +92,8 @@ namespace Game.EditorTools
             public BattleActionTimelineTableData StepTable;
             public BattleActionTimelineRecordData Step;
             public double TriggerTime;
+            // 0=Normal, 1=Impact, 2=Defense, 3=Charged；颜色只用于编辑器预览。
+            public int InteractionTypeIndex;
             public bool IsMelee;
             public bool IsProjectile;
             public BattleActionTimelineTableData OwnerTable;
@@ -2289,7 +2291,11 @@ namespace Game.EditorTools
                         step.rowId == authoringState.selectedStepRowId;
                     DrawDiamond(
                         new Vector2(TimeToX(time, lane, duration), lane.center.y),
-                        selected ? Color.white : new Color(1f, 0.55f, 0.18f, 1f),
+                        selected ? Color.Lerp(
+                            InteractionTypeColor(BattleActionTimelineSchema.GetInteractionTypeIndex(table, step)),
+                            Color.white,
+                            0.45f) : InteractionTypeColor(
+                                BattleActionTimelineSchema.GetInteractionTypeIndex(table, step)),
                         selected ? 7f : 5f);
                     GUI.Label(
                         new Rect(TimeToX(time, lane, duration) + 6f, lane.y + 3f, 58f, 18f),
@@ -2336,16 +2342,14 @@ namespace Game.EditorTools
                         lane.y + 10f,
                         xMax,
                         lane.yMax - 9f);
-                    EditorGUI.DrawRect(
-                        bar,
-                        resolved.IsProjectile
-                            ? new Color(0.26f, 0.72f, 0.95f, 0.72f)
-                            : new Color(0.35f, 0.9f, 0.48f, 0.72f));
+                    Color interactionColor = InteractionTypeColor(resolved.InteractionTypeIndex);
+                    interactionColor.a = 0.72f;
+                    EditorGUI.DrawRect(bar, interactionColor);
                     if (bar.width > 42f)
                     {
                         GUI.Label(
                             bar,
-                            (resolved.IsProjectile ? "Projectile " : "Melee ") +
+                            InteractionTypeLabel(resolved.InteractionTypeIndex) + " " +
                             resolved.Owner.rowId,
                             EditorStyles.centeredGreyMiniLabel);
                     }
@@ -2741,6 +2745,7 @@ namespace Game.EditorTools
                 (authoringState.facing == (int)BattleActionTimelineFacing.Left
                     ? "朝左镜像"
                     : "朝右配置") +
+                " · 颜色：普通绿 / 冲击红 / 防御蓝 / 蓄力紫" +
                 " · 点选形状后用手柄编辑",
                 EditorStyles.whiteLabel);
 
@@ -2791,7 +2796,8 @@ namespace Game.EditorTools
                         transform, facingSign, pixelsPerUnit);
                     previews.Add(preview);
                     DrawPreviewShape(preview, active ? 1f : 0.3f,
-                        resolved.SelectedShape?.rowId == shape.rowId);
+                        resolved.SelectedShape?.rowId == shape.rowId,
+                        resolved.InteractionTypeIndex);
                 }
             }
 
@@ -2807,6 +2813,7 @@ namespace Game.EditorTools
                 (!active ? visible ? "（仅编辑预览）" : "（已隐藏）" : string.Empty) +
                 " · localTime=" + elapsed.ToString("0.###", CultureInfo.InvariantCulture) +
                 " · AttackBody=" + resolved.Body.rowId +
+                " · " + InteractionTypeLabel(resolved.InteractionTypeIndex) +
                 (previewEditKeyframes ? " · 正在编辑所选关键帧" : " · 正在编辑 Shape 本体（缩放写入尺寸）"),
                 EditorStyles.miniLabel);
         }
@@ -2917,13 +2924,22 @@ namespace Game.EditorTools
             };
         }
 
-        private static void DrawPreviewShape(PreviewShape shape, float alpha, bool selected)
+        private static void DrawPreviewShape(
+            PreviewShape shape,
+            float alpha,
+            bool selected,
+            int interactionTypeIndex)
         {
             Vector2 center = shape.Center, size = shape.Size;
             float rotation = shape.ScreenRotation;
-            Color fill = new Color(1f, selected ? 0.6f : 0.25f, 0.2f, 0.22f * alpha);
-            Color outline = selected ? new Color(1f, 0.85f, 0.2f, alpha)
-                : new Color(1f, 0.55f, 0.35f, 0.95f * alpha);
+            Color baseColor = InteractionTypeColor(interactionTypeIndex);
+            Color fill = new Color(
+                baseColor.r,
+                baseColor.g,
+                baseColor.b,
+                (selected ? 0.3f : 0.2f) * alpha);
+            Color outline = Color.Lerp(baseColor, Color.white, selected ? 0.45f : 0.08f);
+            outline.a = (selected ? 1f : 0.9f) * alpha;
             if (shape.Type == BattleAttackShapeType.Circle)
             {
                 Handles.BeginGUI();
@@ -3013,6 +3029,28 @@ namespace Game.EditorTools
                 keyframeTable,
                 keyframes,
                 localTime);
+        }
+
+        private static Color InteractionTypeColor(int index)
+        {
+            switch (Math.Max(0, Math.Min(3, index)))
+            {
+                case 1: return new Color(0.95f, 0.25f, 0.22f, 1f); // Impact
+                case 2: return new Color(0.24f, 0.58f, 1f, 1f); // Defense
+                case 3: return new Color(0.72f, 0.35f, 1f, 1f); // Charged
+                default: return new Color(0.25f, 0.85f, 0.43f, 1f); // Normal
+            }
+        }
+
+        private static string InteractionTypeLabel(int index)
+        {
+            switch (Math.Max(0, Math.Min(3, index)))
+            {
+                case 1: return "冲击体";
+                case 2: return "防御体";
+                case 3: return "蓄力体";
+                default: return "普通攻击体";
+            }
         }
         /// <summary>
         /// 构建胶囊体点位。
@@ -3564,6 +3602,9 @@ namespace Game.EditorTools
                     step,
                     0d,
                     BattleActionTimelineSchema.TriggerTimeAliases),
+                InteractionTypeIndex = BattleActionTimelineSchema.GetInteractionTypeIndex(
+                    stepTable,
+                    step),
                 IsMelee = BattleActionTimelineSchema.StepIsMelee(stepTable, step),
                 IsProjectile = BattleActionTimelineSchema.StepIsProjectile(stepTable, step),
             };
