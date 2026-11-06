@@ -1034,6 +1034,27 @@ namespace Game.EditorTools
                     step,
                     configId,
                     BattleActionTimelineSchema.StepConfigAliases);
+                if (BattleActionTimelineSchema.StepIsMelee(stepTable, step) ||
+                    BattleActionTimelineSchema.StepIsProjectile(stepTable, step))
+                {
+                    int interactionIndex = BattleActionTimelineSchema.GetInteractionTypeIndex(
+                        stepTable,
+                        step);
+                    EditorGUI.BeginChangeCheck();
+                    int nextInteractionIndex = EditorGUILayout.Popup(
+                        new GUIContent(
+                            "步骤交互类型",
+                            "交互类型属于当前执行步骤；旧步骤未填写时按普通攻击体处理。"),
+                        interactionIndex,
+                        new[] { "普通攻击体", "冲击体", "防御体", "蓄力体" });
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        BattleActionTimelineSchema.SetInteractionType(
+                            stepTable,
+                            step,
+                            nextInteractionIndex);
+                    }
+                }
                 DrawStepConfiguration(edited, ResolveStep(edited, stepTable, step), stepLabel);
                 EditorGUILayout.EndVertical();
                 EditorGUILayout.EndHorizontal();

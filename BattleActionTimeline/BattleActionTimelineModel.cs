@@ -224,7 +224,8 @@ namespace Game.EditorTools
                         "activeSingleId",
                         InlineField("triggerTime", "TriggerTime"),
                         InlineField("stepType", "StepType"),
-                        InlineField("stepConfigId", "StepConfigId"));
+                        InlineField("stepConfigId", "StepConfigId"),
+                        InlineField("interactionType", "InteractionType"));
                 }
 
                 if (!hasKeyframeSheet &&
@@ -1104,6 +1105,12 @@ namespace Game.EditorTools
                 BattleActionTimelineSchema.SetDouble(steps, step, triggerTime, BattleActionTimelineSchema.TriggerTimeAliases);
                 BattleActionTimelineSchema.Set(steps, step, stepType.ToString(), BattleActionTimelineSchema.StepTypeAliases);
                 BattleActionTimelineSchema.SetInt(steps, step, result.SpawnId, BattleActionTimelineSchema.StepConfigAliases);
+                // 新增步骤默认按普通攻击体处理；只有用户明确选择其它类型时才改写。
+                BattleActionTimelineSchema.Set(
+                    steps,
+                    step,
+                    "Normal",
+                    BattleActionTimelineSchema.InteractionTypeAliases);
                 result.StepTable = steps;
                 result.Step = step;
                 plan.Commit();
@@ -2432,6 +2439,10 @@ namespace Game.EditorTools
             { "stepType", "executionType" };
         internal static readonly string[] StepConfigAliases =
             { "stepConfigId", "configId", "targetId" };
+        internal static readonly string[] InteractionTypeAliases =
+            { "interactionType", "attackInteractionType" };
+        internal static readonly string[] InteractionTypeNames =
+            { "Normal", "Impact", "Defense", "Charged" };
         internal static readonly string[] AttackBodyIdAliases =
             { "attackBodyId", "bodyId" };
         internal static readonly string[] LocalTimeAliases =
@@ -2466,7 +2477,7 @@ namespace Game.EditorTools
             "id\tcodeName\tspeed\n" +
             "[BattleProjectileBallisticMovement]\n" +
             "id\tcodeName\tinitialSpeed\tgravityScale\n\n" +
-            "executionSteps 与 BattleAttackShape.transformKeyframes 为 repeated struct 单元格；" +
+            "executionSteps 的每个元素包含 InteractionType（Normal/Impact/Defense/Charged，旧步骤默认 Normal），与 BattleAttackShape.transformKeyframes 为 repeated struct 单元格；" +
             "Shape 的关键帧只属于当前 Shape。";
         /// <summary>
         /// 检查 `table` 是否满足“主动单体数据表”条件。
@@ -2820,6 +2831,42 @@ namespace Game.EditorTools
             string value = Get(table, step, StepTypeAliases).Trim();
             return value.IndexOf("Melee", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 value == "0";
+        }
+
+        /// <summary>
+        /// 读取步骤交互类型。旧步骤没有字段或字段为 Invalid 时，统一按普通攻击体显示。
+        /// </summary>
+        public static int GetInteractionTypeIndex(
+            BattleActionTimelineTableData table,
+            BattleActionTimelineRecordData step)
+        {
+            string value = Get(table, step, InteractionTypeAliases).Trim();
+            if (string.IsNullOrWhiteSpace(value) ||
+                value.Equals("Invalid", StringComparison.OrdinalIgnoreCase) ||
+                value == "0")
+            {
+                return 0;
+            }
+
+            for (int index = 0; index < InteractionTypeNames.Length; index++)
+            {
+                if (value.Equals(InteractionTypeNames[index], StringComparison.OrdinalIgnoreCase) ||
+                    value == (index + 1).ToString(CultureInfo.InvariantCulture))
+                {
+                    return index;
+                }
+            }
+
+            return 0;
+        }
+
+        public static void SetInteractionType(
+            BattleActionTimelineTableData table,
+            BattleActionTimelineRecordData step,
+            int index)
+        {
+            index = Math.Max(0, Math.Min(InteractionTypeNames.Length - 1, index));
+            Set(table, step, InteractionTypeNames[index], InteractionTypeAliases);
         }
         /// <summary>
         /// 判断步骤是否自身效果是否满足当前条件。
