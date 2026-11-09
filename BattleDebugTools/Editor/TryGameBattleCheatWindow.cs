@@ -1,4 +1,6 @@
 using Game;
+using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,6 +15,13 @@ namespace TryGame.BattleDebugTools.Editor
         private string commandStatus = "尚未执行战斗作弊命令。";
         private MessageType commandStatusType = MessageType.None;
         private Vector2 scrollPosition;
+        private bool specifyEnemyLoadout;
+        private bool enemyLoadoutExpanded = true;
+        private int loadoutEnemyId;
+        private BattleWorldZoneSceneRuntime loadoutRuntime;
+        private RobotEquipmentLayoutDefinition loadoutLayout;
+        private readonly Dictionary<int, string> enemyEquipmentIds = new Dictionary<int, string>();
+        private readonly List<int> enemyBrainSkillIds = new List<int>();
         /// <summary>
         /// 打开当前 `TryGameBattleCheatWindow` 实例。
         /// </summary>
@@ -117,6 +126,8 @@ namespace TryGame.BattleDebugTools.Editor
             enemyIdText = EditorGUILayout.TextField("敌人 id", enemyIdText);
             leftWeaponIdText = EditorGUILayout.TextField("左手武器 id", leftWeaponIdText);
             rightWeaponIdText = EditorGUILayout.TextField("右手武器 id", rightWeaponIdText);
+            specifyEnemyLoadout = EditorGUILayout.ToggleLeft("指定本次敌人的装备和 Brain 技能", specifyEnemyLoadout);
+            if (specifyEnemyLoadout) DrawSpecifiedEnemyLoadout(runtime);
 
             using (new EditorGUI.DisabledScope(
                 !EditorApplication.isPlaying || EditorApplication.isPaused || runtime == null ||
@@ -128,6 +139,142 @@ namespace TryGame.BattleDebugTools.Editor
                 }
             }
 
+        }
+
+        private bool TryEnsureEnemyLoadoutLayout(BattleWorldZoneSceneRuntime runtime, out string error)
+        {
+            error = string.Empty;
+            if (runtime == null || !runtime.IsSceneApplied || !int.TryParse(enemyIdText, out int id))
+            {
+                error = "进入正式战局并选择有效敌人后，才能编辑指定配装。";
+                return false;
+            }
+            if (loadoutLayout != null && loadoutEnemyId == id && loadoutRuntime == runtime) return true;
+            if (!runtime.TryGetEnemyCheatEquipmentLayout(id, out var layout, out error)) return false;
+            loadoutLayout = layout;
+            loadoutEnemyId = id;
+            loadoutRuntime = runtime;
+            enemyEquipmentIds.Clear();
+            enemyBrainSkillIds.Clear();
+            return true;
+        }
+
+        private void DrawSpecifiedEnemyLoadout(BattleWorldZoneSceneRuntime runtime)
+        {
+            if (!TryEnsureEnemyLoadoutLayout(runtime, out string error))
+            {
+                EditorGUILayout.HelpBox(error, MessageType.Warning);
+                return;
+            }
+            enemyLoadoutExpanded = EditorGUILayout.Foldout(enemyLoadoutExpanded, "指定配装（0 表示空槽）", true);
+            if (!enemyLoadoutExpanded) return;
+            EditorGUILayout.HelpBox("只使用这里填写的装备；未填写的格子为空，不自动随机补齐。" +
+                "左右武器沿用上面两栏。只影响本次新增的敌人，装备和技能槽随战局保存。", MessageType.Info);
+            foreach (var slot in loadoutLayout.Slots)
+            {
+                if (slot == null || slot.PositionType == RobotPositionType.LeftWeapon ||
+                    slot.PositionType == RobotPositionType.RightWeapon) continue;
+                if (!enemyEquipmentIds.TryGetValue(slot.SlotId, out string value)) value = "0";
+                string label = LocalizedName(slot.NameLanguageKey, slot.PositionType.ToString());
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    value = EditorGUILayout.TextField(label + " 装备 id", value);
+                    enemyEquipmentIds[slot.SlotId] = value;
+                    string name = int.TryParse(value, out int equipmentId)
+                        ? GetEquipmentDisplayName(equipmentId) : "ID 未填写完整";
+                    GUILayout.Label(new GUIContent(name, name), EditorStyles.miniLabel, GUILayout.MinWidth(80f));
+                }
+            }
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("Brain 技能装配", EditorStyles.boldLabel);
+            if (GUILayout.Button("清空技能槽")) enemyBrainSkillIds.Clear();
+            if (!TryCollectEnemyEquipment(out var equipment, out error) ||
+                !runtime.TryPreviewEnemyCheatLoadout(loadoutEnemyId, equipment, out var preview, out error))
+            {
+                EditorGUILayout.HelpBox(error, MessageType.Warning);
+                return;
+            }
+            while (enemyBrainSkillIds.Count > preview.BrainCapacity &&
+                   enemyBrainSkillIds[enemyBrainSkillIds.Count - 1] == 0)
+                enemyBrainSkillIds.RemoveAt(enemyBrainSkillIds.Count - 1);
+            while (enemyBrainSkillIds.Count < preview.BrainCapacity) enemyBrainSkillIds.Add(0);
+            EditorGUILayout.LabelField("实际技能槽容量", preview.BrainCapacity.ToString());
+            if (preview.BrainCapacity == 0)
+                EditorGUILayout.HelpBox("尚未装备提供技能槽的 Brain，不能装配主动技能。", MessageType.Info);
+
+            var options = new List<BattleEnemyCheatSkillOption>();
+            var seenRoots = new HashSet<int>();
+            foreach (var option in preview.Skills)
+                if (seenRoots.Add(option.RootSkillId)) options.Add(option);
+            for (int i = 0; i < enemyBrainSkillIds.Count; i++)
+            {
+                int current = enemyBrainSkillIds[i];
+                var labels = new List<string> { "空槽" };
+                var ids = new List<int> { 0 };
+                foreach (var option in options)
+                {
+                    string name = LocalizedName(option.NameLanguageKey, option.CodeName);
+                    labels.Add($"{name} · 根技能 {option.RootSkillId} → {option.ResolvedSkillId} · 动画 " +
+                        (option.AnimationIds.Count > 0 ? string.Join(",", option.AnimationIds) : "无"));
+                    ids.Add(option.RootSkillId);
+                }
+                int selected = ids.IndexOf(current);
+                if (selected < 0)
+                {
+                    ids.Add(current);
+                    labels.Add($"无效选择 {current}（所选装备不再提供）");
+                    selected = ids.Count - 1;
+                }
+                int next = EditorGUILayout.Popup("技能槽 " + (i + 1), selected, labels.ToArray());
+                enemyBrainSkillIds[i] = ids[next];
+            }
+            if (!BattleEnemyCheatLoadoutRules.TryValidateBrain(preview, enemyBrainSkillIds, out error))
+                EditorGUILayout.HelpBox(error + " 请重新选择或点击“清空技能槽”。", MessageType.Error);
+            EditorGUILayout.HelpBox("AI 继续使用该怪物原有行为图和选槽规则。当前普通敌人仅选择槽 1；" +
+                "单测哪个技能，就把它装进槽 1。不会自动增加槽数或改写全局 AI。", MessageType.Info);
+        }
+
+        private bool TryCollectEnemyEquipment(out Dictionary<int, int> equipment, out string error)
+        {
+            equipment = new Dictionary<int, int>();
+            error = string.Empty;
+            if (loadoutLayout == null)
+            {
+                error = "请先选择敌人以读取装备布局。";
+                return false;
+            }
+            foreach (var slot in loadoutLayout.Slots)
+            {
+                if (slot == null) continue;
+                string text = slot.PositionType == RobotPositionType.LeftWeapon ? leftWeaponIdText :
+                    slot.PositionType == RobotPositionType.RightWeapon ? rightWeaponIdText :
+                    enemyEquipmentIds.TryGetValue(slot.SlotId, out string value) ? value : "0";
+                if (!int.TryParse(text, out int id) || id < 0)
+                {
+                    error = $"{LocalizedName(slot.NameLanguageKey, slot.PositionType.ToString())} 的装备 ID 必须是非负整数。";
+                    return false;
+                }
+                equipment.Add(slot.SlotId, id);
+            }
+            return true;
+        }
+
+        private static string LocalizedName(string key, string fallback)
+        {
+            string name = string.IsNullOrEmpty(key) ? string.Empty : Lang.Get(key);
+            return string.IsNullOrWhiteSpace(name) || name == key ? fallback : name;
+        }
+
+        private static string GetEquipmentDisplayName(int equipmentId)
+        {
+            if (equipmentId == 0) return "空槽";
+            for (int i = 0; i < RefData.ItemTable.Count; i++)
+            {
+                var item = RefData.ItemTable.Items(i);
+                if (item.ItemType == RefData.EnumItemType.RobotEquipment && item.TargetId == equipmentId)
+                    return LocalizedName(item.NameKey, "装备 " + equipmentId);
+            }
+            return "找不到对应装备物品";
         }
 
         private void DrawEnemySelector()
@@ -232,14 +379,26 @@ namespace TryGame.BattleDebugTools.Editor
                 return;
             }
 
-            if (runtime.TrySpawnEnemyCheat(
-                    enemyId,
-                    leftWeaponId,
-                    rightWeaponId,
-                    out string error))
+            string error;
+            bool success;
+            if (specifyEnemyLoadout)
+            {
+                if (!TryEnsureEnemyLoadoutLayout(runtime, out error) ||
+                    !TryCollectEnemyEquipment(out var equipment, out error))
+                {
+                    SetCommandStatus("生成失败：" + error, MessageType.Error);
+                    return;
+                }
+                success = runtime.TrySpawnEnemyCheat(enemyId,
+                    new BattleEnemyCheatLoadoutRequest(equipment, enemyBrainSkillIds), out error);
+            }
+            else success = runtime.TrySpawnEnemyCheat(enemyId, leftWeaponId, rightWeaponId, out error);
+            if (success)
             {
                 SetCommandStatus(
-                    $"生成成功：enemyId={enemyId}, left={leftWeaponId}, right={rightWeaponId}。",
+                    $"生成成功：enemyId={enemyId}，" + (specifyEnemyLoadout
+                        ? $"指定配装，Brain 根技能=[{string.Join(",", enemyBrainSkillIds)}]。"
+                        : $"left={leftWeaponId}, right={rightWeaponId}。"),
                     MessageType.Info);
             }
             else
