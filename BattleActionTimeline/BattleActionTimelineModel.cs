@@ -499,6 +499,20 @@ namespace Game.EditorTools
                 InlineField("interpolation", "Interpolation"),
             };
         }
+
+        internal static BattleActionTimelineInlineFieldData[] MovementInlineFields()
+        {
+            return new[]
+            {
+                InlineField("localTime", "LocalTime"),
+                InlineField("offsetX", "OffsetX"),
+                InlineField("offsetY", "OffsetY"),
+                InlineField("rotationDegrees", "RotationDegrees"),
+                InlineField("scaleX", "ScaleX"),
+                InlineField("scaleY", "ScaleY"),
+                InlineField("interpolation", "Interpolation"),
+            };
+        }
         /// <summary>
         /// 构建写入集合。
         /// </summary>
@@ -1052,6 +1066,232 @@ namespace Game.EditorTools
             foreach (var change in changes) change();
         }
 
+        // 新步骤也按 TriggerTime 插入，而不是无条件追加。插入中间步骤时，后面的整条
+        // 攻击配置链向后移动一个下标；这样运行时的 configuredOrderIndex 与工具中的
+        // 时间顺序始终一致，Shape/关键帧/命中效果也会跟着所属攻击体一起移动。
+        private static void RekeyBeforeStepInsertion(
+            BattleActionTimelineDocument document,
+            BattleActionTimelineTableData steps,
+            int owner,
+            int insertionIndex,
+            int existingCount)
+        {
+            if (insertionIndex < 0 || insertionIndex >= existingCount)
+            {
+                return;
+            }
+
+            var keys = new Dictionary<int, int>();
+            for (int index = existingCount - 1; index >= insertionIndex; index--)
+            {
+                keys.Add(
+                    BattleActionTimelineSchema.ComposeStepConfigurationId(owner, index),
+                    BattleActionTimelineSchema.ComposeStepConfigurationId(owner, index + 1));
+            }
+
+            var changes = new List<Action>();
+            var shapeKeys = new Dictionary<int, int>();
+            foreach (BattleActionTimelineTableData table in document.tables.Where(value =>
+                BattleActionTimelineSchema.IsMeleeSpawnTable(value) ||
+                BattleActionTimelineSchema.IsProjectileLaunchTable(value) ||
+                BattleActionTimelineSchema.IsProjectileTable(value) ||
+                BattleActionTimelineSchema.IsAttackBodyTable(value) ||
+                BattleActionTimelineSchema.IsLinearMovementTable(value) ||
+                BattleActionTimelineSchema.IsBallisticMovementTable(value)))
+            {
+                foreach (BattleActionTimelineRecordData row in table.records.ToArray())
+                {
+                    if (keys.TryGetValue(row.rowId, out int next))
+                    {
+                        changes.Add(() =>
+                        {
+                            row.rowId = next;
+                            BattleActionTimelineSchema.SetInt(table, row, next, "id");
+                        });
+                    }
+
+                    foreach (string field in new[] { "attackBodyId", "projectileId", "movementConfigId" })
+                    {
+                        int old = BattleActionTimelineSchema.GetInt(table, row, 0, field);
+                        if (keys.TryGetValue(old, out int replacement))
+                        {
+                            changes.Add(() =>
+                                BattleActionTimelineSchema.SetInt(table, row, replacement, field));
+                        }
+                    }
+                }
+            }
+
+            foreach (BattleActionTimelineTableData shapes in document.tables
+                .Where(BattleActionTimelineSchema.IsShapeTable))
+            {
+                foreach (BattleActionTimelineRecordData shape in shapes.records.ToArray())
+                {
+                    int oldBody = BattleActionTimelineSchema.GetInt(
+                        shapes,
+                        shape,
+                        0,
+                        BattleActionTimelineSchema.AttackBodyIdAliases);
+                    if (!keys.TryGetValue(oldBody, out int nextBody))
+                    {
+                        continue;
+                    }
+
+                    int shapeIndex = BattleActionTimelineSchema.GetInt(
+                        shapes,
+                        shape,
+                        -1,
+                        "shapeIndex");
+                    int oldShapeId = shape.rowId;
+                    int nextShapeId = BattleActionTimelineSchema.ComposeShapeId(nextBody, shapeIndex);
+                    shapeKeys[oldShapeId] = nextShapeId;
+                    changes.Add(() =>
+                    {
+                        shape.rowId = nextShapeId;
+                        BattleActionTimelineSchema.SetInt(shapes, shape, nextShapeId, "id");
+                        BattleActionTimelineSchema.SetInt(
+                            shapes,
+                            shape,
+                            nextBody,
+                            BattleActionTimelineSchema.AttackBodyIdAliases);
+                    });
+                }
+            }
+
+            foreach (BattleActionTimelineTableData tracks in document.tables
+                .Where(BattleActionTimelineSchema.IsKeyframeTable))
+            {
+                foreach (BattleActionTimelineRecordData key in tracks.records.ToArray())
+                {
+                    int oldShapeId = BattleActionTimelineSchema.GetInt(tracks, key, 0, "shapeId");
+                    if (shapeKeys.TryGetValue(oldShapeId, out int nextShapeId))
+                    {
+                        changes.Add(() =>
+                            BattleActionTimelineSchema.SetInt(tracks, key, nextShapeId, "shapeId"));
+                    }
+                }
+
+                foreach (BattleActionTimelineInlineOwnerData binding in tracks.inlineOwners.ToArray())
+                {
+                    if (shapeKeys.TryGetValue(binding.ownerRowId, out int nextShapeId))
+                    {
+                        changes.Add(() => binding.ownerRowId = nextShapeId);
+                    }
+                }
+            }
+
+            foreach (Action change in changes)
+            {
+                change();
+            }
+        }
+
+        private static int GetStepInsertionIndex(
+            BattleActionTimelineTableData steps,
+            int owner,
+            double triggerTime,
+            out int existingCount)
+        {
+            existingCount = 0;
+            int insertionIndex = 0;
+            foreach (BattleActionTimelineRecordData row in steps.records)
+            {
+                if (BattleActionTimelineSchema.GetInt(
+                        steps,
+                        row,
+                        0,
+                        BattleActionTimelineSchema.StepOwnerAliases) != owner)
+                {
+                    continue;
+                }
+
+                double current = BattleActionTimelineSchema.GetDouble(
+                    steps,
+                    row,
+                    double.PositiveInfinity,
+                    BattleActionTimelineSchema.TriggerTimeAliases);
+                if (current <= triggerTime + BattleActionTimelineTime.Epsilon)
+                {
+                    insertionIndex++;
+                }
+
+                existingCount++;
+            }
+
+            return insertionIndex;
+        }
+
+        private static void InsertStepRecordInTimeOrder(
+            BattleActionTimelineTableData steps,
+            BattleActionTimelineRecordData step,
+            int owner,
+            double triggerTime)
+        {
+            steps.records.Remove(step);
+            int lastOwnerIndex = -1;
+            int insertAt = steps.records.Count;
+            for (int index = 0; index < steps.records.Count; index++)
+            {
+                BattleActionTimelineRecordData row = steps.records[index];
+                if (BattleActionTimelineSchema.GetInt(
+                        steps,
+                        row,
+                        0,
+                        BattleActionTimelineSchema.StepOwnerAliases) != owner)
+                {
+                    continue;
+                }
+
+                lastOwnerIndex = index;
+                double current = BattleActionTimelineSchema.GetDouble(
+                    steps,
+                    row,
+                    double.PositiveInfinity,
+                    BattleActionTimelineSchema.TriggerTimeAliases);
+                if (current > triggerTime + BattleActionTimelineTime.Epsilon)
+                {
+                    insertAt = index;
+                    break;
+                }
+            }
+
+            if (lastOwnerIndex >= 0 && insertAt == steps.records.Count)
+            {
+                insertAt = lastOwnerIndex + 1;
+            }
+
+            steps.records.Insert(insertAt, step);
+        }
+
+        private static void InsertStepRecordAtOwnerIndex(
+            BattleActionTimelineTableData steps,
+            BattleActionTimelineRecordData step,
+            int owner,
+            int ownerIndex)
+        {
+            int seen = 0;
+            for (int index = 0; index < steps.records.Count; index++)
+            {
+                BattleActionTimelineRecordData row = steps.records[index];
+                if (BattleActionTimelineSchema.GetInt(
+                        steps,
+                        row,
+                        0,
+                        BattleActionTimelineSchema.StepOwnerAliases) != owner)
+                {
+                    continue;
+                }
+
+                if (seen++ == ownerIndex)
+                {
+                    steps.records.Insert(index, step);
+                    return;
+                }
+            }
+
+            steps.records.Add(step);
+        }
+
         private sealed class Context
         {
             public BattleActionTimelineTableData Spawns, Bodies, Shapes, Keys;
@@ -1180,31 +1420,125 @@ namespace Game.EditorTools
                 // 投射物可以在动作结束后继续飞行；只有附着动作的近战判定受剩余动作时长限制。
                 if (!projectile && triggerTime + lifetime > duration + BattleActionTimelineTime.Epsilon)
                     throw new InvalidOperationException("当前位置剩余时间不足以容纳参考判定，请前移播放头或延长动作时长。");
-                int nextStepIndex = steps.records.Count(row =>
-                    BattleActionTimelineSchema.GetInt(
-                        steps,
-                        row,
-                        0,
-                        BattleActionTimelineSchema.StepOwnerAliases) == actionId);
+                int nextStepIndex = GetStepInsertionIndex(
+                    steps,
+                    actionId,
+                    triggerTime,
+                    out int existingStepCount);
                 int configurationId = BattleActionTimelineSchema.ComposeStepConfigurationId(
                     actionId,
                     nextStepIndex);
-                var plan = new Plan(document);
-                result = CopyAttack(plan, context, lifetime, configurationId);
-                var step = plan.New(steps);
-                BattleActionTimelineSchema.SetInt(steps, step, actionId, BattleActionTimelineSchema.StepOwnerAliases);
-                BattleActionTimelineSchema.SetDouble(steps, step, triggerTime, BattleActionTimelineSchema.TriggerTimeAliases);
-                BattleActionTimelineSchema.Set(steps, step, stepType.ToString(), BattleActionTimelineSchema.StepTypeAliases);
-                // 新增步骤默认按普通攻击体处理；只有用户明确选择其它类型时才改写。
-                BattleActionTimelineSchema.Set(
-                    steps,
-                    step,
-                    "Normal",
-                    BattleActionTimelineSchema.InteractionTypeAliases);
-                result.StepTable = steps;
-                result.Step = step;
-                plan.Commit();
-                return true;
+                bool rekeyApplied = false;
+                if (nextStepIndex < existingStepCount)
+                {
+                    RekeyBeforeStepInsertion(
+                        document,
+                        steps,
+                        actionId,
+                        nextStepIndex,
+                        existingStepCount);
+                    rekeyApplied = true;
+                }
+                BattleActionTimelineRecordData pendingStep = null;
+                if (rekeyApplied)
+                {
+                    pendingStep = new BattleActionTimelineRecordData
+                    {
+                        rowId = int.MinValue + 1,
+                        cells = new string[steps.headers.Length],
+                    };
+                    BattleActionTimelineSchema.SetInt(
+                        steps,
+                        pendingStep,
+                        actionId,
+                        BattleActionTimelineSchema.StepOwnerAliases);
+                    BattleActionTimelineSchema.SetDouble(
+                        steps,
+                        pendingStep,
+                        triggerTime,
+                        BattleActionTimelineSchema.TriggerTimeAliases);
+                    BattleActionTimelineSchema.Set(
+                        steps,
+                        pendingStep,
+                        stepType.ToString(),
+                        BattleActionTimelineSchema.StepTypeAliases);
+                    BattleActionTimelineSchema.Set(
+                        steps,
+                        pendingStep,
+                        "Normal",
+                        BattleActionTimelineSchema.InteractionTypeAliases);
+                    InsertStepRecordInTimeOrder(steps, pendingStep, actionId, triggerTime);
+                }
+
+                try
+                {
+                    var plan = new Plan(document);
+                    result = CopyAttack(plan, context, lifetime, configurationId);
+                    var step = plan.New(steps);
+                    BattleActionTimelineSchema.SetInt(
+                        steps,
+                        step,
+                        actionId,
+                        BattleActionTimelineSchema.StepOwnerAliases);
+                    BattleActionTimelineSchema.SetDouble(
+                        steps,
+                        step,
+                        triggerTime,
+                        BattleActionTimelineSchema.TriggerTimeAliases);
+                    BattleActionTimelineSchema.Set(
+                        steps,
+                        step,
+                        stepType.ToString(),
+                        BattleActionTimelineSchema.StepTypeAliases);
+                    // 新增步骤默认按普通攻击体处理；只有用户明确选择其它类型时才改写。
+                    BattleActionTimelineSchema.Set(
+                        steps,
+                        step,
+                        "Normal",
+                        BattleActionTimelineSchema.InteractionTypeAliases);
+                    result.StepTable = steps;
+                    result.Step = step;
+                    plan.Commit();
+                    if (pendingStep != null)
+                    {
+                        steps.records.Remove(pendingStep);
+                    }
+                    InsertStepRecordInTimeOrder(steps, step, actionId, triggerTime);
+                    return true;
+                }
+                catch
+                {
+                    if (pendingStep != null)
+                    {
+                        steps.records.Remove(pendingStep);
+                    }
+
+                    if (rekeyApplied)
+                    {
+                        var rollback = new BattleActionTimelineRecordData
+                        {
+                            rowId = int.MinValue,
+                            cells = new string[steps.headers.Length],
+                        };
+                        BattleActionTimelineSchema.SetInt(
+                            steps,
+                            rollback,
+                            actionId,
+                            BattleActionTimelineSchema.StepOwnerAliases);
+                        InsertStepRecordAtOwnerIndex(
+                            steps,
+                            rollback,
+                            actionId,
+                            nextStepIndex);
+                        RekeyAfterStepDeletion(
+                            document,
+                            steps,
+                            rollback);
+                        steps.records.Remove(rollback);
+                    }
+
+                    throw;
+                }
             }
             catch (Exception exception) when (exception is InvalidOperationException || exception is OverflowException)
             {
@@ -2590,6 +2924,16 @@ namespace Game.EditorTools
             { "recoveryStartTime", "recoveryStart" };
         internal static readonly string[] DurationAliases =
             { "actionDuration", "duration" };
+        internal static readonly string[] MovementModeAliases =
+            { "movementMode", "actionMovementMode" };
+        internal static readonly string[] AttackRangeAliases =
+            { "attackRange", "range" };
+        internal static readonly string[] MovementOffsetXAliases =
+            { "movementOffsetX", "actionOffsetX" };
+        internal static readonly string[] MovementOffsetYAliases =
+            { "movementOffsetY", "actionOffsetY" };
+        internal static readonly string[] MovementKeyframesAliases =
+            { "movementKeyframes", "actionMovementKeyframes" };
         internal static readonly string[] StepOwnerAliases =
             { "activeSingleId", "activeSingleSkillId", "actionId", "ownerId", "skillId" };
         internal static readonly string[] TriggerTimeAliases =
@@ -2621,7 +2965,7 @@ namespace Game.EditorTools
 
         internal const string ExampleStructure =
             "[BattleActiveSingleSkill]\n" +
-            "id\tcodeName\tanimationId\tstartupEndTime\tactionSwitchWindowStartTime\trecoveryStartTime\tactionDuration\texecutionSteps\n" +
+            "id\tcodeName\tactionId\tallowedMovementStates\tmovementMode\tstartupEndTime\tactionSwitchWindowStartTime\trecoveryStartTime\tactionDuration\tcosts\texecutionSteps\tstanceGain\tattackRange\tmovementOffsetX\tmovementOffsetY\tmovementKeyframes\n" +
             "[BattleAttackBody]\n" +
             "id\tcodeName\tclashStrength\tclashResistance\tmaxHitsPerTarget\tsameTargetHitInterval\tmaxTotalHitCount\n" +
             "[BattleAttackShape]\n" +
@@ -3323,6 +3667,64 @@ namespace Game.EditorTools
                         issues.Add($"ActiveSingle {action.rowId}：{error}" );
                     }
 
+                    int attackRangeColumn = FindColumn(
+                        actionTable,
+                        AttackRangeAliases);
+                    int movementOffsetXColumn = FindColumn(
+                        actionTable,
+                        MovementOffsetXAliases);
+                    int movementOffsetYColumn = FindColumn(
+                        actionTable,
+                        MovementOffsetYAliases);
+                    if (attackRangeColumn >= 0)
+                    {
+                        double attackRange = GetDouble(
+                            actionTable,
+                            action,
+                            double.NaN,
+                            AttackRangeAliases);
+                        if (!BattleActionTimelineTime.IsFinite(attackRange) ||
+                            attackRange < 0d)
+                        {
+                            issues.Add(
+                                $"ActiveSingle {action.rowId} 技能距离必须满足 attackRange ≥ 0。" );
+                        }
+                    }
+
+                    if (movementOffsetXColumn >= 0)
+                    {
+                        double movementOffsetX = GetDouble(
+                            actionTable,
+                            action,
+                            double.NaN,
+                            MovementOffsetXAliases);
+                        if (!BattleActionTimelineTime.IsFinite(movementOffsetX))
+                        {
+                            issues.Add(
+                                $"ActiveSingle {action.rowId} movementOffsetX 必须是有限数值。" );
+                        }
+                    }
+
+                    if (movementOffsetYColumn >= 0)
+                    {
+                        double movementOffsetY = GetDouble(
+                            actionTable,
+                            action,
+                            double.NaN,
+                            MovementOffsetYAliases);
+                        if (!BattleActionTimelineTime.IsFinite(movementOffsetY))
+                        {
+                            issues.Add(
+                                $"ActiveSingle {action.rowId} movementOffsetY 必须是有限数值。" );
+                        }
+                    }
+
+                    ValidateMovementKeyframes(
+                        actionTable,
+                        action,
+                        phases.Duration,
+                        issues);
+
                     double previous = -1d;
                     foreach (BattleActionTimelineTableData stepTable in document.tables
                         .Where(IsExecutionStepTable))
@@ -3415,6 +3817,99 @@ namespace Game.EditorTools
             ValidateSpawnsAndProjectiles(document, issues);
             ValidateKeyframes(document, issues);
         }
+
+        /// <summary>
+        /// 校验 ActiveSingle 行内的累计位移关键帧。它们与 Shape 关键帧不同，
+        /// 所属对象是当前技能动作本身，时间必须递增且不能越过动作结束时间。
+        /// </summary>
+        private static void ValidateMovementKeyframes(
+            BattleActionTimelineTableData actionTable,
+            BattleActionTimelineRecordData action,
+            double actionDuration,
+            IList<string> issues)
+        {
+            int column = FindColumn(
+                actionTable,
+                MovementKeyframesAliases);
+            if (column < 0)
+            {
+                return;
+            }
+
+            string source = action.cells != null && column < action.cells.Length
+                ? action.cells[column]
+                : string.Empty;
+            if (!BattleActionTimelineInlineStructCodec.TryParse(
+                source,
+                out List<Dictionary<string, string>> values,
+                out string parseError))
+            {
+                issues.Add(
+                    $"ActiveSingle {action.rowId} movementKeyframes 解析失败：{parseError}");
+                return;
+            }
+
+            double previousTime = -1d;
+            for (int index = 0; index < values.Count; index++)
+            {
+                Dictionary<string, string> value = values[index];
+                if (!TryReadInlineFinite(value, "LocalTime", out double localTime) ||
+                    !TryReadInlineFinite(value, "OffsetX", out _) ||
+                    !TryReadInlineFinite(value, "OffsetY", out _))
+                {
+                    issues.Add(
+                        $"ActiveSingle {action.rowId} movementKeyframes[{index}] 的 LocalTime/OffsetX/OffsetY 必须是有限数值。");
+                    continue;
+                }
+
+                string interpolationText = value != null &&
+                    value.TryGetValue("Interpolation", out string rawInterpolation) &&
+                    !string.IsNullOrWhiteSpace(rawInterpolation)
+                    ? rawInterpolation
+                    : "Linear";
+                if (!Enum.TryParse(
+                        interpolationText,
+                        true,
+                        out RefData.EnumBattleTransformInterpolation interpolation) ||
+                    !Enum.IsDefined(
+                        typeof(RefData.EnumBattleTransformInterpolation),
+                        interpolation))
+                {
+                    issues.Add(
+                        $"ActiveSingle {action.rowId} movementKeyframes[{index}] 的 Interpolation 非法。");
+                }
+
+                if (localTime < 0d || localTime > actionDuration + BattleActionTimelineTime.Epsilon)
+                {
+                    issues.Add(
+                        $"ActiveSingle {action.rowId} movementKeyframes[{index}] 的 LocalTime 必须位于动作时长内。");
+                }
+
+                if (localTime <= previousTime + BattleActionTimelineTime.Epsilon)
+                {
+                    issues.Add(
+                        $"ActiveSingle {action.rowId} movementKeyframes 的 LocalTime 必须严格递增。");
+                }
+
+                previousTime = localTime;
+            }
+        }
+
+        private static bool TryReadInlineFinite(
+            IReadOnlyDictionary<string, string> value,
+            string key,
+            out double result)
+        {
+            result = 0d;
+            return value != null && value.TryGetValue(key, out string text) &&
+                double.TryParse(
+                    text,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out result) &&
+                BattleActionTimelineTime.IsFinite(result);
+        }
+
         /// <summary>
         /// 校验`Bodies`。
         /// </summary>

@@ -21,6 +21,7 @@ namespace Game.EditorTools
             Duration,
             Step,
             Keyframe,
+            MovementKeyframe,
             PreviewShapeGizmo,
         }
 
@@ -110,10 +111,17 @@ namespace Game.EditorTools
             public Vector2 SpawnOffset;
         }
 
-        private const float InspectorWidth = 430f;
-        private const float TimelineHeight = 218f;
+        private const float DefaultInspectorWidth = 430f;
+        private const float MinimumInspectorWidth = 300f;
+        private const float MinimumTimelineWidth = 420f;
+        private const float SplitterWidth = 6f;
+        private const float DefaultTimelineHeight = 260f;
+        private const float MinimumTimelineHeight = 150f;
+        private const float MinimumPreviewHeight = 220f;
         private const float RulerHeight = 24f;
         private const float LaneHeight = 42f;
+        private const int InspectorSplitterControlHint = 0x42A18;
+        private const int TimelineSplitterControlHint = 0x42A19;
         private const string DraftKeyPrefix =
             "TryGame.BattleActionTimeline.Draft.";
 
@@ -131,6 +139,7 @@ namespace Game.EditorTools
         private DragKind dragKind;
         private string dragSheet = string.Empty;
         private int dragRowId;
+        private int dragMovementKeyframeIndex = -1;
         private bool dragChanged;
         private SequenceFrameClip[] availablePreviewClips;
         private int automaticPreviewActionId = int.MinValue;
@@ -155,6 +164,12 @@ namespace Game.EditorTools
         [SerializeField] private bool previewEditKeyframes;
         // 仅保存窗口视图偏好；默认关闭，不写入技能配置或源表。
         [SerializeField] private bool showInactiveShapes;
+        // 检视栏宽度是窗口布局偏好，不写入技能配置或源表。
+        [SerializeField] private float inspectorWidth = DefaultInspectorWidth;
+        // 时间轴高度是窗口布局偏好，不写入技能配置或源表。
+        [SerializeField] private float timelineHeight = DefaultTimelineHeight;
+        private bool inspectorSplitterDragging;
+        private bool timelineSplitterDragging;
         private Vector2 gizmoStartMouse, gizmoStartOffset, gizmoHandle, gizmoPivot;
         private float gizmoStartRotation;
         private PreviewShape gizmoStartShape;
@@ -295,6 +310,24 @@ namespace Game.EditorTools
                 authoringState.previewZoom = 1f;
             }
             authoringState.previewZoom = Mathf.Clamp(authoringState.previewZoom, 0.5f, 3f);
+
+            float maximumInspectorWidth = Mathf.Max(
+                MinimumInspectorWidth,
+                position.width - MinimumTimelineWidth - SplitterWidth);
+            if (!BattleActionTimelineTime.IsFinite(inspectorWidth) ||
+                inspectorWidth <= 0f)
+            {
+                inspectorWidth = DefaultInspectorWidth;
+            }
+            inspectorWidth = Mathf.Clamp(
+                inspectorWidth,
+                MinimumInspectorWidth,
+                maximumInspectorWidth);
+            if (!BattleActionTimelineTime.IsFinite(timelineHeight) ||
+                timelineHeight <= 0f)
+            {
+                timelineHeight = DefaultTimelineHeight;
+            }
         }
         /// <summary>
         /// 响应撤销重做事件，并同步当前组件状态。
@@ -376,16 +409,80 @@ namespace Game.EditorTools
             DrawToolbar();
 
             Rect body = new Rect(0f, 24f, position.width, position.height - 24f);
-            GUILayout.BeginArea(new Rect(body.x, body.y, InspectorWidth, body.height));
+            GUILayout.BeginArea(new Rect(body.x, body.y, inspectorWidth, body.height));
             DrawInspectorArea();
             GUILayout.EndArea();
 
             Rect content = new Rect(
-                InspectorWidth + 6f,
+                inspectorWidth + SplitterWidth,
                 body.y + 6f,
-                Mathf.Max(200f, body.width - InspectorWidth - 12f),
+                Mathf.Max(200f, body.width - inspectorWidth - SplitterWidth - 6f),
                 Mathf.Max(200f, body.height - 12f));
             DrawTimelineAndPreview(content);
+
+            Rect splitter = new Rect(
+                inspectorWidth,
+                body.y,
+                SplitterWidth,
+                body.height);
+            DrawInspectorSplitter(splitter);
+        }
+
+        private void DrawInspectorSplitter(Rect splitter)
+        {
+            EditorGUIUtility.AddCursorRect(splitter, MouseCursor.ResizeHorizontal);
+            EditorGUI.DrawRect(
+                splitter,
+                inspectorSplitterDragging
+                    ? new Color(0.28f, 0.58f, 0.95f, 0.95f)
+                    : new Color(0.20f, 0.23f, 0.27f, 1f));
+
+            Event current = Event.current;
+            if (current == null)
+            {
+                return;
+            }
+
+            if (current.type == EventType.MouseDown &&
+                current.button == 0 &&
+                splitter.Contains(current.mousePosition))
+            {
+                inspectorSplitterDragging = true;
+                GUIUtility.hotControl = InspectorSplitterControlHint;
+                current.Use();
+                return;
+            }
+
+            if (GUIUtility.hotControl != InspectorSplitterControlHint)
+            {
+                return;
+            }
+
+            if (current.type == EventType.MouseDrag)
+            {
+                SetInspectorWidth(current.mousePosition.x);
+                current.Use();
+                Repaint();
+            }
+            else if (current.type == EventType.MouseUp ||
+                current.type == EventType.Ignore)
+            {
+                inspectorSplitterDragging = false;
+                GUIUtility.hotControl = 0;
+                current.Use();
+                Repaint();
+            }
+        }
+
+        private void SetInspectorWidth(float value)
+        {
+            float maximumInspectorWidth = Mathf.Max(
+                MinimumInspectorWidth,
+                position.width - MinimumTimelineWidth - SplitterWidth);
+            inspectorWidth = Mathf.Clamp(
+                value,
+                MinimumInspectorWidth,
+                maximumInspectorWidth);
         }
         /// <summary>
         /// 绘制工具栏。
@@ -925,7 +1022,337 @@ namespace Game.EditorTools
                     Math.Max(MinimumActionDuration(), SnapNonNegative(duration)),
                     BattleActionTimelineSchema.DurationAliases);
             }
+
+            int attackRangeColumn = BattleActionTimelineSchema.FindColumn(
+                table,
+                BattleActionTimelineSchema.AttackRangeAliases);
+            int movementOffsetXColumn = BattleActionTimelineSchema.FindColumn(
+                table,
+                BattleActionTimelineSchema.MovementOffsetXAliases);
+            int movementOffsetYColumn = BattleActionTimelineSchema.FindColumn(
+                table,
+                BattleActionTimelineSchema.MovementOffsetYAliases);
+            if (attackRangeColumn >= 0)
+            {
+                EditorGUILayout.Space(6f);
+                EditorGUILayout.LabelField(
+                    "技能攻击距离（当前 ActiveSingle，供 AI 站位使用）",
+                    EditorStyles.miniBoldLabel);
+                double attackRange = BattleActionTimelineSchema.GetDouble(
+                    table,
+                    action,
+                    0d,
+                    BattleActionTimelineSchema.AttackRangeAliases);
+                double editedAttackRange = EditorGUILayout.DoubleField(
+                    new GUIContent("攻击距离", "AI 会移动到这个距离附近再释放技能。"),
+                    attackRange);
+                if (!BattleActionTimelineTime.IsFinite(editedAttackRange) ||
+                    editedAttackRange < 0d)
+                {
+                    EditorGUILayout.HelpBox(
+                        "技能攻击距离必须是大于等于 0 的有限数值。",
+                        MessageType.Error);
+                }
+                else
+                {
+                    if (!NearlyEqual(editedAttackRange, attackRange))
+                    {
+                        BattleActionTimelineSchema.SetDouble(
+                            table,
+                            action,
+                            editedAttackRange,
+                            BattleActionTimelineSchema.AttackRangeAliases);
+                    }
+                }
+
+                if (attackRange <= 0d + BattleActionTimelineTime.Epsilon)
+                {
+                    EditorGUILayout.HelpBox(
+                        "当前为 0，表示该技能按贴身距离处理。",
+                        MessageType.Info);
+                }
+
+                if (movementOffsetXColumn >= 0)
+                {
+                    double movementOffsetX = BattleActionTimelineSchema.GetDouble(
+                        table,
+                        action,
+                        0d,
+                        BattleActionTimelineSchema.MovementOffsetXAliases);
+                    double editedMovementOffsetX = EditorGUILayout.DoubleField(
+                        new GUIContent("释放位移 X", "动作持续期间沿角色本地 X 轴累计移动量；负数表示向后。"),
+                        movementOffsetX);
+                    if (BattleActionTimelineTime.IsFinite(editedMovementOffsetX) &&
+                        !NearlyEqual(editedMovementOffsetX, movementOffsetX))
+                    {
+                        BattleActionTimelineSchema.SetDouble(
+                            table,
+                            action,
+                            editedMovementOffsetX,
+                            BattleActionTimelineSchema.MovementOffsetXAliases);
+                    }
+                }
+
+                if (movementOffsetYColumn >= 0)
+                {
+                    double movementOffsetY = BattleActionTimelineSchema.GetDouble(
+                        table,
+                        action,
+                        0d,
+                        BattleActionTimelineSchema.MovementOffsetYAliases);
+                    double editedMovementOffsetY = EditorGUILayout.DoubleField(
+                        new GUIContent("释放位移 Y", "动作持续期间沿世界 Y 轴累计移动量；落地类动作应谨慎使用。"),
+                        movementOffsetY);
+                    if (BattleActionTimelineTime.IsFinite(editedMovementOffsetY) &&
+                        !NearlyEqual(editedMovementOffsetY, movementOffsetY))
+                    {
+                        BattleActionTimelineSchema.SetDouble(
+                            table,
+                            action,
+                            editedMovementOffsetY,
+                            BattleActionTimelineSchema.MovementOffsetYAliases);
+                    }
+                }
+            }
+
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField(
+                "攻击期间移动",
+                EditorStyles.miniBoldLabel);
+            int movementModeColumn = BattleActionTimelineSchema.FindColumn(
+                table,
+                BattleActionTimelineSchema.MovementModeAliases);
+            if (movementModeColumn >= 0)
+            {
+                string rawMovementMode = BattleActionTimelineSchema.Get(
+                    table,
+                    action,
+                    BattleActionTimelineSchema.MovementModeAliases);
+                RefData.EnumBattleActionMovementMode parsedMovementMode =
+                    Enum.TryParse(
+                        rawMovementMode,
+                        true,
+                        out RefData.EnumBattleActionMovementMode movementMode)
+                        ? movementMode
+                        : RefData.EnumBattleActionMovementMode.Locked;
+                RefData.EnumBattleActionMovementMode editedMovementMode =
+                    (RefData.EnumBattleActionMovementMode)EditorGUILayout.EnumPopup(
+                        new GUIContent(
+                            "移动模式",
+                            "Locked：攻击期间不能移动；Horizontal：允许水平移动；Full：允许完整移动。"),
+                        parsedMovementMode);
+                if (editedMovementMode != parsedMovementMode ||
+                    !string.Equals(
+                        rawMovementMode,
+                        editedMovementMode.ToString(),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    BattleActionTimelineSchema.Set(
+                        table,
+                        action,
+                        editedMovementMode.ToString(),
+                        BattleActionTimelineSchema.MovementModeAliases);
+                }
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "当前 BattleActiveSingleSkill 源表缺少 movementMode 列。",
+                    MessageType.Warning);
+            }
+
+            DrawMovementKeyframes(table, action, currentTime);
+
+            if (attackRangeColumn < 0 || movementOffsetXColumn < 0 || movementOffsetYColumn < 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "当前 BattleActiveSingleSkill 源表还没有 attackRange 列；" +
+                    "请在表头追加 attackRange、movementOffsetX、movementOffsetY 后重新读取。",
+                    MessageType.Warning);
+            }
         }
+
+        private void DrawMovementKeyframes(
+            BattleActionTimelineTableData table,
+            BattleActionTimelineRecordData action,
+            double currentTime)
+        {
+            int movementKeyframesColumn = BattleActionTimelineSchema.FindColumn(
+                table,
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+            if (movementKeyframesColumn < 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("释放位移关键帧（累计位移）", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField(
+                "每一行表示动作到达该时间点时的累计 X/Y 位移。时间用秒填写，帧号仅作为按上方 FPS 换算的提示。",
+                EditorStyles.wordWrappedMiniLabel);
+            double frameRate = authoringState.frameRate;
+            if (!BattleActionTimelineTime.IsFinite(frameRate) || frameRate <= 0d)
+            {
+                frameRate = 30d;
+            }
+            string source = BattleActionTimelineSchema.Get(
+                table,
+                action,
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+            if (!BattleActionTimelineInlineStructCodec.TryParse(
+                    source,
+                    out List<Dictionary<string, string>> values,
+                    out string parseError))
+            {
+                EditorGUILayout.HelpBox("位移关键帧解析失败：" + parseError, MessageType.Error);
+                return;
+            }
+
+            bool changed = false;
+            for (int index = 0; index < values.Count; index++)
+            {
+                Dictionary<string, string> value = values[index];
+                double localTime = ReadInlineDouble(value, "LocalTime", 0d);
+                double offsetX = ReadInlineDouble(value, "OffsetX", 0d);
+                double offsetY = ReadInlineDouble(value, "OffsetY", 0d);
+                int frame = BattleActionTimelineTime.SecondsToFrame(
+                    Math.Max(0d, localTime),
+                    frameRate);
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(
+                    "关键帧 " + (index + 1),
+                    EditorStyles.miniBoldLabel);
+                EditorGUILayout.LabelField(
+                    "当前时间 " + localTime.ToString("0.###", CultureInfo.InvariantCulture) + "s",
+                    EditorStyles.miniLabel);
+                bool delete = GUILayout.Button("删除", GUILayout.Width(52f));
+                EditorGUILayout.EndHorizontal();
+
+                double editedTime = EditorGUILayout.DoubleField(
+                    new GUIContent("时间（秒）", "动作从 0 秒开始计时；可填写小数，例如 0.185。"),
+                    localTime);
+                EditorGUILayout.LabelField(
+                    "换算帧 " + frame.ToString(CultureInfo.InvariantCulture),
+                    EditorStyles.miniLabel);
+                double editedX = EditorGUILayout.DoubleField(
+                    new GUIContent("累计 X", "到达这一时间点时的累计本地水平位移，不是单帧速度。"),
+                    offsetX);
+                double editedY = EditorGUILayout.DoubleField(
+                    new GUIContent("累计 Y", "到达这一时间点时的累计世界垂直位移，不是单帧速度。"),
+                    offsetY);
+                string rawInterpolation = ReadInline(value, "Interpolation", "Linear");
+                RefData.EnumBattleTransformInterpolation parsedInterpolation =
+                    Enum.TryParse(
+                        rawInterpolation,
+                        true,
+                        out RefData.EnumBattleTransformInterpolation interpolation)
+                        ? interpolation
+                        : RefData.EnumBattleTransformInterpolation.Linear;
+                RefData.EnumBattleTransformInterpolation editedInterpolation =
+                    (RefData.EnumBattleTransformInterpolation)EditorGUILayout.EnumPopup(
+                        new GUIContent(
+                            "曲线",
+                            "控制当前关键帧到下一关键帧之间的位移变化；可选直线、缓入、缓出、缓入缓出或瞬切。"),
+                        parsedInterpolation);
+                if (delete)
+                {
+                    values.RemoveAt(index);
+                    index--;
+                    changed = true;
+                }
+                else
+                {
+                    if (!BattleActionTimelineTime.IsFinite(editedTime) || editedTime < 0d)
+                    {
+                        editedTime = localTime;
+                    }
+
+                    if (!NearlyEqual(editedTime, localTime) ||
+                        !NearlyEqual(editedX, offsetX) || !NearlyEqual(editedY, offsetY) ||
+                        editedInterpolation != parsedInterpolation ||
+                        !string.Equals(
+                            rawInterpolation,
+                            editedInterpolation.ToString(),
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        value["LocalTime"] = editedTime.ToString(CultureInfo.InvariantCulture);
+                        value["OffsetX"] = editedX.ToString(CultureInfo.InvariantCulture);
+                        value["OffsetY"] = editedY.ToString(CultureInfo.InvariantCulture);
+                        value["Interpolation"] = editedInterpolation.ToString();
+                        changed = true;
+                    }
+                }
+                EditorGUILayout.EndVertical();
+            }
+
+            if (GUILayout.Button("新增位移关键帧（当前时间）"))
+            {
+                double newTime = Math.Max(0d, currentTime);
+                bool duplicateFrame = values.Any(value =>
+                    Math.Abs(ReadInlineDouble(value, "LocalTime", 0d) - newTime) <=
+                    BattleActionTimelineTime.Epsilon);
+                if (duplicateFrame)
+                {
+                    EditorGUILayout.HelpBox(
+                        "当前帧已经有位移关键帧；请直接修改该行的 X/Y。",
+                        MessageType.Info);
+                }
+                else
+                {
+                    values.Add(new Dictionary<string, string>
+                    {
+                        { "LocalTime", newTime.ToString(CultureInfo.InvariantCulture) },
+                        { "OffsetX", "0" },
+                        { "OffsetY", "0" },
+                        { "RotationDegrees", "0" },
+                        { "ScaleX", "1" },
+                        { "ScaleY", "1" },
+                        { "Interpolation", "Linear" },
+                    });
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                values.Sort((left, right) =>
+                {
+                    double leftTime = ReadInlineDouble(left, "LocalTime", 0d);
+                    double rightTime = ReadInlineDouble(right, "LocalTime", 0d);
+                    return leftTime.CompareTo(rightTime);
+                });
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            List<BattleActionTimelineRecordData> records = values.Select(value =>
+                new BattleActionTimelineRecordData
+                {
+                    cells = new[]
+                    {
+                        "", "", ReadInline(value, "LocalTime", "0"),
+                        ReadInline(value, "OffsetX", "0"),
+                        ReadInline(value, "OffsetY", "0"),
+                        ReadInline(value, "RotationDegrees", "0"),
+                        ReadInline(value, "ScaleX", "1"),
+                        ReadInline(value, "ScaleY", "1"),
+                        ReadInline(value, "Interpolation", "Linear"),
+                    },
+                }).ToList();
+            BattleActionTimelineSchema.Set(
+                table,
+                action,
+                BattleActionTimelineInlineStructCodec.Serialize(
+                    BattleActionTimelineDocument.MovementInlineFields(),
+                    records),
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+            GUI.changed = true;
+        }
+
         /// <summary>
         /// 绘制执行步骤。
         /// </summary>
@@ -2124,15 +2551,91 @@ namespace Game.EditorTools
         private void DrawTimelineAndPreview(Rect rect)
         {
             GUI.Box(rect, GUIContent.none, EditorStyles.helpBox);
+            float availableHeight = Mathf.Max(
+                MinimumTimelineHeight + MinimumPreviewHeight + SplitterWidth,
+                rect.height - 16f);
+            float maximumTimelineHeight = Mathf.Max(
+                MinimumTimelineHeight,
+                availableHeight - MinimumPreviewHeight - SplitterWidth);
+            timelineHeight = Mathf.Clamp(
+                timelineHeight,
+                MinimumTimelineHeight,
+                maximumTimelineHeight);
             Rect timeline = new Rect(rect.x + 8f, rect.y + 8f, rect.width - 16f,
-                Mathf.Min(TimelineHeight, rect.height * 0.43f));
+                timelineHeight);
+            Rect splitter = new Rect(
+                timeline.x,
+                timeline.yMax,
+                timeline.width,
+                SplitterWidth);
             Rect preview = new Rect(
-                rect.x + 8f,
-                timeline.yMax + 8f,
-                rect.width - 16f,
-                Mathf.Max(120f, rect.yMax - timeline.yMax - 16f));
+                timeline.x,
+                splitter.yMax + 2f,
+                timeline.width,
+                Mathf.Max(120f, rect.yMax - splitter.yMax - 10f));
             DrawTimeline(timeline);
             DrawPreview(preview);
+            DrawTimelineSplitter(splitter, rect);
+        }
+
+        private void DrawTimelineSplitter(Rect splitter, Rect parent)
+        {
+            EditorGUIUtility.AddCursorRect(splitter, MouseCursor.ResizeVertical);
+            EditorGUI.DrawRect(
+                splitter,
+                timelineSplitterDragging
+                    ? new Color(0.28f, 0.58f, 0.95f, 0.95f)
+                    : new Color(0.20f, 0.23f, 0.27f, 1f));
+
+            Event current = Event.current;
+            if (current == null)
+            {
+                return;
+            }
+
+            if (current.type == EventType.MouseDown &&
+                current.button == 0 &&
+                splitter.Contains(current.mousePosition))
+            {
+                timelineSplitterDragging = true;
+                GUIUtility.hotControl = TimelineSplitterControlHint;
+                current.Use();
+                return;
+            }
+
+            if (GUIUtility.hotControl != TimelineSplitterControlHint)
+            {
+                return;
+            }
+
+            if (current.type == EventType.MouseDrag)
+            {
+                SetTimelineHeight(current.mousePosition.y - parent.y - 8f, parent);
+                current.Use();
+                Repaint();
+            }
+            else if (current.type == EventType.MouseUp ||
+                current.type == EventType.Ignore)
+            {
+                timelineSplitterDragging = false;
+                GUIUtility.hotControl = 0;
+                current.Use();
+                Repaint();
+            }
+        }
+
+        private void SetTimelineHeight(float value, Rect parent)
+        {
+            float availableHeight = Mathf.Max(
+                MinimumTimelineHeight + MinimumPreviewHeight + SplitterWidth,
+                parent.height - 16f);
+            float maximumTimelineHeight = Mathf.Max(
+                MinimumTimelineHeight,
+                availableHeight - MinimumPreviewHeight - SplitterWidth);
+            timelineHeight = Mathf.Clamp(
+                value,
+                MinimumTimelineHeight,
+                maximumTimelineHeight);
         }
         /// <summary>
         /// 绘制时间轴。
@@ -2148,14 +2651,17 @@ namespace Game.EditorTools
             Rect stepLane = LaneRect(content, 1);
             Rect lifeLane = LaneRect(content, 2);
             Rect keyLane = LaneRect(content, 3);
+            Rect movementLane = LaneRect(content, 4);
             DrawLaneLabel(rect, stageLane, "动作阶段");
             DrawLaneLabel(rect, stepLane, "executionStep");
             DrawLaneLabel(rect, lifeLane, "攻击体存活");
             DrawLaneLabel(rect, keyLane, "transform 关键帧");
+            DrawLaneLabel(rect, movementLane, "位移关键帧");
             DrawStageLane(stageLane, duration);
             DrawStepLane(stepLane, duration);
             DrawLifetimeLane(lifeLane, duration);
             DrawKeyframeLane(keyLane, duration);
+            DrawMovementLane(movementLane, duration);
 
             float playheadX = TimeToX(playheadSeconds, content, duration);
             Handles.BeginGUI();
@@ -2169,7 +2675,13 @@ namespace Game.EditorTools
                 new Rect(playheadX + 3f, content.y + 2f, 70f, 18f),
                 (playheadSeconds * authoringState.frameRate).ToString("0.###", CultureInfo.InvariantCulture),
                 EditorStyles.miniLabel);
-            HandleTimelineInput(content, stageLane, stepLane, keyLane, duration);
+            HandleTimelineInput(
+                content,
+                stageLane,
+                stepLane,
+                keyLane,
+                movementLane,
+                duration);
         }
         /// <summary>
         /// 根据 `content`、`index` 构建轨道矩形并返回结果。
@@ -2371,6 +2883,7 @@ namespace Game.EditorTools
                     }
                 }
             }
+
         }
         /// <summary>
         /// 绘制关键帧轨道。
@@ -2402,6 +2915,68 @@ namespace Game.EditorTools
                     new Vector2(TimeToX(absolute, lane, duration), lane.center.y),
                     selected ? Color.white : new Color(0.76f, 0.45f, 1f, 1f),
                     selected ? 7f : 5f);
+            }
+        }
+
+        /// <summary>
+        /// 绘制当前 ActiveSingle 的动作位移关键帧轨道。它与 Shape 关键帧分开，
+        /// 时间从动作开始计算，点的位置对应累计 X/Y 位移。
+        /// </summary>
+        private void DrawMovementLane(Rect lane, double duration)
+        {
+            EditorGUI.DrawRect(lane, new Color(0.055f, 0.07f, 0.09f, 1f));
+            if (!TryGetSelectedAction(
+                Document,
+                out BattleActionTimelineTableData table,
+                out BattleActionTimelineRecordData action))
+            {
+                return;
+            }
+
+            string source = BattleActionTimelineSchema.Get(
+                table,
+                action,
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+            if (!BattleActionTimelineInlineStructCodec.TryParse(
+                    source,
+                    out List<Dictionary<string, string>> values,
+                    out _)
+                || values.Count == 0)
+            {
+                return;
+            }
+
+            Vector3 previous = default(Vector3);
+            bool hasPrevious = false;
+            for (int index = 0; index < values.Count; index++)
+            {
+                double localTime = ReadInlineDouble(values[index], "LocalTime", 0d);
+                float x = TimeToX(localTime, lane, duration);
+                Vector3 point = new Vector3(x, lane.center.y);
+                if (hasPrevious)
+                {
+                    Handles.BeginGUI();
+                    Handles.color = new Color(0.25f, 0.85f, 0.95f, 0.75f);
+                    Handles.DrawAAPolyLine(2f, previous, point);
+                    Handles.EndGUI();
+                }
+
+                bool selected = dragKind == DragKind.MovementKeyframe &&
+                    dragSheet == table.sheetName &&
+                    dragRowId == action.rowId &&
+                    dragMovementKeyframeIndex == index;
+                DrawDiamond(
+                    point,
+                    selected ? Color.white : new Color(0.2f, 0.85f, 0.95f, 1f),
+                    selected ? 7f : 5f);
+                GUI.Label(
+                    new Rect(x + 6f, lane.y + 3f, 56f, 18f),
+                    "F" + BattleActionTimelineTime.SecondsToFrame(
+                        Math.Max(0d, localTime),
+                        authoringState.frameRate).ToString(CultureInfo.InvariantCulture),
+                    EditorStyles.miniLabel);
+                previous = point;
+                hasPrevious = true;
             }
         }
         /// <summary>
@@ -2446,6 +3021,7 @@ namespace Game.EditorTools
             Rect stageLane,
             Rect stepLane,
             Rect keyLane,
+            Rect movementLane,
             double duration)
         {
             // 预览已捕获鼠标时，不能被上方时间轴当成时间拖拽消费。
@@ -2476,6 +3052,16 @@ namespace Game.EditorTools
                     Undo.RegisterCompleteObjectUndo(
                         authoringState,
                         "拖动 transform keyframe");
+                }
+                else if (movementLane.Contains(current.mousePosition) &&
+                    TryBeginMovementKeyframeDrag(
+                        current.mousePosition.x,
+                        movementLane,
+                        duration))
+                {
+                    Undo.RegisterCompleteObjectUndo(
+                        authoringState,
+                        "拖动位移 keyframe");
                 }
                 else
                 {
@@ -2513,6 +3099,7 @@ namespace Game.EditorTools
                 {
                     NormalizeStepOrderForSelectedAction();
                     NormalizeKeyframeOrder();
+                    NormalizeMovementKeyframeOrder();
                     OnAuthoringChanged();
                 }
 
@@ -2647,12 +3234,98 @@ namespace Game.EditorTools
             dragRowId = nearest.rowId;
             return true;
         }
+
+        private bool TryBeginMovementKeyframeDrag(
+            float x,
+            Rect lane,
+            double duration)
+        {
+            if (!TryGetSelectedAction(
+                Document,
+                out BattleActionTimelineTableData table,
+                out BattleActionTimelineRecordData action))
+            {
+                return false;
+            }
+
+            string source = BattleActionTimelineSchema.Get(
+                table,
+                action,
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+            if (!BattleActionTimelineInlineStructCodec.TryParse(
+                    source,
+                    out List<Dictionary<string, string>> values,
+                    out _)
+                || values.Count == 0)
+            {
+                return false;
+            }
+
+            int nearestIndex = -1;
+            float nearestDistance = float.PositiveInfinity;
+            for (int index = 0; index < values.Count; index++)
+            {
+                double localTime = ReadInlineDouble(values[index], "LocalTime", 0d);
+                float distance = Math.Abs(TimeToX(localTime, lane, duration) - x);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestIndex = index;
+                }
+            }
+
+            if (nearestIndex < 0 || nearestDistance > 10f)
+            {
+                return false;
+            }
+
+            dragKind = DragKind.MovementKeyframe;
+            dragSheet = table.sheetName;
+            dragRowId = action.rowId;
+            dragMovementKeyframeIndex = nearestIndex;
+            return true;
+        }
         /// <summary>
         /// 应用时间轴拖拽。
         /// </summary>
 
         private void ApplyTimelineDrag(double absoluteTime)
         {
+            if (dragKind == DragKind.MovementKeyframe)
+            {
+                BattleActionTimelineTableData actionTable = Document.FindTable(dragSheet);
+                BattleActionTimelineRecordData action = actionTable?.records.FirstOrDefault(
+                    value => value.rowId == dragRowId);
+                if (action == null || dragMovementKeyframeIndex < 0)
+                {
+                    return;
+                }
+
+                string source = BattleActionTimelineSchema.Get(
+                    actionTable,
+                    action,
+                    BattleActionTimelineSchema.MovementKeyframesAliases);
+                if (!BattleActionTimelineInlineStructCodec.TryParse(
+                        source,
+                        out List<Dictionary<string, string>> values,
+                        out _)
+                    || dragMovementKeyframeIndex >= values.Count)
+                {
+                    return;
+                }
+
+                double actionDuration = BattleActionTimelineSchema.ReadPhases(
+                    actionTable,
+                    action).Duration;
+                double localTime = Math.Max(
+                    0d,
+                    Math.Min(actionDuration, absoluteTime));
+                values[dragMovementKeyframeIndex]["LocalTime"] =
+                    localTime.ToString(CultureInfo.InvariantCulture);
+                SetMovementKeyframes(actionTable, action, values);
+                return;
+            }
+
             BattleActionTimelineTableData table = Document.FindTable(dragSheet);
             BattleActionTimelineRecordData record = table?.records.FirstOrDefault(
                 value => value.rowId == dragRowId);
@@ -2754,7 +3427,23 @@ namespace Game.EditorTools
                 240f) * authoringState.previewZoom;
             Vector2 origin = new Vector2(rect.center.x, rect.center.y + rect.height * 0.18f);
             DrawPreviewGrid(rect, origin, pixelsPerUnit);
-            DrawSequencePreview(rect, origin, pixelsPerUnit);
+            Vector2 actionMovementOffset = EvaluateActionMovementOffset(
+                Document,
+                playheadSeconds);
+            int facingSign = authoringState.facing ==
+                (int)BattleActionTimelineFacing.Left ? -1 : 1;
+            Vector2 displayMovementOffset = actionMovementOffset;
+            displayMovementOffset.x *= facingSign;
+            Vector2 movedOrigin = origin + new Vector2(
+                displayMovementOffset.x * pixelsPerUnit,
+                -displayMovementOffset.y * pixelsPerUnit);
+            DrawActionMovementPath(
+                rect,
+                origin,
+                pixelsPerUnit,
+                CurrentDuration(Document),
+                Document);
+            DrawSequencePreview(rect, movedOrigin, pixelsPerUnit);
             GUI.Label(
                 new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 20f),
                 "序列帧 + CombatOrigin 判定预览 · " +
@@ -2762,7 +3451,7 @@ namespace Game.EditorTools
                     ? "朝左镜像"
                     : "朝右配置") +
                 " · 颜色：普通绿 / 冲击红 / 防御蓝 / 蓄力紫" +
-                " · 点选形状后用手柄编辑",
+                " · 青线为动作位移轨迹 · 点选形状后用手柄编辑",
                 EditorStyles.whiteLabel);
 
             ResolvedStep resolved = ResolveSelectedStep(Document);
@@ -2780,11 +3469,11 @@ namespace Game.EditorTools
             bool active = BattleActionTimelinePreviewLifetime.IsActive(elapsed, resolved.Lifetime);
             bool visible = BattleActionTimelinePreviewLifetime.IsVisible(elapsed, resolved.Lifetime, showInactiveShapes);
             double localTime = Math.Max(0d, Math.Min(resolved.Lifetime, elapsed));
-            Vector2 ownerOffset = resolved.IsProjectile
-                ? ProjectilePreviewOffset(Document, resolved, localTime)
-                : Vector2.zero;
-            int facingSign = authoringState.facing ==
-                (int)BattleActionTimelineFacing.Left ? -1 : 1;
+            Vector2 ownerOffset = actionMovementOffset;
+            if (resolved.IsProjectile)
+            {
+                ownerOffset += ProjectilePreviewOffset(Document, resolved, localTime);
+            }
             Vector2 previewOwnerOffset = ownerOffset;
             previewOwnerOffset.x *= facingSign;
             Vector2 bodyOrigin = origin + new Vector2(
@@ -2874,6 +3563,144 @@ namespace Game.EditorTools
                 2f,
                 new Vector3(origin.x, rect.y),
                 new Vector3(origin.x, rect.yMax));
+            Handles.EndGUI();
+        }
+
+        private Vector2 EvaluateActionMovementOffset(
+            BattleActionTimelineDocument document,
+            double actionTime)
+        {
+            if (document == null || !TryGetSelectedAction(
+                    document,
+                    out BattleActionTimelineTableData table,
+                    out BattleActionTimelineRecordData action))
+            {
+                return Vector2.zero;
+            }
+
+            BattleActionTimelinePhaseTimes phases =
+                BattleActionTimelineSchema.ReadPhases(table, action);
+            double clock = Math.Max(
+                0d,
+                Math.Min(phases.Duration, actionTime));
+            string source = BattleActionTimelineSchema.Get(
+                table,
+                action,
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+            if (!BattleActionTimelineInlineStructCodec.TryParse(
+                    source,
+                    out List<Dictionary<string, string>> values,
+                    out _)
+                || values.Count == 0)
+            {
+                double ratio = phases.Duration <= 0d ? 1d : clock / phases.Duration;
+                return new Vector2(
+                    (float)(BattleActionTimelineSchema.GetDouble(
+                        table,
+                        action,
+                        0d,
+                        BattleActionTimelineSchema.MovementOffsetXAliases) * ratio),
+                    (float)(BattleActionTimelineSchema.GetDouble(
+                        table,
+                        action,
+                        0d,
+                        BattleActionTimelineSchema.MovementOffsetYAliases) * ratio));
+            }
+
+            values = values
+                .OrderBy(value => ReadInlineDouble(value, "LocalTime", 0d))
+                .ToList();
+            double firstTime = ReadInlineDouble(values[0], "LocalTime", 0d);
+            if (clock <= firstTime)
+            {
+                double ratio = firstTime <= 0d ? 1d : clock / firstTime;
+                ratio = ApplyMovementInterpolation(
+                    ratio,
+                    ReadInline(values[0], "Interpolation", "Linear"));
+                return ReadMovementOffset(values[0], ratio, Vector2.zero);
+            }
+
+            for (int index = 1; index < values.Count; index++)
+            {
+                double nextTime = ReadInlineDouble(values[index], "LocalTime", 0d);
+                if (clock <= nextTime)
+                {
+                    Dictionary<string, string> previous = values[index - 1];
+                    double previousTime = ReadInlineDouble(previous, "LocalTime", 0d);
+                    double span = nextTime - previousTime;
+                    double ratio = span <= 0d ? 1d :
+                        (clock - previousTime) / span;
+                    ratio = ApplyMovementInterpolation(
+                        ratio,
+                        ReadInline(previous, "Interpolation", "Linear"));
+                    Vector2 start = ReadMovementOffset(previous, 1d, Vector2.zero);
+                    Vector2 end = ReadMovementOffset(values[index], 1d, Vector2.zero);
+                    return Vector2.LerpUnclamped(start, end, (float)ratio);
+                }
+            }
+
+            return ReadMovementOffset(values[values.Count - 1], 1d, Vector2.zero);
+        }
+
+        private static Vector2 ReadMovementOffset(
+            IReadOnlyDictionary<string, string> value,
+            double scale,
+            Vector2 fallback)
+        {
+            if (value == null ||
+                !double.TryParse(
+                    ReadInline(value, "OffsetX", string.Empty),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out double x) ||
+                !double.TryParse(
+                    ReadInline(value, "OffsetY", string.Empty),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out double y))
+            {
+                return fallback;
+            }
+
+            return new Vector2((float)(x * scale), (float)(y * scale));
+        }
+
+        private static double ApplyMovementInterpolation(
+            double normalizedTime,
+            string interpolation)
+        {
+            return BattleActionTimelineSchema.ApplyInterpolation(
+                (float)normalizedTime,
+                interpolation);
+        }
+
+        private void DrawActionMovementPath(
+            Rect rect,
+            Vector2 origin,
+            float pixelsPerUnit,
+            double duration,
+            BattleActionTimelineDocument document)
+        {
+            if (duration <= 0d)
+            {
+                return;
+            }
+
+            Handles.BeginGUI();
+            Handles.color = new Color(0.25f, 0.85f, 0.95f, 0.7f);
+            Vector3[] points = new Vector3[33];
+            for (int index = 0; index < points.Length; index++)
+            {
+                double time = duration * index / (points.Length - 1d);
+                Vector2 offset = EvaluateActionMovementOffset(
+                    document,
+                    time);
+                points[index] = new Vector3(
+                    origin.x + offset.x * pixelsPerUnit,
+                    origin.y - offset.y * pixelsPerUnit);
+            }
+
+            Handles.DrawAAPolyLine(2f, points);
             Handles.EndGUI();
         }
         /// <summary>
@@ -4211,6 +5038,66 @@ namespace Game.EditorTools
             }
         }
 
+        private void NormalizeMovementKeyframeOrder()
+        {
+            foreach (BattleActionTimelineTableData table in Document.ActionTables())
+            {
+                foreach (BattleActionTimelineRecordData action in table.records)
+                {
+                    string source = BattleActionTimelineSchema.Get(
+                        table,
+                        action,
+                        BattleActionTimelineSchema.MovementKeyframesAliases);
+                    if (!BattleActionTimelineInlineStructCodec.TryParse(
+                            source,
+                            out List<Dictionary<string, string>> values,
+                            out _)
+                        || values.Count < 2)
+                    {
+                        continue;
+                    }
+
+                    values.Sort((left, right) =>
+                        ReadInlineDouble(left, "LocalTime", 0d).CompareTo(
+                            ReadInlineDouble(right, "LocalTime", 0d)));
+                    SetMovementKeyframes(table, action, values);
+                }
+            }
+        }
+
+        private static void SetMovementKeyframes(
+            BattleActionTimelineTableData table,
+            BattleActionTimelineRecordData action,
+            IReadOnlyList<Dictionary<string, string>> values)
+        {
+            if (table == null || action == null || values == null)
+            {
+                return;
+            }
+
+            List<BattleActionTimelineRecordData> records = values.Select(value =>
+                new BattleActionTimelineRecordData
+                {
+                    cells = new[]
+                    {
+                        "", "", ReadInline(value, "LocalTime", "0"),
+                        ReadInline(value, "OffsetX", "0"),
+                        ReadInline(value, "OffsetY", "0"),
+                        ReadInline(value, "RotationDegrees", "0"),
+                        ReadInline(value, "ScaleX", "1"),
+                        ReadInline(value, "ScaleY", "1"),
+                        ReadInline(value, "Interpolation", "Linear"),
+                    },
+                }).ToList();
+            BattleActionTimelineSchema.Set(
+                table,
+                action,
+                BattleActionTimelineInlineStructCodec.Serialize(
+                    BattleActionTimelineDocument.MovementInlineFields(),
+                    records),
+                BattleActionTimelineSchema.MovementKeyframesAliases);
+        }
+
         private void NormalizeShapeOrder()
         {
             foreach (BattleActionTimelineTableData table in Document.tables
@@ -4236,6 +5123,7 @@ namespace Game.EditorTools
                     }
                 }
             }
+
         }
         /// <summary>
         /// 创建记录。
@@ -4550,6 +5438,7 @@ namespace Game.EditorTools
             dragKind = DragKind.None;
             dragSheet = string.Empty;
             dragRowId = 0;
+            dragMovementKeyframeIndex = -1;
             dragChanged = false;
         }
         /// <summary>
@@ -4597,6 +5486,32 @@ namespace Game.EditorTools
                 out int result)
                 ? result
                 : 0;
+        }
+
+        private static string ReadInline(
+            IReadOnlyDictionary<string, string> values,
+            string key,
+            string fallback)
+        {
+            return values != null && values.TryGetValue(key, out string value) &&
+                !string.IsNullOrWhiteSpace(value)
+                ? value
+                : fallback;
+        }
+
+        private static double ReadInlineDouble(
+            IReadOnlyDictionary<string, string> values,
+            string key,
+            double fallback)
+        {
+            return double.TryParse(
+                ReadInline(values, key, string.Empty),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double parsed) &&
+                BattleActionTimelineTime.IsFinite(parsed)
+                ? parsed
+                : fallback;
         }
         /// <summary>
         /// 判断近似相等是否满足当前条件。

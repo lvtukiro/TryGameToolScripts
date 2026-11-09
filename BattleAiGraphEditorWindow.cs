@@ -1266,14 +1266,12 @@ namespace Game.EditorTools
                     // 不能把多个运行时字段合并成一个概念名称。
                     provided.Add("PlanState.SelectedBinding");
                     provided.Add("PlanState.HasSelectedBinding");
-                    provided.Add("PlanState.SelectedMinimumRange");
-                    provided.Add("PlanState.SelectedMaximumRange");
+                    provided.Add("PlanState.SelectedAttackRange");
                     break;
                 case BattleAiHandlerType.MoveToSkillRange:
                     required.Add("PlanState.SelectedBinding");
                     required.Add("PlanState.HasSelectedBinding");
-                    required.Add("PlanState.SelectedMinimumRange");
-                    required.Add("PlanState.SelectedMaximumRange");
+                    required.Add("PlanState.SelectedAttackRange");
                     provided.Add("InSkillRange");
                     break;
                 case BattleAiHandlerType.ExecuteSkill:
