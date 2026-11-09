@@ -1046,6 +1046,41 @@ namespace Game.EditorTools
                 double editedAttackRange = EditorGUILayout.DoubleField(
                     new GUIContent("攻击距离", "AI 会移动到这个距离附近再释放技能。"),
                     attackRange);
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button(new GUIContent(
+                        "按首个攻击体 Shape 自动计算",
+                        "按当前技能最早的近战/投射物步骤，以及该攻击体 shapeIndex 最小的 Shape，计算水平包围范围。")))
+                {
+                    if (TryCalculateAttackRangeFromFirstShape(
+                            edited,
+                            action.rowId,
+                            out double calculatedRange,
+                            out string calculationDescription,
+                            out string calculationError))
+                    {
+                        BattleActionTimelineSchema.SetDouble(
+                            table,
+                            action,
+                            calculatedRange,
+                            BattleActionTimelineSchema.AttackRangeAliases);
+                        attackRange = calculatedRange;
+                        editedAttackRange = calculatedRange;
+                        attackAuthoringStatus =
+                            "已按 " + calculationDescription + " 自动填入攻击距离 " +
+                            calculatedRange.ToString("0.###", CultureInfo.InvariantCulture) +
+                            "。该值仍可手动微调，尚未写回源表。";
+                        attackAuthoringError = false;
+                        GUI.changed = true;
+                        ShowNotification(new GUIContent("已自动填入攻击距离"));
+                    }
+                    else
+                    {
+                        attackAuthoringStatus = calculationError;
+                        attackAuthoringError = true;
+                        ShowNotification(new GUIContent("自动计算攻击距离失败"));
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
                 if (!BattleActionTimelineTime.IsFinite(editedAttackRange) ||
                     editedAttackRange < 0d)
                 {
@@ -4422,6 +4457,252 @@ namespace Game.EditorTools
                 .OrderBy(record => BattleActionTimelineSchema.GetDouble(
                     resolved.KeyframeTable, record, 0d, BattleActionTimelineSchema.LocalTimeAliases)).ToList();
         }
+
+        /// <summary>
+        /// 按当前技能最早的攻击步骤和该攻击体的第一个 Shape 估算 AI 站位距离。
+        /// 这里计算的是从 CombatOrigin 到 Shape 水平包围边界的保守距离，左右朝向都能复用。
+        /// </summary>
+        private static bool TryCalculateAttackRangeFromFirstShape(
+            BattleActionTimelineDocument document,
+            int actionId,
+            out double attackRange,
+            out string description,
+            out string error)
+        {
+            attackRange = 0d;
+            description = string.Empty;
+            error = string.Empty;
+            if (document == null || document.tables == null || actionId <= 0)
+            {
+                error = "当前动作工作集为空，无法计算攻击距离。";
+                return false;
+            }
+
+            BattleActionTimelineTableData stepTable = document.tables.FirstOrDefault(
+                BattleActionTimelineSchema.IsExecutionStepTable);
+            if (stepTable == null)
+            {
+                error = "缺少执行步骤工作表，无法找到首个攻击步骤。";
+                return false;
+            }
+
+            List<BattleActionTimelineRecordData> attackSteps = stepTable.records
+                .Where(step =>
+                    BattleActionTimelineSchema.GetInt(
+                        stepTable,
+                        step,
+                        0,
+                        BattleActionTimelineSchema.StepOwnerAliases) == actionId &&
+                    (BattleActionTimelineSchema.StepIsMelee(stepTable, step) ||
+                     BattleActionTimelineSchema.StepIsProjectile(stepTable, step)))
+                .OrderBy(step => BattleActionTimelineSchema.GetDouble(
+                    stepTable,
+                    step,
+                    0d,
+                    BattleActionTimelineSchema.TriggerTimeAliases))
+                .ThenBy(step => BattleActionTimelineSchema.GetStepIndex(stepTable, step))
+                .ToList();
+            if (attackSteps.Count == 0)
+            {
+                error = "当前技能没有近战或投射物攻击步骤，无法自动计算攻击距离。";
+                return false;
+            }
+
+            BattleActionTimelineRecordData firstStep = attackSteps[0];
+            ResolvedStep resolved = ResolveStep(document, stepTable, firstStep);
+            if (resolved == null || resolved.Body == null)
+            {
+                error = "首个攻击步骤缺少有效的攻击体配置，无法自动计算攻击距离。";
+                return false;
+            }
+
+            BattleActionTimelineTableData shapeTable = document.tables.FirstOrDefault(
+                BattleActionTimelineSchema.IsShapeTable);
+            if (shapeTable == null)
+            {
+                error = "缺少 BattleAttackShape 工作表，无法自动计算攻击距离。";
+                return false;
+            }
+
+            BattleActionTimelineRecordData shape = shapeTable.records
+                .Where(value => BattleActionTimelineSchema.GetInt(
+                    shapeTable,
+                    value,
+                    0,
+                    BattleActionTimelineSchema.AttackBodyIdAliases) == resolved.Body.rowId)
+                .OrderBy(value => BattleActionTimelineSchema.GetInt(
+                    shapeTable,
+                    value,
+                    int.MaxValue,
+                    "shapeIndex"))
+                .ThenBy(value => value.rowId)
+                .FirstOrDefault();
+            if (shape == null)
+            {
+                error = "首个攻击体没有 Shape，无法自动计算攻击距离。";
+                return false;
+            }
+
+            double maximum = 0d;
+            foreach (double localTime in GetShapeRangeSampleTimes(document, shape))
+            {
+                BattleActionTimelineTransform transform = EvaluateShapeTransform(
+                    document,
+                    shape,
+                    localTime);
+                maximum = Math.Max(
+                    maximum,
+                    CalculateShapeHorizontalRange(shapeTable, shape, transform));
+            }
+
+            if (!BattleActionTimelineTime.IsFinite(maximum))
+            {
+                error = "首个 Shape 的尺寸或变换包含无效数值，无法自动计算攻击距离。";
+                return false;
+            }
+
+            attackRange = Math.Max(0d, maximum);
+            int shapeIndex = BattleActionTimelineSchema.GetInt(
+                shapeTable,
+                shape,
+                0,
+                "shapeIndex");
+            description = "步骤 " +
+                (BattleActionTimelineSchema.GetStepIndex(stepTable, firstStep) + 1).ToString(
+                    CultureInfo.InvariantCulture) +
+                " / Shape " +
+                (shapeIndex + 1).ToString(CultureInfo.InvariantCulture) +
+                "（攻击体 " + resolved.Body.rowId.ToString(CultureInfo.InvariantCulture) + "）";
+            return true;
+        }
+
+        private static IEnumerable<double> GetShapeRangeSampleTimes(
+            BattleActionTimelineDocument document,
+            BattleActionTimelineRecordData shape)
+        {
+            SortedSet<double> anchors = new SortedSet<double> { 0d };
+            BattleActionTimelineTableData keyframeTable = document.tables.FirstOrDefault(table =>
+                BattleActionTimelineSchema.IsKeyframeTable(table) &&
+                (table.sheetName.IndexOf("ShapeTransformKeyframe", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 table.sheetName.IndexOf("AttackShape", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (keyframeTable != null)
+            {
+                int ownerColumn = BattleActionTimelineSchema.FindKeyframeOwnerColumn(keyframeTable);
+                if (ownerColumn >= 0)
+                {
+                    foreach (BattleActionTimelineRecordData keyframe in keyframeTable.records)
+                    {
+                        if (BattleActionTimelineSchema.GetInt(
+                                keyframeTable,
+                                keyframe,
+                                0,
+                                "shapeId") != shape.rowId)
+                        {
+                            continue;
+                        }
+
+                        double localTime = BattleActionTimelineSchema.GetDouble(
+                            keyframeTable,
+                            keyframe,
+                            0d,
+                            BattleActionTimelineSchema.LocalTimeAliases);
+                        if (BattleActionTimelineTime.IsFinite(localTime) && localTime >= 0d)
+                        {
+                            anchors.Add(localTime);
+                        }
+                    }
+                }
+            }
+
+            List<double> ordered = anchors.ToList();
+            if (ordered.Count <= 1)
+            {
+                return ordered;
+            }
+
+            // 关键帧之间可能通过旋转、缩放和曲线形成更大的水平边界；增加采样点，避免只看端点漏算。
+            List<double> samples = new List<double>();
+            for (int index = 0; index < ordered.Count - 1; index++)
+            {
+                double start = ordered[index];
+                double end = ordered[index + 1];
+                const int subdivisions = 16;
+                for (int sample = 0; sample < subdivisions; sample++)
+                {
+                    samples.Add(start + (end - start) * sample / subdivisions);
+                }
+            }
+
+            samples.Add(ordered[ordered.Count - 1]);
+            return samples;
+        }
+
+        private static double CalculateShapeHorizontalRange(
+            BattleActionTimelineTableData shapeTable,
+            BattleActionTimelineRecordData shape,
+            BattleActionTimelineTransform transform)
+        {
+            Vector2 localOffset = new Vector2(
+                (float)BattleActionTimelineSchema.GetDouble(
+                    shapeTable,
+                    shape,
+                    0d,
+                    "offsetX",
+                    "localOffsetX"),
+                (float)BattleActionTimelineSchema.GetDouble(
+                    shapeTable,
+                    shape,
+                    0d,
+                    "offsetY",
+                    "localOffsetY"));
+            Vector2 center = transform.Offset + Rotate(
+                Vector2.Scale(localOffset, transform.Scale),
+                transform.RotationDegrees);
+            string type = BattleActionTimelineSchema.Get(shapeTable, shape, "shapeType");
+            bool circle = type.IndexOf("Circle", StringComparison.OrdinalIgnoreCase) >= 0 || type == "1";
+            double absoluteScaleX = Math.Abs(transform.Scale.x);
+            double absoluteScaleY = Math.Abs(transform.Scale.y);
+            double halfExtentX;
+            if (circle)
+            {
+                double radius = BattleActionTimelineSchema.GetDouble(
+                    shapeTable,
+                    shape,
+                    0d,
+                    "radius");
+                halfExtentX = Math.Abs(radius) * Math.Max(absoluteScaleX, absoluteScaleY);
+            }
+            else
+            {
+                double width = BattleActionTimelineSchema.GetDouble(
+                    shapeTable,
+                    shape,
+                    0d,
+                    "width",
+                    "sizeX");
+                double height = BattleActionTimelineSchema.GetDouble(
+                    shapeTable,
+                    shape,
+                    0d,
+                    "height",
+                    "sizeY");
+                double rotation =
+                    BattleActionTimelineSchema.GetDouble(
+                        shapeTable,
+                        shape,
+                        0d,
+                        "rotationDegrees",
+                        "localRotationDegrees") +
+                    transform.RotationDegrees;
+                double radians = rotation * Math.PI / 180d;
+                halfExtentX =
+                    Math.Abs(Math.Cos(radians)) * Math.Abs(width * absoluteScaleX) * 0.5d +
+                    Math.Abs(Math.Sin(radians)) * Math.Abs(height * absoluteScaleY) * 0.5d;
+            }
+
+            return Math.Abs(center.x) + halfExtentX;
+        }
+
         /// <summary>
         /// 解析步骤。
         /// </summary>
