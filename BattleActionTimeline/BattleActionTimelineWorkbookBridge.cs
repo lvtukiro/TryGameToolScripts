@@ -918,6 +918,9 @@ namespace Game.EditorTools
                 normalized == "battledamageeffect" ||
                 normalized == "battlehitreactioneffect" ||
                 normalized == "battlepersistenteffect" ||
+                normalized == "battlehealthskillcost" ||
+                normalized == "battlemanaskillcost" ||
+                normalized == "battleresourceskillcost" ||
                 normalized == "battleskill")
             {
                 return true;

@@ -62,6 +62,8 @@ namespace Game.EditorTools
             public int filterActionType;
             public int filterSkillId;
             public bool filterApplied;
+            public int skillSettingsId;
+            public int skillSettingsContextSingleId;
             public float previewHeight = 1.18f;
             public float previewZoom = 1f;
         }
@@ -82,6 +84,8 @@ namespace Game.EditorTools
             public int facing;
             public int sequencePreviewActionId;
             public int explicitSingleSkillId;
+            public int skillSettingsId;
+            public int skillSettingsContextSingleId;
             public double playheadSeconds;
             public string workbookPath;
             public string workbookHash;
@@ -122,6 +126,8 @@ namespace Game.EditorTools
         private const float LaneHeight = 42f;
         private const int InspectorSplitterControlHint = 0x42A18;
         private const int TimelineSplitterControlHint = 0x42A19;
+        private const int SkillSettingsSplitterControlHint = 0x42A1A;
+        private const float MinimumSkillSettingsWidth = 260f;
         private const string DraftKeyPrefix =
             "TryGame.BattleActionTimeline.Draft.";
 
@@ -130,6 +136,10 @@ namespace Game.EditorTools
         private readonly List<string> validationIssues = new List<string>();
         private Vector2 inspectorScroll;
         private Vector2 issueScroll;
+        private Vector2 skillSettingsScroll;
+        [SerializeField] private bool showSkillSettings = true;
+        [SerializeField] private float skillSettingsWidth = 320f;
+        private float SkillSettingsReservedWidth => showSkillSettings ? skillSettingsWidth + SplitterWidth : 0f;
         private string status = "尚未读取正式动作源表。";
         private bool draftRestored;
         private bool draftSaveQueued;
@@ -311,9 +321,13 @@ namespace Game.EditorTools
             }
             authoringState.previewZoom = Mathf.Clamp(authoringState.previewZoom, 0.5f, 3f);
 
+            skillSettingsWidth = Mathf.Clamp(
+                BattleActionTimelineTime.IsFinite(skillSettingsWidth) ? skillSettingsWidth : 320f,
+                MinimumSkillSettingsWidth,
+                Mathf.Max(MinimumSkillSettingsWidth, position.width - MinimumInspectorWidth - MinimumTimelineWidth - SplitterWidth * 2f));
             float maximumInspectorWidth = Mathf.Max(
                 MinimumInspectorWidth,
-                position.width - MinimumTimelineWidth - SplitterWidth);
+                position.width - MinimumTimelineWidth - SplitterWidth - SkillSettingsReservedWidth);
             if (!BattleActionTimelineTime.IsFinite(inspectorWidth) ||
                 inspectorWidth <= 0f)
             {
@@ -416,7 +430,7 @@ namespace Game.EditorTools
             Rect content = new Rect(
                 inspectorWidth + SplitterWidth,
                 body.y + 6f,
-                Mathf.Max(200f, body.width - inspectorWidth - SplitterWidth - 6f),
+                Mathf.Max(200f, body.width - inspectorWidth - SplitterWidth - 6f - SkillSettingsReservedWidth),
                 Mathf.Max(200f, body.height - 12f));
             DrawTimelineAndPreview(content);
 
@@ -426,6 +440,15 @@ namespace Game.EditorTools
                 SplitterWidth,
                 body.height);
             DrawInspectorSplitter(splitter);
+            if (showSkillSettings)
+            {
+                Rect skillSplitter = new Rect(body.xMax - skillSettingsWidth - SplitterWidth,
+                    body.y, SplitterWidth, body.height);
+                DrawSkillSettingsSplitter(skillSplitter);
+                GUILayout.BeginArea(new Rect(body.xMax - skillSettingsWidth, body.y, skillSettingsWidth, body.height));
+                DrawSkillSettingsArea();
+                GUILayout.EndArea();
+            }
         }
 
         private void DrawInspectorSplitter(Rect splitter)
@@ -478,7 +501,7 @@ namespace Game.EditorTools
         {
             float maximumInspectorWidth = Mathf.Max(
                 MinimumInspectorWidth,
-                position.width - MinimumTimelineWidth - SplitterWidth);
+                position.width - MinimumTimelineWidth - SplitterWidth - SkillSettingsReservedWidth);
             inspectorWidth = Mathf.Clamp(
                 value,
                 MinimumInspectorWidth,
@@ -513,6 +536,7 @@ namespace Game.EditorTools
             }
 
             GUILayout.Space(8f);
+            showSkillSettings = GUILayout.Toggle(showSkillSettings, "技能数值", EditorStyles.toolbarButton, GUILayout.Width(66f));
             if (GUILayout.Button("撤销", EditorStyles.toolbarButton, GUILayout.Width(44f)))
             {
                 QueueUndoRedo(false);
@@ -605,8 +629,261 @@ namespace Game.EditorTools
             EditorGUILayout.EndScrollView();
         }
         /// <summary>
-        /// 绘制等待用于结构。
+        /// 拖动技能数值栏的宽度，不改变技能数据。
         /// </summary>
+
+        private void DrawSkillSettingsSplitter(Rect splitter)
+        {
+            EditorGUIUtility.AddCursorRect(splitter, MouseCursor.ResizeHorizontal);
+            EditorGUI.DrawRect(splitter, new Color(0.20f, 0.23f, 0.27f, 1f));
+            Event current = Event.current;
+            if (current.type == EventType.MouseDown && current.button == 0 && splitter.Contains(current.mousePosition))
+            {
+                GUIUtility.hotControl = SkillSettingsSplitterControlHint;
+                current.Use();
+            }
+            if (GUIUtility.hotControl != SkillSettingsSplitterControlHint) return;
+            if (current.type == EventType.MouseDrag)
+            {
+                skillSettingsWidth = Mathf.Clamp(position.width - current.mousePosition.x - SplitterWidth * 0.5f,
+                    MinimumSkillSettingsWidth, Mathf.Max(MinimumSkillSettingsWidth,
+                        position.width - inspectorWidth - MinimumTimelineWidth - SplitterWidth * 2f));
+                current.Use();
+                Repaint();
+            }
+            else if (current.type == EventType.MouseUp || current.type == EventType.Ignore)
+            {
+                GUIUtility.hotControl = 0;
+                current.Use();
+            }
+        }
+
+        private void SelectSkillSettings(int skillId)
+        {
+            Undo.RecordObject(authoringState, "选择技能数值编辑对象");
+            authoringState.skillSettingsId = Math.Max(0, skillId);
+            QueueDraftSave();
+            Repaint();
+        }
+
+        private void DrawSkillSettingsArea()
+        {
+            float previousLabelWidth = EditorGUIUtility.labelWidth;
+            EditorGUIUtility.labelWidth = 130f;
+            skillSettingsScroll = EditorGUILayout.BeginScrollView(skillSettingsScroll);
+            EditorGUILayout.LabelField("技能数值", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("与左侧动作、步骤共用草稿和安全写回。", EditorStyles.wordWrappedMiniLabel);
+            int singleId = TryGetSelectedAction(Document, out _, out var selectedAction) ? selectedAction.rowId : 0;
+            if (authoringState.skillSettingsContextSingleId != singleId)
+            {
+                authoringState.skillSettingsContextSingleId = singleId;
+                authoringState.skillSettingsId = singleId > 0
+                    ? BattleActionTimelineSkillSettings.ResolveDefaultSkillId(Document, singleId,
+                        authoringState.filterApplied ? authoringState.filterSkillId : 0) : 0;
+            }
+            int skillId = EditorGUILayout.DelayedIntField(
+                new GUIContent("数值技能 ID", "BattleSkill.id；可直接编辑连招或多装备入口的 CD，不必切换预览动画。"), authoringState.skillSettingsId);
+            if (skillId != authoringState.skillSettingsId) SelectSkillSettings(skillId);
+            if (authoringState.filterSkillId > 0 && GUILayout.Button("使用上方填写的技能 ID " + authoringState.filterSkillId))
+                SelectSkillSettings(authoringState.filterSkillId);
+
+            if (singleId > 0)
+            {
+                int[] direct = BattleActionTimelineSkillSettings.DirectSkillIds(Document, singleId);
+                int[] related = BattleActionTimelineSkillSettings.RelatedSkillIds(Document, singleId);
+                EditorGUILayout.Space(4f);
+                EditorGUILayout.LabelField("当前动作段关联技能（点击定位数值）", EditorStyles.wordWrappedMiniLabel);
+                foreach (int id in related)
+                {
+                    var table = Document.FindTable("BattleSkill");
+                    var row = Document.FindRecord("BattleSkill", id);
+                    string label = (direct.Contains(id) ? "本段 " : "关联入口 ") + id + " · " +
+                        BattleActionTimelineSchema.Get(table, row, "codeName");
+                    if (GUILayout.Toggle(authoringState.skillSettingsId == id, label, EditorStyles.miniButton) && authoringState.skillSettingsId != id)
+                        SelectSkillSettings(id);
+                }
+                if (direct.Length > 1 && authoringState.skillSettingsId == 0)
+                    EditorGUILayout.HelpBox("该动作段被多个技能引用，请点击上面的技能明确编辑对象；不会自动改第一条。", MessageType.Info);
+            }
+
+            var edited = Document.Clone();
+            var skills = edited.FindTable("BattleSkill");
+            var skill = edited.FindRecord("BattleSkill", authoringState.skillSettingsId);
+            EditorGUI.BeginChangeCheck();
+            if (skill != null)
+            {
+                EditorGUILayout.Space(6f);
+                EditorGUILayout.LabelField("技能本体 · BattleSkill / " + skill.rowId, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(BattleActionTimelineSchema.Get(skills, skill, "codeName"), EditorStyles.wordWrappedLabel);
+                EditorGUILayout.LabelField("类型 / 引用", BattleActionTimelineSchema.Get(skills, skill, "skillType") + " / " +
+                    BattleActionTimelineSchema.Get(skills, skill, "targetId"));
+                DrawSkillNumber(skills, skill, "基础 CD（秒）", "baseCooldownSeconds",
+                    "0 表示无基础冷却。实际冷却按战斗中的修正计算；当前执行器在根技能执行结束时启动 CD。");
+                EditorGUILayout.HelpBox("CD 属于这里显示的 BattleSkill。连招／多装备从哪个入口释放，就改那个入口的 CD；改子段不会替代入口 CD。", MessageType.Info);
+                if (BattleActionTimelineSchema.FindColumn(skills, "targetType") >= 0)
+                {
+                    string raw = BattleActionTimelineSchema.Get(skills, skill, "targetType");
+                    Enum.TryParse(raw, true, out RefData.EnumBattleSkillTargetType target);
+                    int index = target == RefData.EnumBattleSkillTargetType.Self ? 0 : target == RefData.EnumBattleSkillTargetType.Friendly ? 1 : target == RefData.EnumBattleSkillTargetType.Enemy ? 2 : -1;
+                    int next = EditorGUILayout.Popup(new GUIContent("目标阵营", "对应本条 BattleSkill.targetType；不修改形状、伤害或防御类型。"), index,
+                        new[] { "自身 Self", "友方 Friendly", "敌方 Enemy" });
+                    if (next != index && next >= 0) BattleActionTimelineSchema.Set(skills, skill,
+                        new[] { "Self", "Friendly", "Enemy" }[next], "targetType");
+                }
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(authoringState.skillSettingsId > 0 ? "未找到该 BattleSkill ID，请核对后填写。" :
+                    "填写技能 ID 或加载动作。没有技能绑定的待机／移动动画没有 CD。", MessageType.Info);
+            }
+
+            // 有预览时始终编辑当前动作段；无预览时仅允许从明确的 ActiveSingle 目标定位。
+            var actionTable = edited.FindTable(authoringState.selectedActionSheet);
+            var action = singleId > 0 ? edited.FindRecord(authoringState.selectedActionSheet, singleId) : null;
+            if (singleId > 0 && skill != null && !BattleActionTimelineSkillSettings.RelatedSkillIds(edited, singleId).Contains(skill.rowId))
+            {
+                action = null;
+                EditorGUILayout.HelpBox("此技能不引用当前预览动作，下方动作段数值已隐藏。请先加载对应的技能动作再调整动作段。", MessageType.Warning);
+            }
+            if (singleId == 0 && skill != null && Enum.TryParse(BattleActionTimelineSchema.Get(skills, skill, "skillType"), true,
+                    out RefData.EnumBattleSkillType type) && type == RefData.EnumBattleSkillType.ActiveSingle)
+            {
+                actionTable = edited.FindTable("BattleActiveSingleSkill");
+                action = edited.FindRecord("BattleActiveSingleSkill", BattleActionTimelineSchema.GetInt(skills, skill, 0, "targetId"));
+            }
+            if (action != null)
+            {
+                EditorGUILayout.Space(12f);
+                EditorGUILayout.LabelField("动作段数值 · ActiveSingle / " + action.rowId, EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("下列参数属于此动作段，不是上方入口技能。", EditorStyles.wordWrappedMiniLabel);
+                DrawSkillNumber(actionTable, action, "架势增量", "stanceGain", "此动作命中时增加目标的架势值；攻击体交互时也参与现有架势结算。必须大于等于 0。");
+                DrawSkillAllowedStates(actionTable, action);
+                DrawSkillCosts(edited, actionTable, action);
+            }
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RegisterCompleteObjectUndo(authoringState, "编辑技能数值");
+                Document = edited;
+                OnAuthoringChanged();
+            }
+            EditorGUILayout.Space(8f);
+            EditorGUILayout.HelpBox("修改后点击顶部“安全写回源 xlsx”，再在 Unity 正式导出 r.机器人表。此面板不直接修改生成数据。", MessageType.None);
+            EditorGUILayout.EndScrollView();
+            EditorGUIUtility.labelWidth = previousLabelWidth;
+        }
+
+        private static void DrawSkillNumber(BattleActionTimelineTableData table, BattleActionTimelineRecordData row,
+            string label, string field, string tooltip)
+        {
+            if (BattleActionTimelineSchema.FindColumn(table, field) < 0) return;
+            string raw = BattleActionTimelineSchema.Get(table, row, field);
+            double old = string.IsNullOrWhiteSpace(raw) ? 0d : BattleActionTimelineSchema.GetDouble(table, row, double.NaN, field);
+            double value = EditorGUILayout.DoubleField(new GUIContent(label, tooltip), old);
+            if (!value.Equals(old)) BattleActionTimelineSchema.SetDouble(table, row, value, field);
+            if (!BattleActionTimelineSkillSettings.IsNonNegativeFloat(value))
+                EditorGUILayout.HelpBox(label + "必须是大于等于 0 的有限 float 数值；修正前不能写回。", MessageType.Error);
+        }
+
+        private static void DrawSkillAllowedStates(BattleActionTimelineTableData table, BattleActionTimelineRecordData row)
+        {
+            if (BattleActionTimelineSchema.FindColumn(table, "allowedMovementStates") < 0) return;
+            bool valid = BattleActionTimelineSkillSettings.TryReadMovementStates(
+                BattleActionTimelineSchema.Get(table, row, "allowedMovementStates"), out bool grounded, out bool airborne);
+            EditorGUILayout.LabelField("允许释放状态", EditorStyles.miniBoldLabel);
+            bool ground = EditorGUILayout.Toggle("地面", grounded);
+            bool air = EditorGUILayout.Toggle("空中", airborne);
+            if (ground != grounded || air != airborne)
+                BattleActionTimelineSchema.Set(table, row, BattleActionTimelineSkillSettings.SerializeMovementStates(ground, air), "allowedMovementStates");
+            if ((!ground && !air) || !valid && ground == grounded && air == airborne)
+                EditorGUILayout.HelpBox("至少允许地面或空中一种状态；无效状态或重复项需要修正后写回。", MessageType.Error);
+        }
+
+        private void DrawSkillCosts(BattleActionTimelineDocument edited, BattleActionTimelineTableData table, BattleActionTimelineRecordData row)
+        {
+            if (BattleActionTimelineSchema.FindColumn(table, "costs") < 0) return;
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("释放消耗（当前动作段）", EditorStyles.miniBoldLabel);
+            if (!BattleActionTimelineInlineStructCodec.TryParse(BattleActionTimelineSchema.Get(table, row, "costs"), out var costs, out string error))
+            { EditorGUILayout.HelpBox("消耗解析失败，未覆盖原始数据：" + error, MessageType.Error); return; }
+            bool changed = false;
+            var removedCosts = new List<(RefData.EnumBattleSkillCostType Type, int Id)>();
+            for (int i = 0; i < costs.Count; i++)
+            {
+                var cost = costs[i];
+                BattleActionTimelineSkillSettings.TryReadCost(cost, out var type, out int id);
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("消耗 " + (i + 1), EditorStyles.miniBoldLabel);
+                bool remove = GUILayout.Button("移除", GUILayout.Width(48f));
+                EditorGUILayout.EndHorizontal();
+                string[] costLabels = type == RefData.EnumBattleSkillCostType.Item
+                    ? new[] { "生命 Health", "法力 Mana", "资源 Resource", "物品 Item（未接入）" }
+                    : new[] { "生命 Health", "法力 Mana", "资源 Resource" };
+                var nextType = (RefData.EnumBattleSkillCostType)EditorGUILayout.Popup("类型", (int)type, costLabels);
+                int nextId = EditorGUILayout.DelayedIntField("消耗配置 ID", id);
+                if (type != nextType || id != nextId)
+                {
+                    removedCosts.Add((type, id));
+                    cost["CostType"] = nextType.ToString();
+                    cost["CostId"] = nextId.ToString(CultureInfo.InvariantCulture);
+                    changed = true;
+                    type = nextType;
+                    id = nextId;
+                }
+                string sheet = BattleActionTimelineSkillSettings.CostSheet(type);
+                var costTable = edited.FindTable(sheet);
+                var costRow = edited.FindRecord(sheet, id);
+                if (type == RefData.EnumBattleSkillCostType.Item)
+                    EditorGUILayout.HelpBox("Item 为保留类型，战斗尚未接入物品消耗事务，暂不支持新增或调整数值。", MessageType.Warning);
+                else if (costRow == null)
+                    EditorGUILayout.HelpBox("未找到 " + sheet + "/" + id + "，请填入已有 ID，或移除后用下方按钮新增独立消耗。", MessageType.Warning);
+                else
+                {
+                    int count = BattleActionTimelineSkillSettings.CostReferenceCount(edited, type, id);
+                    if (count > 1) EditorGUILayout.HelpBox("共享消耗：被 " + count + " 个动作段引用，修改数量会影响这些动作段。", MessageType.Warning);
+                    DrawSkillNumber(costTable, costRow, "消耗数量", "amount", "修改对应消耗配置表的 amount。");
+                    if (type == RefData.EnumBattleSkillCostType.Resource)
+                    {
+                        int resource = BattleActionTimelineSchema.GetInt(costTable, costRow, 0, "resourceId");
+                        int next = EditorGUILayout.DelayedIntField("资源 ID", resource);
+                        if (resource != next) BattleActionTimelineSchema.Set(costTable, costRow, next.ToString(CultureInfo.InvariantCulture), "resourceId");
+                    }
+                }
+                EditorGUILayout.EndVertical();
+                if (remove)
+                {
+                    removedCosts.Add((type, id));
+                    costs.RemoveAt(i--);
+                    changed = true;
+                    GUI.changed = true;
+                }
+            }
+            foreach (var type in new[] { RefData.EnumBattleSkillCostType.Health, RefData.EnumBattleSkillCostType.Mana, RefData.EnumBattleSkillCostType.Resource })
+            {
+                var costTable = edited.FindTable(BattleActionTimelineSkillSettings.CostSheet(type));
+                using (new EditorGUI.DisabledScope(costTable == null))
+                {
+                    string label = type == RefData.EnumBattleSkillCostType.Health ? "生命" : type == RefData.EnumBattleSkillCostType.Mana ? "法力" : "资源";
+                    if (!GUILayout.Button("+ 新增独立" + label + "消耗")) continue;
+                    try
+                    {
+                        int id = costTable.AllocateRowId();
+                        var created = new BattleActionTimelineRecordData { rowId = id, cells = Enumerable.Repeat(string.Empty, costTable.headers.Length).ToArray() };
+                        BattleActionTimelineSchema.Set(costTable, created, id.ToString(CultureInfo.InvariantCulture), "id");
+                        BattleActionTimelineSchema.SetDouble(costTable, created, 0d, "amount");
+                        if (type == RefData.EnumBattleSkillCostType.Resource) BattleActionTimelineSchema.Set(costTable, created, "0", "resourceId");
+                        costTable.records.Add(created);
+                        costs.Add(new Dictionary<string, string> { { "CostType", type.ToString() }, { "CostId", id.ToString(CultureInfo.InvariantCulture) } });
+                        changed = true;
+                        GUI.changed = true;
+                    }
+                    catch (InvalidOperationException exception) { ShowNotification(new GUIContent(exception.Message)); }
+                }
+            }
+            if (changed) BattleActionTimelineSchema.Set(table, row, BattleActionTimelineSkillSettings.SerializeCosts(costs), "costs");
+            foreach (var removed in removedCosts) BattleActionTimelineSkillSettings.RemoveUnusedDraftCost(edited, removed.Type, removed.Id);
+            if (costs.Count == 0) EditorGUILayout.LabelField("无额外消耗", EditorStyles.miniLabel);
+        }
 
         private void DrawWaitingForStructure()
         {
@@ -5014,6 +5291,8 @@ namespace Game.EditorTools
                 facing = authoringState.facing,
                 sequencePreviewActionId = authoringState.sequencePreviewActionId,
                 explicitSingleSkillId = authoringState.explicitSingleSkillId,
+                skillSettingsId = authoringState.skillSettingsId,
+                skillSettingsContextSingleId = authoringState.skillSettingsContextSingleId,
                 playheadSeconds = playheadSeconds,
                 workbookPath = workbookSnapshot?.WorkbookPath ?? authoringState.sourceWorkbookPath,
                 workbookHash = workbookSnapshot?.ContentHash ?? authoringState.sourceWorkbookHash,
@@ -5059,6 +5338,8 @@ namespace Game.EditorTools
                 authoringState.selectedStepRowId = envelope.selectedStepRowId;
                 authoringState.selectedSharedSheet = envelope.selectedSharedSheet ?? string.Empty;
                 authoringState.selectedSharedRowId = envelope.selectedSharedRowId;
+                authoringState.skillSettingsId = envelope.skillSettingsId;
+                authoringState.skillSettingsContextSingleId = envelope.skillSettingsContextSingleId;
                 // 旧草稿只有单段定位；一次性迁移到动作输入，不再任取工作簿第一行。
                 authoringState.sequencePreviewActionId = envelope.sequencePreviewActionId > 0
                     ? envelope.sequencePreviewActionId : CurrentEditedActionAnimationId();
@@ -5098,6 +5379,18 @@ namespace Game.EditorTools
                 return;
             }
             workbookSnapshot = current;
+            // 此次新增了消耗表的编辑能力。仅在源 hash 已验证后补入旧窗口未加载的表，保留已有动作草稿。
+            bool addedCostTables = false;
+            foreach (string sheet in new[] { "BattleHealthSkillCost", "BattleManaSkillCost", "BattleResourceSkillCost" })
+            {
+                if (Document.FindTable(sheet) != null || !current.Tables.TryGetValue(sheet, out var source)) continue;
+                var table = new BattleActionTimelineTableData { sheetName = sheet, headers = (string[])source.Headers.Clone() };
+                table.SetSourceRowIds(source.Records.Select(row => row.RowId));
+                table.records.AddRange(source.Records.Select(row => new BattleActionTimelineRecordData { rowId = row.RowId, cells = (string[])row.Cells.Clone() }));
+                Document.tables.Add(table);
+                addedCostTables = true;
+            }
+            if (addedCostTables) authoringState.baselineSignature = BattleActionTimelineDocument.FromSnapshot(current).CanonicalSignature();
             Document.RestoreSourceRowIdBaselines(current);
             authoringState.sourceWorkbookPath = current.WorkbookPath;
             authoringState.sourceWorkbookHash = current.ContentHash;

@@ -1220,6 +1220,12 @@ namespace Game.EditorTools
                     required.Add("SkillRuntimes");
                     provided.Add("UsableSkill");
                     break;
+                case BattleAiConditionType.TargetAttackThreat:
+                    required.Add("TargetAttack");
+                    required.Add("TargetDistance");
+                    required.Add("TargetInSight");
+                    provided.Add("UnansweredAttackThreat");
+                    break;
                 default:
                     required.Add("ConditionContext");
                     provided.Add("ConditionResult");

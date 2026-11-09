@@ -1898,6 +1898,187 @@ namespace Game.EditorTools
         }
     }
 
+    /// <summary>技能数值面板的引用解析、消耗序列化和校验；不改变运行时技能结构。</summary>
+    internal static class BattleActionTimelineSkillSettings
+    {
+        public static int[] DirectSkillIds(BattleActionTimelineDocument document, int singleId)
+        {
+            var table = document?.FindTable("BattleSkill");
+            return (table?.records ?? new List<BattleActionTimelineRecordData>()).Where(row =>
+                SkillType(table, row) == RefData.EnumBattleSkillType.ActiveSingle &&
+                BattleActionTimelineSchema.GetInt(table, row, 0, "targetId") == singleId)
+                .Select(row => row.rowId).OrderBy(id => id).ToArray();
+        }
+
+        // ID 只在各自的表内唯一，不能将 targetId 直接当成 BattleSkill.id。
+        public static int[] RelatedSkillIds(BattleActionTimelineDocument document, int singleId)
+        {
+            var table = document?.FindTable("BattleSkill");
+            var related = new HashSet<int>(DirectSkillIds(document, singleId));
+            bool added;
+            do
+            {
+                added = false;
+                foreach (var row in (table?.records ?? new List<BattleActionTimelineRecordData>()).Where(value => value != null))
+                {
+                    if (related.Contains(row.rowId)) continue;
+                    int target = BattleActionTimelineSchema.GetInt(table, row, 0, "targetId");
+                    var type = SkillType(table, row);
+                    if (type == RefData.EnumBattleSkillType.ActiveMulti)
+                    {
+                        var multi = document.FindTable("BattleActiveMultiSkill");
+                        var entry = document.FindRecord("BattleActiveMultiSkill", target);
+                        if (entry != null && new[] { "groundStageSkillIds", "airStageSkillIds" }.Any(field =>
+                            ParseIds(BattleActionTimelineSchema.Get(multi, entry, field)).Any(related.Contains)))
+                            added |= related.Add(row.rowId);
+                    }
+                    else if (type == RefData.EnumBattleSkillType.MultiEquipment)
+                    {
+                        var mapping = document.FindTable("BattleSkillMultiEquipment");
+                        var entry = document.FindRecord("BattleSkillMultiEquipment", target);
+                        if (entry != null && BattleActionTimelineInlineStructCodec.TryParse(
+                            BattleActionTimelineSchema.Get(mapping, entry, "entries"), out var values, out _) &&
+                            values.Any(value => value.TryGetValue("ResolvedSkillId", out string id) &&
+                                int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out int child) && related.Contains(child)))
+                            added |= related.Add(row.rowId);
+                    }
+                }
+            } while (added);
+            return related.OrderBy(id => id).ToArray();
+        }
+
+        public static int ResolveDefaultSkillId(BattleActionTimelineDocument document, int singleId, int preferredId)
+        {
+            if (preferredId > 0 && RelatedSkillIds(document, singleId).Contains(preferredId)) return preferredId;
+            int[] direct = DirectSkillIds(document, singleId);
+            return direct.Length == 1 ? direct[0] : 0;
+        }
+
+        private static RefData.EnumBattleSkillType SkillType(BattleActionTimelineTableData table, BattleActionTimelineRecordData row) =>
+            Enum.TryParse(BattleActionTimelineSchema.Get(table, row, "skillType"), true,
+                out RefData.EnumBattleSkillType type) ? type : RefData.EnumBattleSkillType.Invalid;
+
+        private static IEnumerable<int> ParseIds(string text) => (text ?? string.Empty).Trim().Trim('[', ']')
+            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(value => int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) ? id : 0)
+            .Where(id => id > 0);
+
+        public static string CostSheet(RefData.EnumBattleSkillCostType type) =>
+            type == RefData.EnumBattleSkillCostType.Health ? "BattleHealthSkillCost" :
+            type == RefData.EnumBattleSkillCostType.Mana ? "BattleManaSkillCost" :
+            type == RefData.EnumBattleSkillCostType.Resource ? "BattleResourceSkillCost" : string.Empty;
+
+        public static string SerializeCosts(IEnumerable<Dictionary<string, string>> costs) =>
+            BattleActionTimelineInlineStructCodec.Serialize(new[]
+            {
+                new BattleActionTimelineInlineFieldData { headerName = "costType", serializedName = "CostType" },
+                new BattleActionTimelineInlineFieldData { headerName = "costId", serializedName = "CostId" },
+            }, costs.Select(value => new BattleActionTimelineRecordData { cells = new[]
+            {
+                "0", "0", value.TryGetValue("CostType", out string type) ? type : "Health",
+                value.TryGetValue("CostId", out string id) ? id : "0",
+            }}));
+
+        public static void RemoveUnusedDraftCost(BattleActionTimelineDocument document, RefData.EnumBattleSkillCostType type, int id)
+        {
+            var table = document.FindTable(CostSheet(type));
+            // 只清理本次草稿新建且已经没有引用的行；正式源表中的记录绝不随“移除引用”删除。
+            if (table == null || !table.hasSourceRowIdBaseline || table.sourceRowIds.Contains(id) ||
+                CostReferenceCount(document, type, id) > 0) return;
+            table.records.RemoveAll(row => row.rowId == id);
+        }
+
+        public static int CostReferenceCount(BattleActionTimelineDocument document, RefData.EnumBattleSkillCostType type, int id) =>
+            document.ActionTables().Sum(table => table.records.Count(row =>
+                BattleActionTimelineInlineStructCodec.TryParse(BattleActionTimelineSchema.Get(table, row, "costs"), out var costs, out _) &&
+                costs.Any(value => TryReadCost(value, out var costType, out int costId) && costType == type && costId == id)));
+
+        public static bool TryReadCost(Dictionary<string, string> value, out RefData.EnumBattleSkillCostType type, out int id)
+        {
+            type = RefData.EnumBattleSkillCostType.Health;
+            id = 0;
+            return value.TryGetValue("CostType", out string rawType) && Enum.TryParse(rawType, true, out type) &&
+                Enum.IsDefined(typeof(RefData.EnumBattleSkillCostType), type) && value.TryGetValue("CostId", out string rawId) &&
+                int.TryParse(rawId, NumberStyles.Integer, CultureInfo.InvariantCulture, out id) && id > 0;
+        }
+
+        public static bool TryReadMovementStates(string source, out bool grounded, out bool airborne)
+        {
+            grounded = airborne = false;
+            string text = (source ?? string.Empty).Trim();
+            bool start = text.StartsWith("[", StringComparison.Ordinal), end = text.EndsWith("]", StringComparison.Ordinal);
+            if (start != end) return false;
+            if (start) text = text.Substring(1, text.Length - 2);
+            foreach (string token in text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!Enum.TryParse(token.Trim(), true, out RefData.EnumBattleActionMovementState state) ||
+                    !Enum.IsDefined(typeof(RefData.EnumBattleActionMovementState), state)) return false;
+                if (state == RefData.EnumBattleActionMovementState.Grounded) { if (grounded) return false; grounded = true; }
+                else { if (airborne) return false; airborne = true; }
+            }
+            return grounded || airborne;
+        }
+
+        // cltabtoy 的基础类型数组使用逗号分隔，不是结构体数组的 JSON 方括号语法。
+        public static string SerializeMovementStates(bool grounded, bool airborne) =>
+            string.Join(",", new[] { grounded ? "Grounded" : null, airborne ? "Airborne" : null }.Where(value => value != null));
+
+        public static bool IsNonNegativeFloat(double value) =>
+            BattleActionTimelineTime.IsFinite(value) && value >= 0d && value <= float.MaxValue;
+
+        public static void Validate(BattleActionTimelineDocument document, IList<string> issues)
+        {
+            var skills = document.FindTable("BattleSkill");
+            foreach (var row in (skills?.records ?? new List<BattleActionTimelineRecordData>()).Where(value => value != null))
+            {
+                ValidateNumber(skills, row, "baseCooldownSeconds", issues);
+                if (BattleActionTimelineSchema.FindColumn(skills, "targetType") >= 0 &&
+                    (!Enum.TryParse(BattleActionTimelineSchema.Get(skills, row, "targetType"), true,
+                        out RefData.EnumBattleSkillTargetType target) || target == RefData.EnumBattleSkillTargetType.Invalid ||
+                        !Enum.IsDefined(typeof(RefData.EnumBattleSkillTargetType), target)))
+                    issues.Add($"BattleSkill {row.rowId} 的 targetType 必须是 Self、Friendly 或 Enemy。");
+            }
+            foreach (var table in document.ActionTables())
+            foreach (var row in table.records.Where(value => value != null))
+            {
+                ValidateNumber(table, row, "stanceGain", issues);
+                if (BattleActionTimelineSchema.FindColumn(table, "allowedMovementStates") >= 0 &&
+                    !TryReadMovementStates(BattleActionTimelineSchema.Get(table, row, "allowedMovementStates"), out _, out _))
+                    issues.Add($"ActiveSingle {row.rowId} 的释放状态必须至少选择地面或空中，且不可重复。");
+                if (BattleActionTimelineSchema.FindColumn(table, "costs") < 0) continue;
+                if (!BattleActionTimelineInlineStructCodec.TryParse(BattleActionTimelineSchema.Get(table, row, "costs"), out var costs, out string error))
+                { issues.Add($"ActiveSingle {row.rowId} 的消耗无法解析：{error}"); continue; }
+                foreach (var cost in costs)
+                {
+                    if (!TryReadCost(cost, out var type, out int id))
+                    { issues.Add($"ActiveSingle {row.rowId} 存在无效的 CostType / CostId。"); continue; }
+                    // Item 目前仅为运行时保留类型；不在这里伪造其配置或执行能力。
+                    if (type == RefData.EnumBattleSkillCostType.Item) continue;
+                    if (document.FindRecord(CostSheet(type), id) == null)
+                        issues.Add($"ActiveSingle {row.rowId} 引用不存在的消耗 {CostSheet(type)}/{id}。");
+                }
+            }
+            foreach (var type in new[] { RefData.EnumBattleSkillCostType.Health, RefData.EnumBattleSkillCostType.Mana, RefData.EnumBattleSkillCostType.Resource })
+            {
+                var table = document.FindTable(CostSheet(type));
+                foreach (var row in (table?.records ?? new List<BattleActionTimelineRecordData>()).Where(value => value != null))
+                {
+                    ValidateNumber(table, row, "amount", issues);
+                    if (type == RefData.EnumBattleSkillCostType.Resource && BattleActionTimelineSchema.GetInt(table, row, 0, "resourceId") <= 0)
+                        issues.Add($"{table.sheetName}/{row.rowId} 的 resourceId 必须大于 0。");
+                }
+            }
+        }
+
+        private static void ValidateNumber(BattleActionTimelineTableData table, BattleActionTimelineRecordData row, string field, IList<string> issues)
+        {
+            if (BattleActionTimelineSchema.FindColumn(table, field) < 0) return;
+            string raw = BattleActionTimelineSchema.Get(table, row, field);
+            if (!IsNonNegativeFloat(string.IsNullOrWhiteSpace(raw) ? 0d : BattleActionTimelineSchema.GetDouble(table, row, double.NaN, field)))
+                issues.Add($"{table.sheetName}/{row.rowId} 的 {field} 必须是大于等于 0 的有限 float 数值。");
+        }
+    }
+
     /// <summary>重编译后只恢复源表基线，不覆盖当前文档、选择或未写回修改。</summary>
     internal static class BattleActionTimelineSourceBinding
     {
@@ -3607,6 +3788,7 @@ namespace Game.EditorTools
             }
 
             document.EnsureLists();
+            BattleActionTimelineSkillSettings.Validate(document, issues);
             foreach (BattleActionTimelineTableData table in document.tables)
             {
                 if (table == null || string.IsNullOrWhiteSpace(table.sheetName))
