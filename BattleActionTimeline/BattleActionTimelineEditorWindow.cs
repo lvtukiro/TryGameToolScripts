@@ -137,9 +137,9 @@ namespace Game.EditorTools
         private Vector2 inspectorScroll;
         private Vector2 issueScroll;
         private Vector2 skillSettingsScroll;
-        [SerializeField] private bool showSkillSettings = true;
-        [SerializeField] private float skillSettingsWidth = 320f;
-        private float SkillSettingsReservedWidth => showSkillSettings ? skillSettingsWidth + SplitterWidth : 0f;
+        // 技能本体数值暂不在动作时间轴编辑器中编辑；技能接入仍使用独立映射工具。
+        private const float SkillSettingsReservedWidth = 0f;
+        private float skillSettingsWidth = 320f;
         private string status = "尚未读取正式动作源表。";
         private bool draftRestored;
         private bool draftSaveQueued;
@@ -321,10 +321,6 @@ namespace Game.EditorTools
             }
             authoringState.previewZoom = Mathf.Clamp(authoringState.previewZoom, 0.5f, 3f);
 
-            skillSettingsWidth = Mathf.Clamp(
-                BattleActionTimelineTime.IsFinite(skillSettingsWidth) ? skillSettingsWidth : 320f,
-                MinimumSkillSettingsWidth,
-                Mathf.Max(MinimumSkillSettingsWidth, position.width - MinimumInspectorWidth - MinimumTimelineWidth - SplitterWidth * 2f));
             float maximumInspectorWidth = Mathf.Max(
                 MinimumInspectorWidth,
                 position.width - MinimumTimelineWidth - SplitterWidth - SkillSettingsReservedWidth);
@@ -440,15 +436,6 @@ namespace Game.EditorTools
                 SplitterWidth,
                 body.height);
             DrawInspectorSplitter(splitter);
-            if (showSkillSettings)
-            {
-                Rect skillSplitter = new Rect(body.xMax - skillSettingsWidth - SplitterWidth,
-                    body.y, SplitterWidth, body.height);
-                DrawSkillSettingsSplitter(skillSplitter);
-                GUILayout.BeginArea(new Rect(body.xMax - skillSettingsWidth, body.y, skillSettingsWidth, body.height));
-                DrawSkillSettingsArea();
-                GUILayout.EndArea();
-            }
         }
 
         private void DrawInspectorSplitter(Rect splitter)
@@ -536,7 +523,6 @@ namespace Game.EditorTools
             }
 
             GUILayout.Space(8f);
-            showSkillSettings = GUILayout.Toggle(showSkillSettings, "技能数值", EditorStyles.toolbarButton, GUILayout.Width(66f));
             if (GUILayout.Button("撤销", EditorStyles.toolbarButton, GUILayout.Width(44f)))
             {
                 QueueUndoRedo(false);

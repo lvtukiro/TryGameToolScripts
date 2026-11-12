@@ -910,6 +910,7 @@ namespace Game.EditorTools
             }
 
             if (normalized == "battlecharacteraction" ||
+                normalized == "sequenceframeactionresource" ||
                 normalized == "battleskillmultiequipment" ||
                 normalized == "battleactivemultiskill" ||
                 normalized == "battlerobot" ||

@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using UnityEditor;
@@ -90,6 +91,7 @@ namespace Game.EditorTools.SpriteSheetAnimation
             EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
             if (GUILayout.Button("选择原图", EditorStyles.toolbarButton, GUILayout.Width(75))) ChooseSource();
             if (GUILayout.Button("读取切割方案", EditorStyles.toolbarButton, GUILayout.Width(100))) LoadRecipe();
+            if (GUILayout.Button("读取动画 Clip", EditorStyles.toolbarButton, GUILayout.Width(100))) LoadAnimationClip();
             using (new EditorGUI.DisabledScope(sourcePixels == null))
                 if (GUILayout.Button("保存切割方案", EditorStyles.toolbarButton, GUILayout.Width(100))) SaveRecipe();
             GUILayout.FlexibleSpace();
@@ -219,6 +221,13 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 if (GUILayout.Button("导出 PNG 和动作清单")) Run(() => Export(false));
                 if (GUILayout.Button("导出并生成正式序列帧 Clip")) Run(() => Export(true));
             }
+            using (new EditorGUI.DisabledScope(
+                sourcePixels == null || IncludedCount() == 0 ||
+                document == null || document.actionId <= 0))
+                if (GUILayout.Button("导出 Clip 并添加到资源相关表"))
+                    Run(ExportAndAddSequenceFrameActionResource);
+            using (new EditorGUI.DisabledScope(document == null || document.actionId <= 0))
+                if (GUILayout.Button("添加到资源相关表")) Run(AddSequenceFrameActionResource);
             if (GUILayout.Button("从动作清单生成角色预制体…")) SequenceFrameAnimationPrefabBuilder.CreatePrefabInteractive();
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
@@ -910,6 +919,160 @@ namespace Game.EditorTools.SpriteSheetAnimation
             });
         }
 
+        /// <summary>
+        /// 从已经导出的 SequenceFrameClip 定位同动作的新版切割方案，再恢复原图和裁框。
+        /// Clip 本身只保存 Sprite 引用，不保存原图裁框，因此优先读取导出时生成的
+        /// .slices.json；如果方案或原图已被移走，会明确提示用户重新定位，避免静默套错图片。
+        /// </summary>
+        private void LoadAnimationClip()
+        {
+            string initialDirectory = Path.GetFullPath(Path.Combine(
+                Application.dataPath,
+                "Resources/TryGameBuildRes/clip_sprite/sequence_animation"));
+            if (!Directory.Exists(initialDirectory)) initialDirectory = Application.dataPath;
+            string path = EditorUtility.OpenFilePanel(
+                "读取已导出的序列帧 Clip",
+                initialDirectory,
+                "asset");
+            if (string.IsNullOrWhiteSpace(path) || !ConfirmDiscard()) return;
+
+            Run(() =>
+            {
+                if (!TryAssetPath(path, out string assetPath))
+                    throw new ArgumentException("请选择当前项目 Assets 内的 SequenceFrameClip 资源。\n" + path);
+
+                SequenceFrameClip clip = AssetDatabase.LoadAssetAtPath<SequenceFrameClip>(assetPath);
+                if (clip == null)
+                    throw new ArgumentException("所选资源不是有效的 SequenceFrameClip：" + assetPath);
+                if (!clip.TryValidate(out string clipError))
+                    throw new InvalidDataException("Clip 校验失败：" + clipError);
+
+                string recipePath = FindSliceRecipeForClip(clip);
+                if (string.IsNullOrWhiteSpace(recipePath))
+                    throw new InvalidDataException(
+                        "找不到动作 ID " + clip.ActionId + " 对应的 .slices.json 切割方案。\n" +
+                        "请确认该 Clip 是由帧图切割工具导出的，并且同目录下的切割方案没有被删除。\n" +
+                        "只有 Clip 不能反向恢复原图中的裁框。 ");
+
+                string json = File.ReadAllText(recipePath);
+                RecipeHeader header = JsonUtility.FromJson<RecipeHeader>(json);
+                if (header == null || header.formatVersion != 2)
+                    throw new InvalidDataException("Clip 对应的切割方案不是新版 formatVersion=2：" + recipePath);
+                SpriteSheetAnimationDocument loaded =
+                    JsonUtility.FromJson<SpriteSheetAnimationDocument>(json);
+                if (loaded == null || loaded.frames == null ||
+                    loaded.frames.Count > SpriteSheetSlicing.MaximumFrames ||
+                    string.IsNullOrWhiteSpace(loaded.sourceSha256) ||
+                    !Enum.IsDefined(typeof(SpriteSheetSliceMode), loaded.sliceMode))
+                    throw new InvalidDataException("Clip 对应的切割方案数据不完整：" + recipePath);
+                if (loaded.actionId != clip.ActionId)
+                    throw new InvalidDataException(
+                        "Clip 与切割方案的动作 ID 不一致：Clip=" + clip.ActionId +
+                        "，方案=" + loaded.actionId + "。 ");
+
+                // Clip 是最终导出结果；读取时以 Clip 的播放参数为准，避免方案文件
+                // 在导出后被手工修改导致重新导出时参数悄悄回退。
+                loaded.frameRate = clip.FrameRate;
+                loaded.loop = clip.Loop;
+                loaded.defaultFacingLeft = clip.DefaultFacingLeft;
+                if (clip.CanvasWidth > 0) loaded.canvasWidth = clip.CanvasWidth;
+                if (clip.CanvasHeight > 0) loaded.canvasHeight = clip.CanvasHeight;
+                if (loaded.alignAnchors && loaded.canvasWidth > 0 && loaded.canvasHeight > 0)
+                {
+                    loaded.targetAnchorX = Mathf.Clamp(
+                        Mathf.RoundToInt(clip.PivotNormalized.x * loaded.canvasWidth),
+                        0, loaded.canvasWidth);
+                    loaded.targetAnchorY = Mathf.Clamp(
+                        Mathf.RoundToInt((1f - clip.PivotNormalized.y) * loaded.canvasHeight),
+                        0, loaded.canvasHeight);
+                }
+
+                string source = loaded.sourceImagePath;
+                if (!File.Exists(source))
+                {
+                    source = EditorUtility.OpenFilePanel(
+                        "原图已移动，请重新定位同一张原图",
+                        Path.GetDirectoryName(recipePath),
+                        "png,jpg,jpeg");
+                    if (string.IsNullOrWhiteSpace(source)) return;
+                }
+
+                SpriteSheetAnimationDocument before = document;
+                document = loaded;
+                try
+                {
+                    LoadSource(source, true);
+                }
+                catch
+                {
+                    document = before;
+                    throw;
+                }
+
+                selectedIndex = loaded.frames.Count > 0 ? 0 : -1;
+                bool upgradedOutputFolder = loaded.UpgradeLegacyOutputFolder();
+                dirty = upgradedOutputFolder;
+                showDraft = loaded.frames.Count == 0;
+                playing = false;
+                playbackIndex = 0;
+                previewDirty = true;
+                SetStatus(
+                    "已读取动画 Clip：动作 " + clip.ActionId +
+                    "。已恢复原图、裁框和播放参数，可以直接修改后重新导出。" +
+                    (upgradedOutputFolder ? "已纠正旧版序列帧输出目录，请保存切割方案。" : ""));
+            });
+        }
+
+        private static string FindSliceRecipeForClip(SequenceFrameClip clip)
+        {
+            var candidateDirectories = new List<string>();
+            Sprite first = clip.GetFrame(0);
+            if (first != null)
+            {
+                string frameAssetPath = AssetDatabase.GetAssetPath(first);
+                if (!string.IsNullOrWhiteSpace(frameAssetPath))
+                {
+                    string frameAbsolute = Path.GetFullPath(Path.Combine(
+                        Application.dataPath, "..", frameAssetPath));
+                    string directory = Path.GetDirectoryName(frameAbsolute);
+                    if (!string.IsNullOrWhiteSpace(directory)) candidateDirectories.Add(directory);
+                }
+            }
+
+            for (int directoryIndex = 0; directoryIndex < candidateDirectories.Count; directoryIndex++)
+            {
+                string directory = candidateDirectories[directoryIndex];
+                if (!Directory.Exists(directory)) continue;
+                foreach (string recipe in Directory.EnumerateFiles(
+                    directory, "*.slices.json", SearchOption.TopDirectoryOnly))
+                    if (RecipeMatchesAction(recipe, clip.ActionId)) return recipe;
+            }
+
+            string assetsRoot = Path.GetFullPath(Application.dataPath);
+            if (!Directory.Exists(assetsRoot)) return string.Empty;
+            foreach (string recipe in Directory.EnumerateFiles(
+                assetsRoot, "*.slices.json", SearchOption.AllDirectories))
+                if (RecipeMatchesAction(recipe, clip.ActionId)) return recipe;
+            return string.Empty;
+        }
+
+        private static bool RecipeMatchesAction(string path, int actionId)
+        {
+            try
+            {
+                string json = File.ReadAllText(path);
+                RecipeHeader header = JsonUtility.FromJson<RecipeHeader>(json);
+                if (header == null || header.formatVersion != 2) return false;
+                SpriteSheetAnimationDocument recipe =
+                    JsonUtility.FromJson<SpriteSheetAnimationDocument>(json);
+                return recipe != null && recipe.actionId == actionId;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void ChooseOutputFolder()
         {
             string path = EditorUtility.OpenFolderPanel("选择 Assets 内序列帧输出目录", Application.dataPath, "");
@@ -952,7 +1115,7 @@ namespace Game.EditorTools.SpriteSheetAnimation
         /// 重导出不删除 PNG 的 meta，不销毁旧 Clip，避免破坏已经存在的 GUID 引用。
         /// 不清空输出文件夹，也不删除目录内不属于本次导出的其它资源。
         /// </summary>
-        private void Export(bool generateClip)
+        private bool Export(bool generateClip)
         {
             if (sourcePixels == null || IncludedCount() == 0) throw new ArgumentException("请选择原图并启用至少一帧。");
             var frames = document.frames.FindAll(frame => frame != null && frame.included);
@@ -996,7 +1159,7 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 throw new ArgumentException("Clip 目标路径已经被其它资源占用，无法覆盖。");
             if ((Directory.Exists(absoluteFolder) && Directory.GetFileSystemEntries(absoluteFolder).Length > 0) || existingClip != null)
                 if (!EditorUtility.DisplayDialog("确认导出", "将更新同名帧图和清单" + (existingClip != null ? "，并更新现有 Clip（保留 GUID）" : "")
-                    + "。不会清空目录或删除其它文件。\n" + folder, "继续", "取消")) return;
+                    + "。不会清空目录或删除其它文件。\n" + folder, "继续", "取消")) return false;
             for (int i = 0; i < frames.Count; i++)
                 if (string.Equals(Path.Combine(absoluteFolder, "frame_" + i.ToString("D4") + ".png"), document.sourceImagePath, StringComparison.OrdinalIgnoreCase))
                     throw new ArgumentException("输出会覆盖原图，请换一个输出目录或导出名称。");
@@ -1045,6 +1208,101 @@ namespace Game.EditorTools.SpriteSheetAnimation
                 foreach (string file in Directory.GetFiles(stage)) File.Delete(file);
                 Directory.Delete(stage, false);
             }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 一次完成正式 Clip 导出和 SequenceFrameActionResource 登记。
+        /// 只有 Clip 实际导出成功后才写资源相关表；用户取消确认时不会产生孤立登记。
+        /// </summary>
+        private void ExportAndAddSequenceFrameActionResource()
+        {
+            if (!Export(true))
+            {
+                SetStatus("已取消 Clip 导出，未添加到资源相关表。", MessageType.Info);
+                return;
+            }
+
+            AddSequenceFrameActionResource();
+            SetStatus("已完成正式 Clip 导出，并添加到资源相关表。请重新导出 z.资源相关表。", MessageType.Info);
+        }
+
+        /// <summary>
+        /// 将当前动作注册到正式资源相关表，确保运行时能按 actionId 找到资源行。
+        /// Clip 资产和 SequenceFrameActionResource 是两套独立数据，不能只生成 Clip。
+        /// </summary>
+        private void AddSequenceFrameActionResource()
+        {
+            if (document == null || document.actionId <= 0)
+                throw new ArgumentException("添加资源相关表时，动作 ID 必须大于 0。");
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+                throw new InvalidOperationException("当前 Unity 正在运行，请先停止 Play 后再写入资源相关表。");
+
+            string root = Directory.GetParent(Application.dataPath).FullName;
+            string workbookPath = Path.Combine(root, "RefDataSource", "TryGameRefdataRes", "v2", "z.资源相关表.xlsx");
+            if (!BattleActionTimelineWorkbookBridge.TryLoad(
+                    workbookPath,
+                    out BattleActionTimelineWorkbookSnapshot snapshot,
+                    out string loadError))
+                throw new InvalidDataException("读取资源相关表失败：" + loadError);
+
+            if (!snapshot.Tables.TryGetValue("SequenceFrameActionResource", out BattleActionTimelineWorkbookTable table))
+                throw new InvalidDataException("资源相关表缺少 SequenceFrameActionResource 工作表。");
+
+            if (table.TryGet(document.actionId, out BattleActionTimelineWorkbookRecord existing))
+            {
+                string rule = CellByHeader(table, existing.Cells, "ruleId");
+                string resource = CellByHeader(table, existing.Cells, "res");
+                string expected = "{\"MainId\":" + document.actionId.ToString(CultureInfo.InvariantCulture) + ",\"SubId\":1}";
+                if (rule == "10" && string.Equals(NormalizeInlineJson(resource), NormalizeInlineJson(expected), StringComparison.Ordinal))
+                {
+                    SetStatus("资源相关表已存在动作 ID：" + document.actionId);
+                    return;
+                }
+
+                throw new InvalidDataException(
+                    "资源相关表已存在动作 ID " + document.actionId +
+                    "，但 ruleId 或 res 内容不一致；未覆盖原记录。");
+            }
+
+            string[] cells = new string[table.Headers.Length];
+            for (int index = 0; index < cells.Length; index++) cells[index] = string.Empty;
+            SetCellByHeader(table.Headers, cells, "id", document.actionId.ToString(CultureInfo.InvariantCulture));
+            SetCellByHeader(table.Headers, cells, "ruleId", "10");
+            SetCellByHeader(table.Headers, cells, "res",
+                "{\"MainId\":" + document.actionId.ToString(CultureInfo.InvariantCulture) + ",\"SubId\":1}");
+
+            BattleActionTimelineWorkbookWriteSet writeSet = new BattleActionTimelineWorkbookWriteSet();
+            writeSet.Replacements.Add(new BattleActionTimelineRecordKey(table.Name, document.actionId), cells);
+            if (!BattleActionTimelineWorkbookBridge.TryWrite(snapshot, writeSet, out string writeError))
+                throw new InvalidDataException("写入资源相关表失败：" + writeError);
+
+            SetStatus("已将动作 ID " + document.actionId + " 添加到 SequenceFrameActionResource；请重新导出 z.资源相关表。");
+            Debug.Log("[SpriteSheetSlicer] " + status);
+        }
+
+        private static string CellByHeader(BattleActionTimelineWorkbookTable table, IReadOnlyList<string> cells, string header)
+        {
+            for (int index = 0; table?.Headers != null && index < table.Headers.Length && index < (cells?.Count ?? 0); index++)
+                if (string.Equals(table.Headers[index], header, StringComparison.OrdinalIgnoreCase)) return cells[index] ?? string.Empty;
+            return string.Empty;
+        }
+
+        private static void SetCellByHeader(IReadOnlyList<string> headers, IList<string> cells, string header, string value)
+        {
+            for (int index = 0; index < headers.Count && index < cells.Count; index++)
+                if (string.Equals(headers[index], header, StringComparison.OrdinalIgnoreCase))
+                {
+                    cells[index] = value ?? string.Empty;
+                    return;
+                }
+            throw new InvalidDataException("资源相关表缺少字段：" + header);
+        }
+
+        private static string NormalizeInlineJson(string value)
+        {
+            return (value ?? string.Empty).Replace(" ", string.Empty);
         }
 
         private static void ConfigureImporter(string path, Vector2 pivot, Vector2Int size)
